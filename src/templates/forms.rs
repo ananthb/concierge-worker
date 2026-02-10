@@ -85,6 +85,11 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str, channels: 
             --border-light: #eee;
             --primary: #0070f3;
             --code-bg: #e9ecef;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+            --warning-border: #ffc107;
+            --danger-text: #dc3545;
+            --danger-border: #dc3545;
         }}
         @media (prefers-color-scheme: dark) {{
             :root {{
@@ -97,6 +102,11 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str, channels: 
                 --border-light: #3a3a3a;
                 --primary: #3b9eff;
                 --code-bg: #3a3a3a;
+                --warning-bg: #3a351e;
+                --warning-text: #f5d56f;
+                --warning-border: #7a6a20;
+                --danger-text: #f5a5a5;
+                --danger-border: #dc3545;
             }}
         }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 1rem; background: var(--bg); color: var(--text); line-height: 1.5; }}
@@ -124,6 +134,9 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str, channels: 
         .color-input input[type="text"] {{ flex: 1; }}
         code {{ background: var(--code-bg); padding: 0.2rem 0.4rem; border-radius: 3px; }}
         small, .text-muted {{ color: var(--text-muted); }}
+        .warning {{ background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-text); }}
+        .danger {{ border-color: var(--danger-border); }}
+        .danger h3 {{ color: var(--danger-text); }}
         .tabs {{ display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
         .tab {{ padding: 0.5rem 1rem; background: var(--bg-muted); border-radius: 4px; cursor: pointer; border: none; font-size: 1rem; font-family: inherit; text-decoration: none; color: var(--text); }}
         .tab.active {{ background: var(--primary); color: white; }}
@@ -616,16 +629,16 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
             "Save Changes"
         },
         archived_notice = if form.archived {
-            r#"<div class="card" style="background: #fff3cd; border-color: #ffc107; margin-bottom: 1rem;">
-                <p style="margin: 0; color: #856404;"><strong>This form is archived.</strong> It is read-only. Unarchive from the dashboard to make changes.</p>
+            r#"<div class="card warning" style="margin-bottom: 1rem;">
+                <p style="margin: 0;"><strong>This form is archived.</strong> It is read-only. Unarchive from the dashboard to make changes.</p>
             </div>"#
         } else {
             ""
         },
         danger_zone = if !is_new && !form.archived {
-            r#"<div class="card" style="border-color: #dc3545;">
-                <h3 style="color: #dc3545;">Danger Zone</h3>
-                <p style="margin-bottom: 1rem; color: #666;">Permanently delete this form and all its submissions.</p>
+            r#"<div class="card danger">
+                <h3>Danger Zone</h3>
+                <p class="text-muted" style="margin-bottom: 1rem;">Permanently delete this form and all its submissions.</p>
                 <button type="button" class="btn btn-danger" onclick="deleteForm()">Delete Form</button>
             </div>"#.to_string()
         } else {

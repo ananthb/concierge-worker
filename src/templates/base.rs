@@ -179,6 +179,8 @@ pub fn base_html(title: &str, content: &str, style: &CalendarStyle) -> String {
             --warning-bg: {hash}fff3cd;
             --warning-text: {hash}856404;
             --warning-border: {hash}ffc107;
+            --danger-text: {hash}dc3545;
+            --danger-border: {hash}dc3545;
             --code-bg: {hash}e9ecef;
         }}
         @media (prefers-color-scheme: dark) {{
@@ -197,6 +199,8 @@ pub fn base_html(title: &str, content: &str, style: &CalendarStyle) -> String {
                 --warning-bg: {hash}3a351e;
                 --warning-text: {hash}f5d56f;
                 --warning-border: {hash}7a6a20;
+                --danger-text: {hash}f5a5a5;
+                --danger-border: {hash}dc3545;
                 --code-bg: {hash}3a3a3a;
             }}
         }}
@@ -306,6 +310,17 @@ pub fn base_html(title: &str, content: &str, style: &CalendarStyle) -> String {
         }}
         small, .text-muted {{
             color: var(--text-muted);
+        }}
+        .warning {{
+            background: var(--warning-bg);
+            border-color: var(--warning-border);
+            color: var(--warning-text);
+        }}
+        .danger {{
+            border-color: var(--danger-border);
+        }}
+        .danger h2, .danger h3 {{
+            color: var(--danger-text);
         }}
         .url-cell {{
             display: flex;
