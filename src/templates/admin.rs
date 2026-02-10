@@ -1,0 +1,732 @@
+//! Admin dashboard and calendar management templates
+
+use std::collections::HashMap;
+
+use crate::helpers::*;
+use crate::types::*;
+
+use super::base::{base_html, timezone_options};
+use super::HASH;
+
+pub fn admin_dashboard_html(
+    forms: &[FormConfig],
+    calendars: &[CalendarConfig],
+    response_counts: &HashMap<String, i64>,
+    base_url: &str,
+) -> String {
+    // Forms section
+    let form_rows: String = forms
+        .iter()
+        .map(|f| {
+            let count = response_counts.get(&f.slug).unwrap_or(&0);
+            format!(
+                "<tr>
+                    <td><a href=\"{base_url}/admin/forms/{slug}\">{name}</a></td>
+                    <td><code>/f/{slug}</code></td>
+                    <td>{count}</td>
+                    <td>
+                        <button onclick=\"copyLink('/f/{slug}', this)\" class=\"btn btn-sm btn-secondary\">Copy</button>
+                        <a href=\"{base_url}/admin/forms/{slug}/responses\" class=\"btn btn-sm btn-secondary\">Responses</a>
+                        <a href=\"{base_url}/admin/forms/{slug}\" class=\"btn btn-sm\">Edit</a>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                name = html_escape(&f.name),
+                slug = html_escape(&f.slug),
+                count = count
+            )
+        })
+        .collect();
+
+    // Calendars section
+    let calendar_rows: String = calendars
+        .iter()
+        .map(|cal| {
+            format!(
+                "<tr>
+                    <td><a href=\"{base_url}/admin/calendars/{id}\">{name}</a></td>
+                    <td>{booking_count} booking links</td>
+                    <td>{view_count} view links</td>
+                    <td>{updated}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/calendars/{id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{id}\"
+                                hx-confirm=\"Delete this calendar?\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                id = html_escape(&cal.id),
+                name = html_escape(&cal.name),
+                booking_count = cal.booking_links.len(),
+                view_count = cal.view_links.len(),
+                updated = html_escape(&cal.updated_at.split('T').next().unwrap_or("")),
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<h1 style=\"display: flex; align-items: center; gap: 0.5rem;\">
+            <img src=\"/logo.svg\" alt=\"\" style=\"width: 32px; height: 32px;\">
+            Concierge Admin
+        </h1>
+
+        <h2 style=\"margin-top: 2rem;\">Forms</h2>
+        <p style=\"margin: 1rem 0;\">
+            <a href=\"{base_url}/admin/forms/new\" class=\"btn\">+ Create Form</a>
+        </p>
+        <table id=\"form-list\">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>URL</th>
+                    <th>Responses</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {form_rows}
+            </tbody>
+        </table>
+
+        <h2 style=\"margin-top: 2rem;\">Calendars</h2>
+        <p style=\"margin: 1rem 0;\">
+            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars\" hx-target=\"{hash}calendar-list tbody\" hx-swap=\"beforeend\">
+                + New Calendar
+            </button>
+        </p>
+        <table id=\"calendar-list\">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Booking Links</th>
+                    <th>View Links</th>
+                    <th>Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {calendar_rows}
+            </tbody>
+        </table>
+        <script>
+        function copyLink(path, btn) {{
+            const url = window.location.origin + path;
+            navigator.clipboard.writeText(url).then(() => {{
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#28a745';
+                setTimeout(() => {{
+                    btn.textContent = orig;
+                    btn.style.background = '';
+                }}, 1500);
+            }});
+        }}
+        </script>",
+        base_url = base_url,
+        form_rows = if form_rows.is_empty() {
+            "<tr><td colspan=\"4\" style=\"text-align:center;color:#666;\">No forms yet.</td></tr>".to_string()
+        } else {
+            form_rows
+        },
+        calendar_rows = if calendar_rows.is_empty() {
+            "<tr><td colspan=\"5\" style=\"text-align:center;color:#666;\">No calendars yet.</td></tr>".to_string()
+        } else {
+            calendar_rows
+        },
+        hash = HASH,
+    );
+
+    base_html("Concierge Admin", &content, &CalendarStyle::default())
+}
+
+pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String {
+    let booking_links_html: String = calendar
+        .booking_links
+        .iter()
+        .map(|link| {
+            let url = format!("{}/book/{}/{}", base_url, calendar.id, link.slug);
+            format!(
+                "<tr>
+                    <td>{name}</td>
+                    <td><div class=\"url-cell\"><code>{url}</code><button class=\"btn btn-copy\" onclick=\"copyUrl(this, '{url}')\">Copy</button></div></td>
+                    <td>{duration} min</td>
+                    <td>{status}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                link_id = html_escape(&link.id),
+                url = html_escape(&url),
+                name = html_escape(&link.name),
+                duration = link.duration,
+                status = if link.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    let view_links_html: String = calendar
+        .view_links
+        .iter()
+        .map(|link| {
+            let url = format!("{}/view/{}/{}", base_url, calendar.id, link.slug);
+            format!(
+                "<tr>
+                    <td>{name}</td>
+                    <td><div class=\"url-cell\"><code>{url}</code><button class=\"btn btn-copy\" onclick=\"copyUrl(this, '{url}')\">Copy</button></div></td>
+                    <td>{view_type:?}</td>
+                    <td>{status}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/calendars/{cal_id}/view/{link_id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/view/{link_id}\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                link_id = html_escape(&link.id),
+                url = html_escape(&url),
+                name = html_escape(&link.name),
+                view_type = link.view_type,
+                status = if link.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    let feed_links_html: String = calendar
+        .feed_links
+        .iter()
+        .map(|link| {
+            let url = format!("{}/feed/{}/{}?token={}", base_url, calendar.id, link.slug, link.token);
+            format!(
+                "<tr>
+                    <td>{name}</td>
+                    <td><div class=\"url-cell\"><code>{url}</code><button class=\"btn btn-copy\" onclick=\"copyUrl(this, '{url}')\">Copy</button></div></td>
+                    <td>{status}</td>
+                    <td>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/feed/{link_id}\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                link_id = html_escape(&link.id),
+                url = html_escape(&url),
+                name = html_escape(&link.name),
+                status = if link.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    let instagram_sources_html: String = calendar
+        .instagram_sources
+        .iter()
+        .map(|source| {
+            let last_synced = source
+                .last_synced_at
+                .as_ref()
+                .map(|s| s.split('T').next().unwrap_or("Never"))
+                .unwrap_or("Never");
+            format!(
+                "<tr>
+                    <td>@{username}</td>
+                    <td>{last_synced}</td>
+                    <td>{status}</td>
+                    <td>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/instagram/disconnect/{cal_id}/{source_id}\"
+                                hx-confirm=\"Disconnect this Instagram account?\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Disconnect</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                source_id = html_escape(&source.id),
+                username = html_escape(&source.instagram_username),
+                last_synced = last_synced,
+                status = if source.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin\">&larr; Back to Calendars</a></p>
+        <h1>{name}</h1>
+
+        <div class=\"card\">
+            <h2>Calendar Settings</h2>
+            <form hx-put=\"{base_url}/admin/calendars/{id}\" hx-swap=\"none\">
+                <div class=\"form-group\">
+                    <label>Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Description</label>
+                    <textarea name=\"description\" rows=\"2\">{description}</textarea>
+                </div>
+                <div class=\"form-group\">
+                    <label>Timezone</label>
+                    <select name=\"timezone\">
+                        {timezone_options}
+                    </select>
+                </div>
+                <div class=\"form-group\">
+                    <label>Allowed Domains (for embedding)</label>
+                    <textarea name=\"allowed_origins\" rows=\"3\" placeholder=\"https://example.com&#10;https://another-site.com&#10;(leave empty to allow all)\">{allowed_origins}</textarea>
+                    <small style=\"color: #666;\">One domain per line. Leave empty to allow embedding from any domain.</small>
+                </div>
+                <div class=\"form-group\">
+                    <label>Custom CSS</label>
+                    <textarea name=\"custom_css\" rows=\"5\" style=\"font-family: monospace; font-size: 0.9rem;\" placeholder=\"/* Custom styles */&#10;.booking-container {{ max-width: 500px; }}&#10;.btn {{ text-transform: uppercase; }}\">{custom_css}</textarea>
+                    <small style=\"color: #666;\">Available CSS variables: <code>--cal-primary</code>, <code>--cal-text</code>, <code>--cal-bg</code>, <code>--cal-border-radius</code>, <code>--cal-font</code></small>
+                </div>
+                <button type=\"submit\" class=\"btn\">Save Settings</button>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Events</h2>
+            <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Manage Events</a></p>
+        </div>
+
+        <div class=\"card\">
+            <h2>Time Slots</h2>
+            <p><a href=\"{base_url}/admin/calendars/{id}/slots\" class=\"btn\">Configure Available Slots</a></p>
+        </div>
+
+        <div class=\"card\">
+            <h2>Booking Links</h2>
+            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/booking\"
+                    hx-target=\"{hash}booking-links tbody\" hx-swap=\"beforeend\">+ Add Booking Link</button>
+            <table id=\"booking-links\" style=\"margin-top: 1rem;\">
+                <thead><tr><th>Name</th><th>URL</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{booking_links_html}</tbody>
+            </table>
+        </div>
+
+        <div class=\"card\">
+            <h2>View Links</h2>
+            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/view\"
+                    hx-target=\"{hash}view-links tbody\" hx-swap=\"beforeend\">+ Add View Link</button>
+            <table id=\"view-links\" style=\"margin-top: 1rem;\">
+                <thead><tr><th>Name</th><th>URL</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{view_links_html}</tbody>
+            </table>
+        </div>
+
+        <div class=\"card\">
+            <h2>Feed Links (iCal)</h2>
+            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/feed\"
+                    hx-target=\"{hash}feed-links tbody\" hx-swap=\"beforeend\">+ Add Feed Link</button>
+            <table id=\"feed-links\" style=\"margin-top: 1rem;\">
+                <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{feed_links_html}</tbody>
+            </table>
+        </div>
+
+        <div class=\"card\">
+            <h2>Bookings</h2>
+            <p><a href=\"{base_url}/admin/calendars/{id}/bookings\" class=\"btn\">View All Bookings</a></p>
+        </div>
+
+        <div class=\"card\">
+            <h2>Instagram Sources</h2>
+            <p style=\"margin-bottom: 1rem; color: #666;\">Connect Instagram accounts to automatically import events from posts.</p>
+            <a href=\"{base_url}/instagram/auth/{id}\" class=\"btn\">Connect Instagram Account</a>
+            <table id=\"instagram-sources\" style=\"margin-top: 1rem;\">
+                <thead><tr><th>Account</th><th>Last Synced</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{instagram_sources_html}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        name = html_escape(&calendar.name),
+        description = html_escape(calendar.description.as_deref().unwrap_or("")),
+        timezone_options = timezone_options(&calendar.timezone),
+        allowed_origins = html_escape(&calendar.allowed_origins.join("\n")),
+        custom_css = html_escape(&calendar.style.custom_css),
+        booking_links_html = booking_links_html,
+        view_links_html = view_links_html,
+        feed_links_html = feed_links_html,
+        instagram_sources_html = instagram_sources_html,
+        hash = HASH,
+    );
+
+    base_html(&format!("Edit: {}", calendar.name), &content, &calendar.style)
+}
+
+pub fn admin_events_html(calendar: &CalendarConfig, events: &[CalendarEvent], base_url: &str) -> String {
+    let event_rows: String = events
+        .iter()
+        .map(|event| {
+            format!(
+                "<tr>
+                    <td>{title}</td>
+                    <td>{start}</td>
+                    <td>{end}</td>
+                    <td>
+                        <button class=\"btn btn-sm\"
+                                hx-get=\"{base_url}/admin/calendars/{cal_id}/events/{event_id}/edit\"
+                                hx-target=\"{hash}event-form\"
+                                hx-swap=\"innerHTML\">Edit</button>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/events/{event_id}\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                event_id = html_escape(&event.id),
+                title = html_escape(&event.title),
+                start = html_escape(&event.start_time),
+                end = html_escape(&event.end_time),
+                hash = HASH,
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{id}\">&larr; Back to {name}</a></p>
+        <h1>Events: {name}</h1>
+
+        <div class=\"card\" id=\"event-form\">
+            <h2>Add Event</h2>
+            <form hx-post=\"{base_url}/admin/calendars/{id}/events\" hx-target=\"{hash}event-list tbody\" hx-swap=\"beforeend\" hx-on::after-request=\"this.reset()\">
+                <div class=\"form-group\">
+                    <label>Title</label>
+                    <input type=\"text\" name=\"title\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Start</label>
+                    <input type=\"datetime-local\" name=\"start_time\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>End</label>
+                    <input type=\"datetime-local\" name=\"end_time\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Description</label>
+                    <textarea name=\"description\" rows=\"2\"></textarea>
+                </div>
+                <button type=\"submit\" class=\"btn\">Add Event</button>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Upcoming Events</h2>
+            <table id=\"event-list\">
+                <thead><tr><th>Title</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+                <tbody>{event_rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        name = html_escape(&calendar.name),
+        event_rows = event_rows,
+        hash = HASH,
+    );
+
+    base_html(&format!("Events: {}", calendar.name), &content, &calendar.style)
+}
+
+pub fn admin_slots_html(calendar: &CalendarConfig, slots: &[TimeSlot], base_url: &str) -> String {
+    let slot_rows: String = slots
+        .iter()
+        .map(|slot| {
+            let day_display = slot
+                .day_of_week
+                .map(|d| day_name(d as u32).to_string())
+                .or_else(|| slot.specific_date.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+            format!(
+                "<tr>
+                    <td>{day}</td>
+                    <td>{start} - {end}</td>
+                    <td>{duration} min</td>
+                    <td>{max}</td>
+                    <td>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/slots/{slot_id}\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                slot_id = html_escape(&slot.id),
+                day = html_escape(&day_display),
+                start = html_escape(&slot.start_time),
+                end = html_escape(&slot.end_time),
+                duration = slot.slot_duration,
+                max = slot.max_bookings,
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{id}\">&larr; Back to {name}</a></p>
+        <h1>Time Slots: {name}</h1>
+
+        <div class=\"card\">
+            <h2>Add Recurring Slot</h2>
+            <form hx-post=\"{base_url}/admin/calendars/{id}/slots\" hx-target=\"{hash}slot-list tbody\" hx-swap=\"beforeend\" hx-on::after-request=\"this.reset()\">
+                <div class=\"form-group\">
+                    <label>Day of Week</label>
+                    <select name=\"day_of_week\">
+                        <option value=\"1\">Monday</option>
+                        <option value=\"2\">Tuesday</option>
+                        <option value=\"3\">Wednesday</option>
+                        <option value=\"4\">Thursday</option>
+                        <option value=\"5\">Friday</option>
+                        <option value=\"6\">Saturday</option>
+                        <option value=\"0\">Sunday</option>
+                    </select>
+                </div>
+                <div class=\"form-group\">
+                    <label>Start Time</label>
+                    <input type=\"time\" name=\"start_time\" value=\"09:00\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>End Time</label>
+                    <input type=\"time\" name=\"end_time\" value=\"17:00\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Slot Duration (minutes)</label>
+                    <input type=\"number\" name=\"slot_duration\" value=\"30\" min=\"5\" max=\"480\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Max Bookings per Slot</label>
+                    <input type=\"number\" name=\"max_bookings\" value=\"1\" min=\"1\" required>
+                </div>
+                <button type=\"submit\" class=\"btn\">Add Slot</button>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Configured Slots</h2>
+            <table id=\"slot-list\">
+                <thead><tr><th>Day</th><th>Time Range</th><th>Slot Duration</th><th>Max Bookings</th><th>Actions</th></tr></thead>
+                <tbody>{slot_rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        name = html_escape(&calendar.name),
+        slot_rows = slot_rows,
+        hash = HASH,
+    );
+
+    base_html(&format!("Slots: {}", calendar.name), &content, &calendar.style)
+}
+
+pub fn admin_bookings_html(calendar: &CalendarConfig, bookings: &[Booking], base_url: &str) -> String {
+    let booking_rows: String = bookings
+        .iter()
+        .map(|booking| {
+            format!(
+                "<tr>
+                    <td>{date}</td>
+                    <td>{time}</td>
+                    <td>{name}</td>
+                    <td>{email}</td>
+                    <td>{status:?}</td>
+                    <td>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-post=\"{base_url}/admin/calendars/{cal_id}/bookings/{booking_id}/cancel\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Cancel</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                cal_id = html_escape(&calendar.id),
+                booking_id = html_escape(&booking.id),
+                date = html_escape(&booking.slot_date),
+                time = html_escape(&booking.slot_time),
+                name = html_escape(&booking.name),
+                email = html_escape(&booking.email),
+                status = booking.status,
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{id}\">&larr; Back to {name}</a></p>
+        <h1>Bookings: {name}</h1>
+
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Date</th><th>Time</th><th>Name</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{booking_rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        name = html_escape(&calendar.name),
+        booking_rows = booking_rows,
+    );
+
+    base_html(&format!("Bookings: {}", calendar.name), &content, &calendar.style)
+}
+
+pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, base_url: &str) -> String {
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{cal_id}\">&larr; Back to {cal_name}</a></p>
+        <h1>Edit Booking Link: {name}</h1>
+
+        <div class=\"card\">
+            <p><strong>URL:</strong> <code>{base_url}/book/{cal_id}/{slug}</code></p>
+        </div>
+
+        <div class=\"card\">
+            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" hx-swap=\"none\">
+                <div class=\"form-group\">
+                    <label>Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Description</label>
+                    <textarea name=\"description\" rows=\"2\">{description}</textarea>
+                </div>
+                <div class=\"form-group\">
+                    <label>Duration (minutes)</label>
+                    <input type=\"number\" name=\"duration\" value=\"{duration}\" min=\"5\" max=\"480\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Minimum Notice (hours)</label>
+                    <input type=\"number\" name=\"min_notice\" value=\"{min_notice}\" min=\"0\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Maximum Advance Booking (days)</label>
+                    <input type=\"number\" name=\"max_advance\" value=\"{max_advance}\" min=\"1\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Confirmation Message</label>
+                    <textarea name=\"confirmation_message\" rows=\"2\">{confirmation}</textarea>
+                </div>
+
+                <h3 style=\"margin-top: 1.5rem; margin-bottom: 1rem;\">Approval Settings</h3>
+                <div class=\"form-group\">
+                    <label style=\"display: flex; align-items: center; gap: 0.5rem; cursor: pointer;\">
+                        <input type=\"checkbox\" name=\"auto_accept\" {auto_accept_checked} style=\"width: auto;\" onchange=\"document.getElementById('admin-email-group').style.display = this.checked ? 'none' : 'block'\">
+                        Auto-accept bookings
+                    </label>
+                    <small style=\"color: #666;\">When unchecked, bookings require manual approval</small>
+                </div>
+                <div class=\"form-group\" id=\"admin-email-group\" style=\"{admin_email_display}\">
+                    <label>Admin Email for Approval Notifications</label>
+                    <input type=\"email\" name=\"admin_email\" value=\"{admin_email}\">
+                    <small style=\"color: #666;\">Receives approval requests when auto-accept is disabled</small>
+                </div>
+
+                <div class=\"form-group\">
+                    <label style=\"display: flex; align-items: center; gap: 0.5rem; cursor: pointer;\">
+                        <input type=\"checkbox\" name=\"enabled\" {enabled_checked} style=\"width: auto;\">
+                        Enabled
+                    </label>
+                </div>
+                <button type=\"submit\" class=\"btn\">Save Changes</button>
+            </form>
+        </div>",
+        base_url = base_url,
+        cal_id = html_escape(&calendar.id),
+        cal_name = html_escape(&calendar.name),
+        link_id = html_escape(&link.id),
+        slug = html_escape(&link.slug),
+        name = html_escape(&link.name),
+        description = html_escape(link.description.as_deref().unwrap_or("")),
+        duration = link.duration,
+        min_notice = link.min_notice,
+        max_advance = link.max_advance,
+        confirmation = html_escape(&link.confirmation_message),
+        auto_accept_checked = if link.auto_accept { "checked" } else { "" },
+        admin_email = html_escape(link.admin_email.as_deref().unwrap_or("")),
+        admin_email_display = if link.auto_accept { "display: none;" } else { "" },
+        enabled_checked = if link.enabled { "checked" } else { "" },
+    );
+
+    base_html(&format!("Edit: {}", link.name), &content, &calendar.style)
+}
+
+pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url: &str) -> String {
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{cal_id}\">&larr; Back to {cal_name}</a></p>
+        <h1>Edit View Link: {name}</h1>
+
+        <div class=\"card\">
+            <p><strong>URL:</strong> <code>{base_url}/view/{cal_id}/{slug}</code></p>
+        </div>
+
+        <div class=\"card\">
+            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/view/{link_id}\" hx-swap=\"none\">
+                <div class=\"form-group\">
+                    <label>Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>View Type</label>
+                    <select name=\"view_type\">
+                        <option value=\"week\" {week_sel}>Week</option>
+                        <option value=\"month\" {month_sel}>Month</option>
+                        <option value=\"year\" {year_sel}>Year</option>
+                        <option value=\"endless\" {endless_sel}>Endless</option>
+                    </select>
+                </div>
+                <div class=\"form-group\">
+                    <label>
+                        <input type=\"checkbox\" name=\"show_events\" {events_checked}>
+                        Show Events
+                    </label>
+                </div>
+                <div class=\"form-group\">
+                    <label>
+                        <input type=\"checkbox\" name=\"show_bookings\" {bookings_checked}>
+                        Show Bookings
+                    </label>
+                </div>
+                <div class=\"form-group\">
+                    <label>
+                        <input type=\"checkbox\" name=\"show_details\" {details_checked}>
+                        Show Details (vs busy/free only)
+                    </label>
+                </div>
+                <div class=\"form-group\">
+                    <label>
+                        <input type=\"checkbox\" name=\"enabled\" {enabled_checked}>
+                        Enabled
+                    </label>
+                </div>
+                <button type=\"submit\" class=\"btn\">Save Changes</button>
+            </form>
+        </div>",
+        base_url = base_url,
+        cal_id = html_escape(&calendar.id),
+        cal_name = html_escape(&calendar.name),
+        link_id = html_escape(&link.id),
+        slug = html_escape(&link.slug),
+        name = html_escape(&link.name),
+        week_sel = if matches!(link.view_type, ViewType::Week) { "selected" } else { "" },
+        month_sel = if matches!(link.view_type, ViewType::Month) { "selected" } else { "" },
+        year_sel = if matches!(link.view_type, ViewType::Year) { "selected" } else { "" },
+        endless_sel = if matches!(link.view_type, ViewType::Endless) { "selected" } else { "" },
+        events_checked = if link.show_events { "checked" } else { "" },
+        bookings_checked = if link.show_bookings { "checked" } else { "" },
+        details_checked = if link.show_details { "checked" } else { "" },
+        enabled_checked = if link.enabled { "checked" } else { "" },
+    );
+
+    base_html(&format!("Edit: {}", link.name), &content, &calendar.style)
+}
