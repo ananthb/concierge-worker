@@ -49,18 +49,17 @@ pub async fn handle_form_routes(
     let self_origin = req.url()?.origin().ascii_serialization();
     let is_same_origin = origin.as_ref().map(|o| o == &self_origin).unwrap_or(false);
 
-    if method != Method::Get && !is_same_origin
-        && !form.allowed_origins.is_empty() {
-            match &origin {
-                Some(o) if !is_origin_allowed(o, &form.allowed_origins) => {
-                    return Response::error("Origin not allowed", 403);
-                }
-                None => {
-                    return Response::error("Origin header required", 403);
-                }
-                _ => {}
+    if method != Method::Get && !is_same_origin && !form.allowed_origins.is_empty() {
+        match &origin {
+            Some(o) if !is_origin_allowed(o, &form.allowed_origins) => {
+                return Response::error("Origin not allowed", 403);
             }
+            None => {
+                return Response::error("Origin header required", 403);
+            }
+            _ => {}
         }
+    }
 
     let is_htmx = is_htmx_request(&req);
     let url = req.url()?;
@@ -131,13 +130,15 @@ async fn handle_form_submit(
                     .map(|r| r.with_status(400));
                 }
 
-                if matches!(field.field_type, FieldType::Email) && !value.is_empty()
-                    && (!value.contains('@') || !value.contains('.')) {
-                        return Response::from_html(form_error_html(
-                            "Please enter a valid email address",
-                        ))
-                        .map(|r| r.with_status(400));
-                    }
+                if matches!(field.field_type, FieldType::Email)
+                    && !value.is_empty()
+                    && (!value.contains('@') || !value.contains('.'))
+                {
+                    return Response::from_html(form_error_html(
+                        "Please enter a valid email address",
+                    ))
+                    .map(|r| r.with_status(400));
+                }
 
                 if matches!(field.field_type, FieldType::Mobile) && !value.is_empty() {
                     let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();

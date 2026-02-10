@@ -380,7 +380,6 @@ pub struct CssOptions<'a> {
     pub css_url: Option<&'a str>,
 }
 
-
 /// Available responder channels based on configured secrets
 #[derive(Default)]
 pub struct AvailableChannels {

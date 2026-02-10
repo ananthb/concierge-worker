@@ -5,7 +5,11 @@ use crate::types::*;
 
 use super::base::AvailableChannels;
 
-pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str, channels: &AvailableChannels) -> String {
+pub fn form_editor_html(
+    form: Option<&FormConfig>,
+    admin_email: &str,
+    channels: &AvailableChannels,
+) -> String {
     let is_new = form.is_none();
     let form = form.cloned().unwrap_or_else(|| FormConfig {
         slug: generate_slug(),
@@ -47,12 +51,20 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str, channels: 
         channel_options.push(("resend_email", "Resend Email"));
     }
     let has_channels = !channel_options.is_empty();
-    let default_channel = channel_options.first().map(|(c, _)| *c).unwrap_or("resend_email");
+    let default_channel = channel_options
+        .first()
+        .map(|(c, _)| *c)
+        .unwrap_or("resend_email");
 
     // Build JS channel options
     let js_channel_options: String = channel_options
         .iter()
-        .map(|(value, label)| format!("<option value=\"{}\" ${{r.channel==='{}'?'selected':''}}>{}</option>", value, value, label))
+        .map(|(value, label)| {
+            format!(
+                "<option value=\"{}\" ${{r.channel==='{}'?'selected':''}}>{}</option>",
+                value, value, label
+            )
+        })
         .collect::<Vec<_>>()
         .join("\\n                            ");
 

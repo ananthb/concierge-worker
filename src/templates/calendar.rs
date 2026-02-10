@@ -77,10 +77,50 @@ pub fn calendar_view_html(
 
     // Render the appropriate view based on view_type
     let view_content = match view_type {
-        ViewType::Week => render_week_view(calendar, link, events, bookings, current_date, base_url, &css_query, view_str, &view_selector),
-        ViewType::Month => render_month_view(calendar, link, events, bookings, current_date, base_url, &css_query, view_str, &view_selector),
-        ViewType::Year => render_year_view(calendar, link, events, bookings, current_date, base_url, &css_query, view_str, &view_selector),
-        ViewType::Endless => render_list_view(calendar, link, events, bookings, current_date, base_url, &css_query, view_str, &view_selector),
+        ViewType::Week => render_week_view(
+            calendar,
+            link,
+            events,
+            bookings,
+            current_date,
+            base_url,
+            &css_query,
+            view_str,
+            &view_selector,
+        ),
+        ViewType::Month => render_month_view(
+            calendar,
+            link,
+            events,
+            bookings,
+            current_date,
+            base_url,
+            &css_query,
+            view_str,
+            &view_selector,
+        ),
+        ViewType::Year => render_year_view(
+            calendar,
+            link,
+            events,
+            bookings,
+            current_date,
+            base_url,
+            &css_query,
+            view_str,
+            &view_selector,
+        ),
+        ViewType::Endless => render_list_view(
+            calendar,
+            link,
+            events,
+            bookings,
+            current_date,
+            base_url,
+            &css_query,
+            view_str,
+            &view_selector,
+        ),
     };
 
     let content = format!("{}{}", title_html, view_content);
@@ -108,7 +148,10 @@ fn render_week_view(
         let (_, _, day_num) = parse_date(&day).unwrap_or((0, 0, 0));
         let dow = day_of_week(&day).unwrap_or(0);
 
-        let day_events: Vec<_> = events.iter().filter(|e| e.start_time.starts_with(&day)).collect();
+        let day_events: Vec<_> = events
+            .iter()
+            .filter(|e| e.start_time.starts_with(&day))
+            .collect();
         let day_bookings: Vec<_> = bookings.iter().filter(|b| b.slot_date == day).collect();
 
         let events_html = render_day_items(link, &day_events, &day_bookings, true);
@@ -189,14 +232,21 @@ fn render_month_view(
         for _ in 0..7 {
             let (_, cur_month, cur_day) = parse_date(&current).unwrap_or((0, 0, 0));
             let is_current_month = cur_month == month;
-            let day_events: Vec<_> = events.iter().filter(|e| e.start_time.starts_with(&current)).collect();
+            let day_events: Vec<_> = events
+                .iter()
+                .filter(|e| e.start_time.starts_with(&current))
+                .collect();
             let day_bookings: Vec<_> = bookings.iter().filter(|b| b.slot_date == current).collect();
 
             let events_display = render_day_items(link, &day_events, &day_bookings, false);
 
             week_html.push_str(&format!(
                 "<td class=\"{class}\"><div class=\"day-number\">{day}</div>{events}</td>",
-                class = if is_current_month { "current-month" } else { "other-month" },
+                class = if is_current_month {
+                    "current-month"
+                } else {
+                    "other-month"
+                },
                 day = cur_day,
                 events = events_display,
             ));
@@ -279,8 +329,10 @@ fn render_year_view(
                 let (_, cur_month, cur_day) = parse_date(&current).unwrap_or((0, 0, 0));
                 let is_current_month = cur_month == m;
 
-                let has_event = link.show_events && events.iter().any(|e| e.start_time.starts_with(&current));
-                let has_booking = link.show_bookings && bookings.iter().any(|b| b.slot_date == current);
+                let has_event =
+                    link.show_events && events.iter().any(|e| e.start_time.starts_with(&current));
+                let has_booking =
+                    link.show_bookings && bookings.iter().any(|b| b.slot_date == current);
 
                 let class = if !is_current_month {
                     "other"
@@ -290,7 +342,15 @@ fn render_year_view(
                     ""
                 };
 
-                week.push_str(&format!("<td class=\"{class}\">{day}</td>", class = class, day = if is_current_month { cur_day.to_string() } else { String::new() }));
+                week.push_str(&format!(
+                    "<td class=\"{class}\">{day}</td>",
+                    class = class,
+                    day = if is_current_month {
+                        cur_day.to_string()
+                    } else {
+                        String::new()
+                    }
+                ));
                 current = add_days(&current, 1);
             }
             week.push_str("</tr>");
@@ -370,13 +430,19 @@ fn render_list_view(
 
     if link.show_events {
         for event in events {
-            if event.start_time >= month_start && event.start_time <= format!("{}T23:59:59", month_end) {
+            if event.start_time >= month_start
+                && event.start_time <= format!("{}T23:59:59", month_end)
+            {
                 let time = event.start_time.get(11..16).unwrap_or("").to_string();
                 let html = if link.show_event_details {
                     format!(
                         "<div class=\"list-item event\"><strong>{}</strong>{}</div>",
                         html_escape(&event.title),
-                        event.description.as_ref().map(|d| format!("<br><small>{}</small>", html_escape(d))).unwrap_or_default()
+                        event
+                            .description
+                            .as_ref()
+                            .map(|d| format!("<br><small>{}</small>", html_escape(d)))
+                            .unwrap_or_default()
                     )
                 } else {
                     "<div class=\"list-item event\">Event</div>".to_string()
@@ -396,7 +462,10 @@ fn render_list_view(
                         html_escape(&booking.name)
                     )
                 } else {
-                    format!("<div class=\"list-item booking\">{} - Booking</div>", format_time(&booking.slot_time))
+                    format!(
+                        "<div class=\"list-item booking\">{} - Booking</div>",
+                        format_time(&booking.slot_time)
+                    )
                 };
                 items.push((booking.slot_date.clone(), booking.slot_time.clone(), html));
             }
@@ -417,7 +486,10 @@ fn render_list_view(
             let dow = day_of_week(date).unwrap_or(0);
             list_html.push_str(&format!(
                 "<div class=\"list-date\"><h3>{}, {} {}, {}</h3>",
-                day_name(dow), month_name(m), d, y
+                day_name(dow),
+                month_name(m),
+                d,
+                y
             ));
             last_date = date.clone();
         }
@@ -428,7 +500,9 @@ fn render_list_view(
     }
 
     if list_html.is_empty() {
-        list_html = "<p style=\"text-align: center; color: #666;\">No events or bookings this month.</p>".to_string();
+        list_html =
+            "<p style=\"text-align: center; color: #666;\">No events or bookings this month.</p>"
+                .to_string();
     }
 
     let prev_month = add_days(&month_start, -1);
@@ -470,26 +544,46 @@ fn render_list_view(
     )
 }
 
-fn render_day_items(link: &ViewLink, events: &[&CalendarEvent], bookings: &[&Booking], detailed: bool) -> String {
+fn render_day_items(
+    link: &ViewLink,
+    events: &[&CalendarEvent],
+    bookings: &[&Booking],
+    detailed: bool,
+) -> String {
     let mut html = String::new();
 
     if link.show_events {
         if link.show_event_details || detailed {
             for e in events {
-                html.push_str(&format!("<div class=\"event\">{}</div>", html_escape(&e.title)));
+                html.push_str(&format!(
+                    "<div class=\"event\">{}</div>",
+                    html_escape(&e.title)
+                ));
             }
         } else if !events.is_empty() {
-            html.push_str(&format!("<div class=\"busy\">{} event{}</div>", events.len(), if events.len() == 1 { "" } else { "s" }));
+            html.push_str(&format!(
+                "<div class=\"busy\">{} event{}</div>",
+                events.len(),
+                if events.len() == 1 { "" } else { "s" }
+            ));
         }
     }
 
     if link.show_bookings {
         if link.show_booking_details || detailed {
             for b in bookings {
-                html.push_str(&format!("<div class=\"booking\">{} - {}</div>", format_time(&b.slot_time), html_escape(&b.name)));
+                html.push_str(&format!(
+                    "<div class=\"booking\">{} - {}</div>",
+                    format_time(&b.slot_time),
+                    html_escape(&b.name)
+                ));
             }
         } else if !bookings.is_empty() {
-            html.push_str(&format!("<div class=\"busy\">{} booking{}</div>", bookings.len(), if bookings.len() == 1 { "" } else { "s" }));
+            html.push_str(&format!(
+                "<div class=\"busy\">{} booking{}</div>",
+                bookings.len(),
+                if bookings.len() == 1 { "" } else { "s" }
+            ));
         }
     }
 
