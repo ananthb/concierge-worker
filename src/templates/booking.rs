@@ -334,6 +334,31 @@ pub fn approval_success_html(calendar: &CalendarConfig, booking: &Booking, css: 
     wrap_html(&content, "Booking Approved", &calendar.style, css, is_htmx)
 }
 
+/// Display denial success page
+pub fn denial_success_html(calendar: &CalendarConfig, booking: &Booking, css: &CssOptions, is_htmx: bool) -> String {
+    let content = format!(
+        "<div class=\"success\" id=\"booking-container\" style=\"--cal-primary: #dc3545;\">
+            <h1>Booking Denied</h1>
+            <p>The booking has been denied and the customer has been notified.</p>
+            <div class=\"card\" style=\"margin-top: 1rem;\">
+                <h2>Booking Details</h2>
+                <p><strong>Name:</strong> {name}</p>
+                <p><strong>Email:</strong> {email}</p>
+                <p><strong>Date:</strong> {date}</p>
+                <p><strong>Time:</strong> {time}</p>
+                <p><strong>Duration:</strong> {duration} minutes</p>
+            </div>
+        </div>",
+        name = html_escape(&booking.name),
+        email = html_escape(&booking.email),
+        date = html_escape(&booking.slot_date),
+        time = format_time(&booking.slot_time),
+        duration = booking.duration,
+    );
+
+    wrap_html(&content, "Booking Denied", &calendar.style, css, is_htmx)
+}
+
 /// Display approval error page
 pub fn approval_error_html(calendar: &CalendarConfig, message: &str, css: &CssOptions, is_htmx: bool) -> String {
     let content = format!(
