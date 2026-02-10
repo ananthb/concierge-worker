@@ -551,7 +551,6 @@ pub struct InstagramMedia {
 // WhatsApp Types
 // ============================================================================
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct WhatsAppWebhook {
     pub object: String,
@@ -559,7 +558,6 @@ pub struct WhatsAppWebhook {
     pub entry: Vec<WebhookEntry>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct WebhookEntry {
     pub id: String,
@@ -573,7 +571,6 @@ pub struct WebhookChange {
     pub value: WebhookValue,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct WebhookValue {
     pub messaging_product: String,
@@ -584,7 +581,6 @@ pub struct WebhookValue {
     pub messages: Vec<WhatsAppMessage>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct WebhookMetadata {
     pub display_phone_number: String,
@@ -618,7 +614,6 @@ pub struct TextMessage {
     pub body: String,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     pub from: String,

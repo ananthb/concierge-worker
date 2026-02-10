@@ -310,21 +310,6 @@ pub fn day_name(day: u32) -> &'static str {
     }
 }
 
-/// Get short day name
-#[allow(dead_code)]
-pub fn day_name_short(day: u32) -> &'static str {
-    match day {
-        0 => "Sun",
-        1 => "Mon",
-        2 => "Tue",
-        3 => "Wed",
-        4 => "Thu",
-        5 => "Fri",
-        6 => "Sat",
-        _ => "?",
-    }
-}
-
 /// Add CORS headers to a response
 pub fn add_cors_headers(
     mut response: Response,

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use worker::*;
 
 use crate::types::ExtractedEvent;
@@ -15,12 +15,6 @@ struct AiRequest {
 struct Message {
     role: String,
     content: String,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
-struct AiResponse {
-    response: Option<String>,
 }
 
 // ============================================================================

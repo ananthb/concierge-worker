@@ -264,24 +264,6 @@ pub async fn get_events(
     Ok(events)
 }
 
-#[allow(dead_code)]
-pub async fn get_event(db: &D1Database, id: &str) -> Result<Option<CalendarEvent>> {
-    let stmt = db.prepare(
-        "SELECT id, calendar_id, title, description, start_time, end_time,
-                all_day, recurrence_rule, created_at, updated_at
-         FROM events WHERE id = ?",
-    );
-
-    let results = stmt.bind(&[id.into()])?.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    if let Some(row) = rows.into_iter().next() {
-        Ok(serde_json::from_value(row).ok())
-    } else {
-        Ok(None)
-    }
-}
-
 pub async fn save_event(db: &D1Database, event: &CalendarEvent) -> Result<()> {
     let stmt = db.prepare(
         "INSERT OR REPLACE INTO events
@@ -412,25 +394,6 @@ pub async fn get_booking(db: &D1Database, id: &str) -> Result<Option<Booking>> {
     );
 
     let results = stmt.bind(&[id.into()])?.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    if let Some(row) = rows.into_iter().next() {
-        Ok(serde_json::from_value(row).ok())
-    } else {
-        Ok(None)
-    }
-}
-
-#[allow(dead_code)]
-pub async fn get_booking_by_token(db: &D1Database, token: &str) -> Result<Option<Booking>> {
-    let stmt = db.prepare(
-        "SELECT id, calendar_id, booking_link_id, slot_date, slot_time, duration,
-                name, email, phone, notes, fields_data, status, confirmation_token,
-                created_at, updated_at
-         FROM bookings WHERE confirmation_token = ?",
-    );
-
-    let results = stmt.bind(&[token.into()])?.all().await?;
     let rows = results.results::<serde_json::Value>()?;
 
     if let Some(row) = rows.into_iter().next() {
@@ -604,70 +567,6 @@ pub async fn save_instagram_post(db: &D1Database, post: &ProcessedPost) -> Resul
 // ============================================================================
 // D1 Operations (Event Sources)
 // ============================================================================
-
-#[allow(dead_code)]
-pub async fn get_event_source_by_event_id(
-    db: &D1Database,
-    event_id: &str,
-) -> Result<Option<EventSource>> {
-    let stmt = db.prepare(
-        "SELECT id, event_id, contact_id, source_type, source_id, external_id, created_at
-         FROM event_sources WHERE event_id = ?",
-    );
-
-    let results = stmt.bind(&[event_id.into()])?.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    if let Some(row) = rows.into_iter().next() {
-        Ok(serde_json::from_value(row).ok())
-    } else {
-        Ok(None)
-    }
-}
-
-#[allow(dead_code)]
-pub async fn get_event_source_by_contact_id(
-    db: &D1Database,
-    contact_id: i64,
-) -> Result<Option<EventSource>> {
-    let stmt = db.prepare(
-        "SELECT id, event_id, contact_id, source_type, source_id, external_id, created_at
-         FROM event_sources WHERE contact_id = ?",
-    );
-
-    let results = stmt.bind(&[contact_id.into()])?.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    if let Some(row) = rows.into_iter().next() {
-        Ok(serde_json::from_value(row).ok())
-    } else {
-        Ok(None)
-    }
-}
-
-#[allow(dead_code)]
-pub async fn get_event_source_by_external_id(
-    db: &D1Database,
-    source_type: &str,
-    external_id: &str,
-) -> Result<Option<EventSource>> {
-    let stmt = db.prepare(
-        "SELECT id, event_id, contact_id, source_type, source_id, external_id, created_at
-         FROM event_sources WHERE source_type = ? AND external_id = ?",
-    );
-
-    let results = stmt
-        .bind(&[source_type.into(), external_id.into()])?
-        .all()
-        .await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    if let Some(row) = rows.into_iter().next() {
-        Ok(serde_json::from_value(row).ok())
-    } else {
-        Ok(None)
-    }
-}
 
 pub async fn save_event_source(db: &D1Database, source: &EventSource) -> Result<()> {
     let stmt = db.prepare(
