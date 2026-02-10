@@ -852,7 +852,7 @@ async fn handle_calendars_admin(
                 booking.updated_at = now_iso();
                 save_booking(&db, &booking).await?;
             }
-            Response::from_html(r#"<tr><td colspan="6">Booking cancelled</td></tr>"#.to_string())
+            Response::from_html(r#"<tr><td colspan="6">Booking cancelled</td></tr>"#)
         }
 
         _ => Response::error("Not Found", 404),

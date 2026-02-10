@@ -729,7 +729,7 @@ async fn process_form_instagram_post(
 // ============================================================================
 
 async fn get_instagram_token(
-    env: &Env,
+    _env: &Env,
     kv: &kv::KvStore,
     owner_id: &str,
     source_id: &str,

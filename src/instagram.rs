@@ -222,7 +222,7 @@ pub async fn exchange_code_for_token(
     init.with_method(Method::Post);
     init.with_body(Some(JsValue::from_str(&body)));
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("Content-Type", "application/x-www-form-urlencoded")?;
     init.with_headers(headers);
 
