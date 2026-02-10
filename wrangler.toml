@@ -1,0 +1,95 @@
+name = "concierge-worker"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-01"
+
+# ============================================================================
+# WARNING: You MUST replace the IDs below with your own!
+# ============================================================================
+
+# Your Cloudflare Account ID
+account_id = "59b9363d35105560f2df047c995be5a2"  # <-- CHANGE THIS
+
+[build]
+command = "cargo install worker-build && worker-build --release"
+
+# ============================================================================
+# D1 Database for forms, calendars, events, bookings
+# Run: wrangler d1 create concierge-worker
+# ============================================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "concierge-worker"
+database_id = "YOUR_DATABASE_ID"  # <-- CHANGE THIS
+
+# ============================================================================
+# KV Namespaces for configs
+# Run: wrangler kv namespace create FORMS_KV
+# Run: wrangler kv namespace create CALENDARS_KV
+# ============================================================================
+[[kv_namespaces]]
+binding = "FORMS_KV"
+id = "YOUR_FORMS_KV_ID"  # <-- CHANGE THIS
+
+[[kv_namespaces]]
+binding = "CALENDARS_KV"
+id = "YOUR_CALENDARS_KV_ID"  # <-- CHANGE THIS
+
+# ============================================================================
+# R2 Bucket for file uploads
+# Run: wrangler r2 bucket create concierge-uploads
+# ============================================================================
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "concierge-uploads"
+
+# ============================================================================
+# AI Binding for responders and event extraction
+# ============================================================================
+[ai]
+binding = "AI"
+
+[vars]
+ENVIRONMENT = "production"
+
+# ============================================================================
+# Cron triggers
+# - Hourly: Instagram sync, booking reminders
+# - Daily at 8AM UTC: Form digests
+# ============================================================================
+[triggers]
+crons = ["0 * * * *", "0 8 * * *"]
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+# ============================================================================
+# Required Secrets (set via wrangler secret put <NAME>)
+# ============================================================================
+#
+# Twilio (SMS, RCS, WhatsApp):
+#   TWILIO_SID              - Twilio Account SID
+#   TWILIO_TOKEN            - Twilio Auth Token
+#   TWILIO_FROM_SMS         - Phone number for SMS/RCS (e.g., "+15551234567")
+#   TWILIO_FROM_WHATSAPP    - WhatsApp sender (e.g., "whatsapp:+15551234567")
+#
+# Twilio Email (via SendGrid):
+#   SENDGRID_API_KEY        - SendGrid API key
+#   TWILIO_FROM_EMAIL       - Sender email address
+#
+# Resend Email:
+#   RESEND_API_KEY          - Resend API key
+#   RESEND_FROM             - Sender email address
+#
+# Meta WhatsApp Business API:
+#   WHATSAPP_ACCESS_TOKEN   - Meta Graph API access token
+#   WHATSAPP_PHONE_NUMBER_ID - WhatsApp Business phone number ID
+#   WHATSAPP_VERIFY_TOKEN   - Webhook verification token
+#
+# Instagram Basic Display API:
+#   INSTAGRAM_APP_ID        - Instagram app ID
+#   INSTAGRAM_APP_SECRET    - Instagram app secret
+#   ENCRYPTION_KEY          - 32-byte hex key for AES-256-GCM token encryption
+#
+# Google Sheets Integration:
+#   GOOGLE_SERVICE_ACCOUNT_JSON - Service account credentials JSON
