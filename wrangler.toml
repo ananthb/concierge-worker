@@ -14,33 +14,29 @@ command = "cargo install worker-build && worker-build --release"
 
 # ============================================================================
 # D1 Database for forms, calendars, events, bookings
-# Run: wrangler d1 create concierge-worker
 # ============================================================================
 [[d1_databases]]
 binding = "DB"
 database_name = "concierge-worker"
-database_id = "YOUR_DATABASE_ID"  # <-- CHANGE THIS
+database_id = "04a696ab-a250-4db0-b104-5d29af015808"
 
 # ============================================================================
 # KV Namespaces for configs
-# Run: wrangler kv namespace create FORMS_KV
-# Run: wrangler kv namespace create CALENDARS_KV
 # ============================================================================
 [[kv_namespaces]]
 binding = "FORMS_KV"
-id = "YOUR_FORMS_KV_ID"  # <-- CHANGE THIS
+id = "2949a3fb471c4fc6bef2990d53bf870a"
 
 [[kv_namespaces]]
 binding = "CALENDARS_KV"
-id = "YOUR_CALENDARS_KV_ID"  # <-- CHANGE THIS
+id = "2949a3fb471c4fc6bef2990d53bf870a"
 
 # ============================================================================
 # R2 Bucket for file uploads
-# Run: wrangler r2 bucket create concierge-uploads
 # ============================================================================
 [[r2_buckets]]
 binding = "UPLOADS"
-bucket_name = "concierge-uploads"
+bucket_name = "concierge-worker-uploads"
 
 # ============================================================================
 # AI Binding for responders and event extraction

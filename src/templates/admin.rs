@@ -263,94 +263,127 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
         .collect();
 
     let content = format!(
-        "<p><a href=\"{base_url}/admin\">&larr; Back to Calendars</a></p>
+        "<style>
+            .tabs {{ display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+            .tab {{ padding: 0.5rem 1rem; background: #e9ecef; border-radius: 4px; cursor: pointer; border: none; font-size: 1rem; }}
+            .tab.active {{ background: #0070f3; color: white; }}
+            .tab-content {{ display: none; }}
+            .tab-content.active {{ display: block; }}
+        </style>
+
+        <p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
         <h1>{name}</h1>
 
-        <div class=\"card\">
-            <h2>Calendar Settings</h2>
-            <form hx-put=\"{base_url}/admin/calendars/{id}\" hx-swap=\"none\">
-                <div class=\"form-group\">
-                    <label>Name</label>
-                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
-                </div>
-                <div class=\"form-group\">
-                    <label>Description</label>
-                    <textarea name=\"description\" rows=\"2\">{description}</textarea>
-                </div>
-                <div class=\"form-group\">
-                    <label>Timezone</label>
-                    <select name=\"timezone\">
-                        {timezone_options}
-                    </select>
-                </div>
-                <div class=\"form-group\">
-                    <label>Allowed Domains (for embedding)</label>
-                    <textarea name=\"allowed_origins\" rows=\"3\" placeholder=\"https://example.com&#10;https://another-site.com&#10;(leave empty to allow all)\">{allowed_origins}</textarea>
-                    <small style=\"color: #666;\">One domain per line. Leave empty to allow embedding from any domain.</small>
-                </div>
-                <div class=\"form-group\">
-                    <label>Custom CSS</label>
-                    <textarea name=\"custom_css\" rows=\"5\" style=\"font-family: monospace; font-size: 0.9rem;\" placeholder=\"/* Custom styles */&#10;.booking-container {{ max-width: 500px; }}&#10;.btn {{ text-transform: uppercase; }}\">{custom_css}</textarea>
-                    <small style=\"color: #666;\">Available CSS variables: <code>--cal-primary</code>, <code>--cal-text</code>, <code>--cal-bg</code>, <code>--cal-border-radius</code>, <code>--cal-font</code></small>
-                </div>
-                <button type=\"submit\" class=\"btn\">Save Settings</button>
-            </form>
+        <div class=\"tabs\">
+            <button class=\"tab active\" onclick=\"showTab('settings')\">Settings</button>
+            <button class=\"tab\" onclick=\"showTab('events')\">Events</button>
+            <button class=\"tab\" onclick=\"showTab('bookings')\">Bookings</button>
         </div>
 
-        <div class=\"card\">
-            <h2>Events</h2>
-            <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Manage Events</a></p>
+        <div id=\"tab-settings\" class=\"tab-content active\">
+            <div class=\"card\">
+                <h2>Calendar Settings</h2>
+                <form hx-put=\"{base_url}/admin/calendars/{id}\" hx-swap=\"none\">
+                    <div class=\"form-group\">
+                        <label>Name</label>
+                        <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                    </div>
+                    <div class=\"form-group\">
+                        <label>Description</label>
+                        <textarea name=\"description\" rows=\"2\">{description}</textarea>
+                    </div>
+                    <div class=\"form-group\">
+                        <label>Timezone</label>
+                        <select name=\"timezone\">
+                            {timezone_options}
+                        </select>
+                    </div>
+                    <div class=\"form-group\">
+                        <label>Allowed Domains (for embedding)</label>
+                        <textarea name=\"allowed_origins\" rows=\"3\" placeholder=\"https://example.com&#10;https://another-site.com&#10;(leave empty to allow all)\">{allowed_origins}</textarea>
+                        <small style=\"color: #666;\">One domain per line. Leave empty to allow embedding from any domain.</small>
+                    </div>
+                    <div class=\"form-group\">
+                        <label>Custom CSS</label>
+                        <textarea name=\"custom_css\" rows=\"5\" style=\"font-family: monospace; font-size: 0.9rem;\" placeholder=\"/* Custom styles */&#10;.booking-container {{ max-width: 500px; }}\">{custom_css}</textarea>
+                        <small style=\"color: #666;\">CSS variables: <code>--cal-primary</code>, <code>--cal-text</code>, <code>--cal-bg</code>, <code>--cal-border-radius</code>, <code>--cal-font</code></small>
+                    </div>
+                    <button type=\"submit\" class=\"btn\">Save Settings</button>
+                </form>
+            </div>
         </div>
 
-        <div class=\"card\">
-            <h2>Time Slots</h2>
-            <p><a href=\"{base_url}/admin/calendars/{id}/slots\" class=\"btn\">Configure Available Slots</a></p>
+        <div id=\"tab-events\" class=\"tab-content\">
+            <div class=\"card\">
+                <h2>Manage Events</h2>
+                <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Open Event Editor</a></p>
+            </div>
+
+            <div class=\"card\">
+                <h2>Instagram Sources</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Connect Instagram accounts to automatically import events from posts using AI.</p>
+                <a href=\"{base_url}/instagram/auth/{id}\" class=\"btn\">Connect Instagram Account</a>
+                <table id=\"instagram-sources\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Account</th><th>Last Synced</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{instagram_sources_html}</tbody>
+                </table>
+            </div>
+
+            <div class=\"card\">
+                <h2>View Links</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Public calendar views that can be embedded or shared.</p>
+                <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/view\"
+                        hx-target=\"{hash}view-links tbody\" hx-swap=\"beforeend\">+ Add View Link</button>
+                <table id=\"view-links\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Name</th><th>URL</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{view_links_html}</tbody>
+                </table>
+            </div>
+
+            <div class=\"card\">
+                <h2>Feed Links (iCal)</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Subscribe to this calendar from other apps.</p>
+                <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/feed\"
+                        hx-target=\"{hash}feed-links tbody\" hx-swap=\"beforeend\">+ Add Feed Link</button>
+                <table id=\"feed-links\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{feed_links_html}</tbody>
+                </table>
+            </div>
         </div>
 
-        <div class=\"card\">
-            <h2>Booking Links</h2>
-            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/booking\"
-                    hx-target=\"{hash}booking-links tbody\" hx-swap=\"beforeend\">+ Add Booking Link</button>
-            <table id=\"booking-links\" style=\"margin-top: 1rem;\">
-                <thead><tr><th>Name</th><th>URL</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{booking_links_html}</tbody>
-            </table>
+        <div id=\"tab-bookings\" class=\"tab-content\">
+            <div class=\"card\">
+                <h2>Time Slots</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Configure when bookings are available.</p>
+                <p><a href=\"{base_url}/admin/calendars/{id}/slots\" class=\"btn\">Configure Available Slots</a></p>
+            </div>
+
+            <div class=\"card\">
+                <h2>Booking Links</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Public booking pages that customers can use to schedule appointments.</p>
+                <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/booking\"
+                        hx-target=\"{hash}booking-links tbody\" hx-swap=\"beforeend\">+ Add Booking Link</button>
+                <table id=\"booking-links\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Name</th><th>URL</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{booking_links_html}</tbody>
+                </table>
+            </div>
+
+            <div class=\"card\">
+                <h2>All Bookings</h2>
+                <p><a href=\"{base_url}/admin/calendars/{id}/bookings\" class=\"btn\">View All Bookings</a></p>
+            </div>
         </div>
 
-        <div class=\"card\">
-            <h2>View Links</h2>
-            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/view\"
-                    hx-target=\"{hash}view-links tbody\" hx-swap=\"beforeend\">+ Add View Link</button>
-            <table id=\"view-links\" style=\"margin-top: 1rem;\">
-                <thead><tr><th>Name</th><th>URL</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{view_links_html}</tbody>
-            </table>
-        </div>
-
-        <div class=\"card\">
-            <h2>Feed Links (iCal)</h2>
-            <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/feed\"
-                    hx-target=\"{hash}feed-links tbody\" hx-swap=\"beforeend\">+ Add Feed Link</button>
-            <table id=\"feed-links\" style=\"margin-top: 1rem;\">
-                <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{feed_links_html}</tbody>
-            </table>
-        </div>
-
-        <div class=\"card\">
-            <h2>Bookings</h2>
-            <p><a href=\"{base_url}/admin/calendars/{id}/bookings\" class=\"btn\">View All Bookings</a></p>
-        </div>
-
-        <div class=\"card\">
-            <h2>Instagram Sources</h2>
-            <p style=\"margin-bottom: 1rem; color: #666;\">Connect Instagram accounts to automatically import events from posts.</p>
-            <a href=\"{base_url}/instagram/auth/{id}\" class=\"btn\">Connect Instagram Account</a>
-            <table id=\"instagram-sources\" style=\"margin-top: 1rem;\">
-                <thead><tr><th>Account</th><th>Last Synced</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{instagram_sources_html}</tbody>
-            </table>
-        </div>",
+        <script>
+            function showTab(name) {{
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.getElementById('tab-' + name).classList.add('active');
+                event.target.classList.add('active');
+            }}
+        </script>",
         base_url = base_url,
         id = html_escape(&calendar.id),
         name = html_escape(&calendar.name),
