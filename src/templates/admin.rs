@@ -102,7 +102,7 @@ pub fn admin_dashboard_html(
                 name = html_escape(&cal.name),
                 booking_count = cal.booking_links.len(),
                 view_count = cal.view_links.len(),
-                updated = html_escape(&cal.updated_at.split('T').next().unwrap_or("")),
+                updated = html_escape(cal.updated_at.split('T').next().unwrap_or("")),
             )
         })
         .collect();
@@ -130,7 +130,7 @@ pub fn admin_dashboard_html(
                 name = html_escape(&cal.name),
                 booking_count = cal.booking_links.len(),
                 view_count = cal.view_links.len(),
-                updated = html_escape(&cal.updated_at.split('T').next().unwrap_or("")),
+                updated = html_escape(cal.updated_at.split('T').next().unwrap_or("")),
             )
         })
         .collect();
@@ -828,13 +828,11 @@ pub fn admin_booking_link_html(
         .join("\\n                                ");
 
     let responders_section = if has_channels {
-        format!(
-            r#"<h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Auto-Responders</h3>
-                <p style="color: #666; margin-bottom: 1rem;">Send automatic confirmation messages when bookings are confirmed. Use {{{{{{{{name}}}}}}}}, {{{{{{{{email}}}}}}}}, {{{{{{{{date}}}}}}}}, {{{{{{{{time}}}}}}}} placeholders.</p>
+        r#"<h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Auto-Responders</h3>
+                <p style="color: #666; margin-bottom: 1rem;">Send automatic confirmation messages when bookings are confirmed. Use {{{{name}}}}, {{{{email}}}}, {{{{date}}}}, {{{{time}}}} placeholders.</p>
                 <div id="responders-list"></div>
                 <button type="button" class="btn btn-secondary" onclick="addResponder()" style="margin-bottom: 1rem;">+ Add Responder</button>
-                <input type="hidden" name="responders_json" id="responders-json">"#
-        )
+                <input type="hidden" name="responders_json" id="responders-json">"#.to_string()
     } else {
         String::from(
             r#"<input type="hidden" name="responders_json" id="responders-json" value="[]">"#,

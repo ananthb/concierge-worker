@@ -14,7 +14,7 @@ mod calendar;
 mod forms;
 
 pub use admin::*;
-pub use base::{wrap_html, AvailableChannels, CssOptions};
+pub use base::{AvailableChannels, CssOptions};
 pub use booking::*;
 pub use calendar::*;
 pub use forms::*;

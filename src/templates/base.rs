@@ -317,19 +317,12 @@ pub fn base_html(title: &str, content: &str, style: &CalendarStyle) -> String {
 }
 
 /// CSS options for public templates
+#[derive(Default)]
 pub struct CssOptions<'a> {
     pub inline_css: Option<&'a str>,
     pub css_url: Option<&'a str>,
 }
 
-impl<'a> Default for CssOptions<'a> {
-    fn default() -> Self {
-        Self {
-            inline_css: None,
-            css_url: None,
-        }
-    }
-}
 
 /// Available responder channels based on configured secrets
 #[derive(Default)]

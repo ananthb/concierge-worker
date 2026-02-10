@@ -28,17 +28,14 @@ pub enum ResponderChannel {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DigestFrequency {
+    #[default]
     None,
     Daily,
     Weekly,
 }
 
-impl Default for DigestFrequency {
-    fn default() -> Self {
-        DigestFrequency::None
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct DigestConfig {

@@ -314,9 +314,7 @@ pub fn ical_feed(
 
 fn ical_datetime(dt: &str) -> String {
     // Convert ISO to iCal format: 20240115T120000Z
-    dt.replace('-', "")
-        .replace(':', "")
-        .replace('.', "")
+    dt.replace(['-', ':', '.'], "")
         .chars()
         .take(15)
         .collect::<String>()

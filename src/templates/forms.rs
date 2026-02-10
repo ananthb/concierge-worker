@@ -556,13 +556,11 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
             ""
         },
         danger_zone = if !is_new && !form.archived {
-            format!(
-                r#"<div class="card" style="border-color: #dc3545;">
+            r#"<div class="card" style="border-color: #dc3545;">
                 <h3 style="color: #dc3545;">Danger Zone</h3>
                 <p style="margin-bottom: 1rem; color: #666;">Permanently delete this form and all its submissions.</p>
                 <button type="button" class="btn btn-danger" onclick="deleteForm()">Delete Form</button>
-            </div>"#
-            )
+            </div>"#.to_string()
         } else {
             String::new()
         }
