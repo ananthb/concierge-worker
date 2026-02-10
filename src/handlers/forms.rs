@@ -80,7 +80,13 @@ pub async fn handle_form_routes(
             let query_pairs: std::collections::HashMap<_, _> = url.query_pairs().collect();
             let inline_css = query_pairs.get("css").map(|s| s.to_string());
             let css_url = query_pairs.get("css_url").map(|s| s.to_string());
-            Response::from_html(render_form(&form, inline_css.as_deref(), css_url.as_deref(), &base_url, is_htmx))
+            Response::from_html(render_form(
+                &form,
+                inline_css.as_deref(),
+                css_url.as_deref(),
+                &base_url,
+                is_htmx,
+            ))
         }
 
         (Method::Post, "submit") => handle_form_submit(req, env, &form, &base_url).await,
@@ -115,7 +121,8 @@ async fn handle_form_submit(
     let form_data = match req.form_data().await {
         Ok(data) => data,
         Err(_) => {
-            return Response::from_html(form_error_html("Invalid form data")).map(|r| r.with_status(400));
+            return Response::from_html(form_error_html("Invalid form data"))
+                .map(|r| r.with_status(400));
         }
     };
 
@@ -195,8 +202,11 @@ async fn handle_form_submit(
             }
 
             None if field.required => {
-                return Response::from_html(form_error_html(&format!("{} is required", field.label)))
-                    .map(|r| r.with_status(400));
+                return Response::from_html(form_error_html(&format!(
+                    "{} is required",
+                    field.label
+                )))
+                .map(|r| r.with_status(400));
             }
 
             None => {}
@@ -263,7 +273,13 @@ async fn handle_form_submit(
             }
             ResponderChannel::TwilioWhatsapp => {
                 if let Ok(from) = env.secret("TWILIO_FROM_WHATSAPP") {
-                    send_twilio_message(&env, &format!("whatsapp:{}", target), &from.to_string(), &body).await
+                    send_twilio_message(
+                        &env,
+                        &format!("whatsapp:{}", target),
+                        &from.to_string(),
+                        &body,
+                    )
+                    .await
                 } else {
                     continue;
                 }
@@ -294,5 +310,9 @@ async fn handle_form_submit(
         }
     }
 
-    Response::from_html(form_success_html(&form.success_message, &form.slug, base_url))
+    Response::from_html(form_success_html(
+        &form.success_message,
+        &form.slug,
+        base_url,
+    ))
 }

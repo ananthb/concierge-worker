@@ -18,12 +18,12 @@ pub fn generate_id() -> String {
 /// Generate a URL-friendly slug
 pub fn generate_slug() -> String {
     let adjectives = [
-        "swift", "bright", "calm", "bold", "warm", "cool", "soft", "keen",
-        "quick", "light", "fresh", "clear", "smart", "sharp", "neat", "fine",
+        "swift", "bright", "calm", "bold", "warm", "cool", "soft", "keen", "quick", "light",
+        "fresh", "clear", "smart", "sharp", "neat", "fine",
     ];
     let nouns = [
-        "fox", "owl", "bear", "wolf", "hawk", "deer", "swan", "dove",
-        "lynx", "crow", "hare", "seal", "wren", "lark", "moth", "newt",
+        "fox", "owl", "bear", "wolf", "hawk", "deer", "swan", "dove", "lynx", "crow", "hare",
+        "seal", "wren", "lark", "moth", "newt",
     ];
 
     let adj_idx = (js_sys::Math::random() * adjectives.len() as f64) as usize;
@@ -95,21 +95,36 @@ pub fn url_encode(s: &str) -> String {
     result
 }
 
+/// Normalize an origin for comparison (lowercase, no trailing slash)
+fn normalize_origin(origin: &str) -> String {
+    origin.to_lowercase().trim_end_matches('/').to_string()
+}
+
 /// Check if origin is allowed
 pub fn is_origin_allowed(origin: &str, allowed_origins: &[String]) -> bool {
     if allowed_origins.is_empty() {
         return true; // Allow all if no specific origins configured
     }
-    allowed_origins.iter().any(|allowed| allowed == origin)
+    let normalized_origin = normalize_origin(origin);
+    allowed_origins
+        .iter()
+        .any(|allowed| normalize_origin(allowed) == normalized_origin)
 }
 
 /// Add CORS headers to response
-pub fn with_cors(mut response: Response, origin: Option<&str>, allowed_origins: &[String]) -> Response {
+pub fn with_cors(
+    mut response: Response,
+    origin: Option<&str>,
+    allowed_origins: &[String],
+) -> Response {
     if let Some(origin) = origin {
         if is_origin_allowed(origin, allowed_origins) {
             let headers = response.headers_mut();
             let _ = headers.set("Access-Control-Allow-Origin", origin);
-            let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            let _ = headers.set(
+                "Access-Control-Allow-Methods",
+                "GET, POST, PUT, DELETE, OPTIONS",
+            );
             let _ = headers.set(
                 "Access-Control-Allow-Headers",
                 "Content-Type, HX-Request, HX-Target, HX-Current-URL, HX-Trigger",
@@ -130,7 +145,10 @@ pub fn cors_preflight(origin: Option<&str>, allowed_origins: &[String]) -> Resul
         if is_origin_allowed(origin, allowed_origins) {
             let headers = response.headers_mut();
             let _ = headers.set("Access-Control-Allow-Origin", origin);
-            let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            let _ = headers.set(
+                "Access-Control-Allow-Methods",
+                "GET, POST, PUT, DELETE, OPTIONS",
+            );
             let _ = headers.set(
                 "Access-Control-Allow-Headers",
                 "Content-Type, HX-Request, HX-Target, HX-Current-URL, HX-Trigger",
@@ -159,7 +177,11 @@ pub fn parse_date(date: &str) -> Option<(i32, u32, u32)> {
 pub fn day_of_week(date: &str) -> Option<u32> {
     let (year, month, day) = parse_date(date)?;
     // Zeller's formula for Gregorian calendar - use i32 for all calculations
-    let m: i32 = if month < 3 { month as i32 + 12 } else { month as i32 };
+    let m: i32 = if month < 3 {
+        month as i32 + 12
+    } else {
+        month as i32
+    };
     let y: i32 = if month < 3 { year - 1 } else { year };
     let q: i32 = day as i32;
     let k: i32 = y % 100;

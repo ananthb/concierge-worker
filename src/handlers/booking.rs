@@ -11,7 +11,12 @@ use crate::templates::*;
 use crate::types::*;
 
 /// Handle public booking routes (/book/*)
-pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Method) -> Result<Response> {
+pub async fn handle_booking(
+    mut req: Request,
+    env: Env,
+    path: &str,
+    method: Method,
+) -> Result<Response> {
     let base_url = get_base_url(&req);
     let origin = get_origin(&req);
     let kv = env.kv("CALENDARS_KV")?;
@@ -40,7 +45,11 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
         None => return Response::error("Calendar not found", 404),
     };
 
-    let link = match calendar.booking_links.iter().find(|l| l.slug == slug && l.enabled) {
+    let link = match calendar
+        .booking_links
+        .iter()
+        .find(|l| l.slug == slug && l.enabled)
+    {
         Some(l) => l.clone(),
         None => return Response::error("Booking link not found", 404),
     };
@@ -57,7 +66,10 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
         inline_css: inline_css.as_deref(),
         css_url: css_url.as_deref(),
     };
-    let hide_title = query_pairs.get("notitle").map(|v| v == "1" || v == "true").unwrap_or(false);
+    let hide_title = query_pairs
+        .get("notitle")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
 
     match (method, *action) {
         (Method::Get, "") => {
@@ -102,14 +114,19 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
 
                 for slot in &slots {
                     let applies = slot.day_of_week.map(|d| d == dow).unwrap_or(false)
-                        || slot.specific_date.as_ref().map(|d| d == &current_date).unwrap_or(false);
+                        || slot
+                            .specific_date
+                            .as_ref()
+                            .map(|d| d == &current_date)
+                            .unwrap_or(false);
 
                     if !applies {
                         continue;
                     }
 
                     let mut time = slot.start_time.clone();
-                    while time_to_minutes(&time) + link.duration <= time_to_minutes(&slot.end_time) {
+                    while time_to_minutes(&time) + link.duration <= time_to_minutes(&slot.end_time)
+                    {
                         let booking_count = existing_bookings
                             .iter()
                             .filter(|b| b.slot_date == current_date && b.slot_time == time)
@@ -143,13 +160,23 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 &css_options,
                 is_htmx,
                 &view_start,
-                has_prev.then(|| if prev_date < earliest_date { earliest_date.clone() } else { prev_date }),
+                has_prev.then(|| {
+                    if prev_date < earliest_date {
+                        earliest_date.clone()
+                    } else {
+                        prev_date
+                    }
+                }),
                 has_next.then_some(next_date),
                 days_to_show,
                 hide_title,
             );
             let response = Response::from_html(html)?;
-            Ok(with_cors(response, origin.as_deref(), &calendar.allowed_origins))
+            Ok(with_cors(
+                response,
+                origin.as_deref(),
+                &calendar.allowed_origins,
+            ))
         }
 
         (Method::Post, "submit") => {
@@ -177,15 +204,20 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 .iter()
                 .filter(|s| {
                     s.day_of_week.map(|d| d == dow).unwrap_or(false)
-                        || s.specific_date.as_ref().map(|d| d == &date).unwrap_or(false)
+                        || s.specific_date
+                            .as_ref()
+                            .map(|d| d == &date)
+                            .unwrap_or(false)
                 })
                 .map(|s| s.max_bookings)
                 .max()
                 .unwrap_or(1);
 
             if slot_count >= max_bookings {
-                return Response::from_html(calendar_error_html("This slot is no longer available"))
-                    .map(|r| with_cors(r, origin.as_deref(), &calendar.allowed_origins));
+                return Response::from_html(calendar_error_html(
+                    "This slot is no longer available",
+                ))
+                .map(|r| with_cors(r, origin.as_deref(), &calendar.allowed_origins));
             }
 
             let name = match form.get("name") {
@@ -220,7 +252,10 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
 
             // Add booking info to fields_data for responders
             fields_data.insert("name".to_string(), serde_json::Value::String(name.clone()));
-            fields_data.insert("email".to_string(), serde_json::Value::String(email.clone()));
+            fields_data.insert(
+                "email".to_string(),
+                serde_json::Value::String(email.clone()),
+            );
             fields_data.insert("date".to_string(), serde_json::Value::String(date.clone()));
             fields_data.insert("time".to_string(), serde_json::Value::String(time.clone()));
 
@@ -261,7 +296,11 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 // Show confirmation
                 let html = booking_success_html(&calendar, &booking, &link, &css_options, is_htmx);
                 let response = Response::from_html(html)?;
-                Ok(with_cors(response, origin.as_deref(), &calendar.allowed_origins))
+                Ok(with_cors(
+                    response,
+                    origin.as_deref(),
+                    &calendar.allowed_origins,
+                ))
             } else {
                 // Send admin approval notification
                 send_admin_approval_notification(&env, &link, &calendar, &booking, &base_url).await;
@@ -269,7 +308,11 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 // Show "pending" message
                 let html = booking_pending_html(&calendar, &booking, &link, &css_options, is_htmx);
                 let response = Response::from_html(html)?;
-                Ok(with_cors(response, origin.as_deref(), &calendar.allowed_origins))
+                Ok(with_cors(
+                    response,
+                    origin.as_deref(),
+                    &calendar.allowed_origins,
+                ))
             }
         }
 
@@ -281,7 +324,8 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
             let mut booking = match get_booking(&db, booking_id).await? {
                 Some(b) => b,
                 None => {
-                    let html = approval_error_html(&calendar, "Booking not found", &css_options, false);
+                    let html =
+                        approval_error_html(&calendar, "Booking not found", &css_options, false);
                     return Response::from_html(html);
                 }
             };
@@ -290,7 +334,8 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
             let expected_token = booking.confirmation_token.as_deref().unwrap_or("");
             let provided_token = token.as_deref().unwrap_or("");
             if expected_token.is_empty() || expected_token != provided_token {
-                let html = approval_error_html(&calendar, "Invalid approval token", &css_options, false);
+                let html =
+                    approval_error_html(&calendar, "Invalid approval token", &css_options, false);
                 return Response::from_html(html);
             }
 
@@ -315,10 +360,22 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 Some(serde_json::Value::Object(map)) => map.clone(),
                 _ => serde_json::Map::new(),
             };
-            fields_data.insert("name".to_string(), serde_json::Value::String(booking.name.clone()));
-            fields_data.insert("email".to_string(), serde_json::Value::String(booking.email.clone()));
-            fields_data.insert("date".to_string(), serde_json::Value::String(booking.slot_date.clone()));
-            fields_data.insert("time".to_string(), serde_json::Value::String(booking.slot_time.clone()));
+            fields_data.insert(
+                "name".to_string(),
+                serde_json::Value::String(booking.name.clone()),
+            );
+            fields_data.insert(
+                "email".to_string(),
+                serde_json::Value::String(booking.email.clone()),
+            );
+            fields_data.insert(
+                "date".to_string(),
+                serde_json::Value::String(booking.slot_date.clone()),
+            );
+            fields_data.insert(
+                "time".to_string(),
+                serde_json::Value::String(booking.slot_time.clone()),
+            );
 
             // Trigger customer responders now that booking is confirmed
             trigger_customer_responders(&env, &link, &fields_data).await;
@@ -336,7 +393,8 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
             let mut booking = match get_booking(&db, booking_id).await? {
                 Some(b) => b,
                 None => {
-                    let html = approval_error_html(&calendar, "Booking not found", &css_options, false);
+                    let html =
+                        approval_error_html(&calendar, "Booking not found", &css_options, false);
                     return Response::from_html(html);
                 }
             };
@@ -370,11 +428,26 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
                 Some(serde_json::Value::Object(map)) => map.clone(),
                 _ => serde_json::Map::new(),
             };
-            fields_data.insert("name".to_string(), serde_json::Value::String(booking.name.clone()));
-            fields_data.insert("email".to_string(), serde_json::Value::String(booking.email.clone()));
-            fields_data.insert("date".to_string(), serde_json::Value::String(booking.slot_date.clone()));
-            fields_data.insert("time".to_string(), serde_json::Value::String(booking.slot_time.clone()));
-            fields_data.insert("status".to_string(), serde_json::Value::String("denied".to_string()));
+            fields_data.insert(
+                "name".to_string(),
+                serde_json::Value::String(booking.name.clone()),
+            );
+            fields_data.insert(
+                "email".to_string(),
+                serde_json::Value::String(booking.email.clone()),
+            );
+            fields_data.insert(
+                "date".to_string(),
+                serde_json::Value::String(booking.slot_date.clone()),
+            );
+            fields_data.insert(
+                "time".to_string(),
+                serde_json::Value::String(booking.slot_time.clone()),
+            );
+            fields_data.insert(
+                "status".to_string(),
+                serde_json::Value::String("denied".to_string()),
+            );
 
             // Trigger denial responders
             trigger_denial_responders(&env, &link, &fields_data).await;
@@ -481,13 +554,16 @@ async fn trigger_denial_responders(
         };
 
         // Create a denial message based on the responder type
-        let name = fields_data.get("name")
+        let name = fields_data
+            .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or("Guest");
-        let date = fields_data.get("date")
+        let date = fields_data
+            .get("date")
             .and_then(|v| v.as_str())
             .unwrap_or("the requested date");
-        let time = fields_data.get("time")
+        let time = fields_data
+            .get("time")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
@@ -524,7 +600,11 @@ async fn trigger_denial_responders(
         };
 
         if let Err(e) = result {
-            console_log!("Booking denial responder error for {}: {:?}", responder.name, e);
+            console_log!(
+                "Booking denial responder error for {}: {:?}",
+                responder.name,
+                e
+            );
         }
     }
 }
@@ -555,7 +635,10 @@ async fn send_admin_approval_notification(
         base_url, calendar.id, link.slug, booking.id, token
     );
 
-    let subject = format!("Booking Approval Required: {} on {}", booking.name, booking.slot_date);
+    let subject = format!(
+        "Booking Approval Required: {} on {}",
+        booking.name, booking.slot_date
+    );
     let body = format!(
         "A new booking request requires your approval.\n\n\
          Booking Details:\n\

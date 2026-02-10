@@ -196,7 +196,13 @@ pub async fn process_whatsapp_message(
             }
             ResponderChannel::TwilioWhatsapp => {
                 if let Ok(from) = env.secret("TWILIO_FROM_WHATSAPP") {
-                    send_twilio_message(env, &format!("whatsapp:{}", target), &from.to_string(), &body).await
+                    send_twilio_message(
+                        env,
+                        &format!("whatsapp:{}", target),
+                        &from.to_string(),
+                        &body,
+                    )
+                    .await
                 } else {
                     continue;
                 }

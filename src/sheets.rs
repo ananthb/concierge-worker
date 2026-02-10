@@ -43,9 +43,8 @@ pub async fn append_to_sheet(
     fields_data: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<()> {
     // Parse sheet ID from URL
-    let sheet_id = parse_sheet_id(sheet_url).ok_or_else(|| {
-        Error::from("Invalid Google Sheet URL")
-    })?;
+    let sheet_id =
+        parse_sheet_id(sheet_url).ok_or_else(|| Error::from("Invalid Google Sheet URL"))?;
 
     // Get service account credentials
     let creds_json = env.secret("GOOGLE_SERVICE_ACCOUNT_JSON")?.to_string();
@@ -188,7 +187,11 @@ async fn get_access_token(creds: &ServiceAccountCredentials) -> Result<String> {
 
     if !response.status_code().to_string().starts_with('2') {
         let error_text = response.text().await.unwrap_or_default();
-        console_log!("OAuth token error: {} - {}", response.status_code(), error_text);
+        console_log!(
+            "OAuth token error: {} - {}",
+            response.status_code(),
+            error_text
+        );
         return Err(Error::from(format!(
             "Failed to get OAuth token: {}",
             response.status_code()
@@ -207,8 +210,8 @@ async fn sign_rs256(data: &str, private_key_pem: &str) -> Result<Vec<u8>> {
 
     // Get the crypto subtle interface via globalThis (works in Workers)
     let global = js_sys::global();
-    let crypto = Reflect::get(&global, &"crypto".into())
-        .map_err(|_| Error::from("No crypto available"))?;
+    let crypto =
+        Reflect::get(&global, &"crypto".into()).map_err(|_| Error::from("No crypto available"))?;
     let subtle = Reflect::get(&crypto, &"subtle".into())
         .map_err(|_| Error::from("No subtle crypto available"))?;
 
@@ -229,7 +232,8 @@ async fn sign_rs256(data: &str, private_key_pem: &str) -> Result<Vec<u8>> {
     // Call subtle.importKey
     let import_key_fn = Reflect::get(&subtle, &"importKey".into())
         .map_err(|_| Error::from("No importKey function"))?;
-    let import_key_fn: js_sys::Function = import_key_fn.dyn_into()
+    let import_key_fn: js_sys::Function = import_key_fn
+        .dyn_into()
         .map_err(|_| Error::from("importKey is not a function"))?;
 
     let import_args = js_sys::Array::new();
@@ -239,9 +243,11 @@ async fn sign_rs256(data: &str, private_key_pem: &str) -> Result<Vec<u8>> {
     import_args.push(&false.into());
     import_args.push(&key_usages);
 
-    let import_promise = import_key_fn.apply(&subtle, &import_args)
+    let import_promise = import_key_fn
+        .apply(&subtle, &import_args)
         .map_err(|_| Error::from("Failed to call importKey"))?;
-    let import_promise: js_sys::Promise = import_promise.dyn_into()
+    let import_promise: js_sys::Promise = import_promise
+        .dyn_into()
         .map_err(|_| Error::from("importKey did not return a promise"))?;
 
     let key = JsFuture::from(import_promise)
@@ -253,9 +259,10 @@ async fn sign_rs256(data: &str, private_key_pem: &str) -> Result<Vec<u8>> {
     let data_array = Uint8Array::from(data_bytes);
 
     // Call subtle.sign
-    let sign_fn = Reflect::get(&subtle, &"sign".into())
-        .map_err(|_| Error::from("No sign function"))?;
-    let sign_fn: js_sys::Function = sign_fn.dyn_into()
+    let sign_fn =
+        Reflect::get(&subtle, &"sign".into()).map_err(|_| Error::from("No sign function"))?;
+    let sign_fn: js_sys::Function = sign_fn
+        .dyn_into()
         .map_err(|_| Error::from("sign is not a function"))?;
 
     let sign_args = js_sys::Array::new();
@@ -263,9 +270,11 @@ async fn sign_rs256(data: &str, private_key_pem: &str) -> Result<Vec<u8>> {
     sign_args.push(&key);
     sign_args.push(&data_array);
 
-    let sign_promise = sign_fn.apply(&subtle, &sign_args)
+    let sign_promise = sign_fn
+        .apply(&subtle, &sign_args)
         .map_err(|_| Error::from("Failed to call sign"))?;
-    let sign_promise: js_sys::Promise = sign_promise.dyn_into()
+    let sign_promise: js_sys::Promise = sign_promise
+        .dyn_into()
         .map_err(|_| Error::from("sign did not return a promise"))?;
 
     let signature_buffer: ArrayBuffer = JsFuture::from(sign_promise)

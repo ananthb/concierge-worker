@@ -10,7 +10,12 @@ use crate::storage::*;
 use crate::types::*;
 
 /// Handle Instagram OAuth routes (/instagram/*)
-pub async fn handle_instagram(req: Request, env: Env, path: &str, method: Method) -> Result<Response> {
+pub async fn handle_instagram(
+    req: Request,
+    env: Env,
+    path: &str,
+    method: Method,
+) -> Result<Response> {
     let base_url = get_base_url(&req);
     let kv = env.kv("CALENDARS_KV")?;
 
@@ -84,7 +89,9 @@ pub async fn handle_instagram(req: Request, env: Env, path: &str, method: Method
             kv.delete(&state_key).await?;
 
             let redirect_uri = format!("{}/instagram/callback", base_url);
-            let short_token = instagram::exchange_code_for_token(code, &app_id, &app_secret, &redirect_uri).await?;
+            let short_token =
+                instagram::exchange_code_for_token(code, &app_id, &app_secret, &redirect_uri)
+                    .await?;
             let token = instagram::exchange_for_long_lived_token(&short_token, &app_secret).await?;
 
             let client = instagram::InstagramClient::new(token.access_token.clone());
@@ -112,7 +119,10 @@ pub async fn handle_instagram(req: Request, env: Env, path: &str, method: Method
                 let headers = Headers::new();
                 headers.set(
                     "Location",
-                    &format!("{}/admin/calendars/{}?error=instagram_already_connected", base_url, calendar_id),
+                    &format!(
+                        "{}/admin/calendars/{}?error=instagram_already_connected",
+                        base_url, calendar_id
+                    ),
                 )?;
                 return Ok(Response::empty()?.with_status(302).with_headers(headers));
             }
@@ -132,7 +142,10 @@ pub async fn handle_instagram(req: Request, env: Env, path: &str, method: Method
             let headers = Headers::new();
             headers.set(
                 "Location",
-                &format!("{}/admin/calendars/{}?success=instagram_connected", base_url, calendar_id),
+                &format!(
+                    "{}/admin/calendars/{}?success=instagram_connected",
+                    base_url, calendar_id
+                ),
             )?;
             Ok(Response::empty()?.with_status(302).with_headers(headers))
         }

@@ -76,10 +76,17 @@ fn get_crypto() -> Result<web_sys::SubtleCrypto> {
     Ok(crypto.subtle())
 }
 
-async fn import_key(crypto: &web_sys::SubtleCrypto, key_bytes: &[u8]) -> Result<web_sys::CryptoKey> {
+async fn import_key(
+    crypto: &web_sys::SubtleCrypto,
+    key_bytes: &[u8],
+) -> Result<web_sys::CryptoKey> {
     let algorithm = js_sys::Object::new();
-    js_sys::Reflect::set(&algorithm, &JsValue::from_str("name"), &JsValue::from_str(ALGORITHM))
-        .map_err(|_| Error::from("Failed to set algorithm name"))?;
+    js_sys::Reflect::set(
+        &algorithm,
+        &JsValue::from_str("name"),
+        &JsValue::from_str(ALGORITHM),
+    )
+    .map_err(|_| Error::from("Failed to set algorithm name"))?;
 
     let key_usages = js_sys::Array::new();
     key_usages.push(&JsValue::from_str("encrypt"));
@@ -88,13 +95,7 @@ async fn import_key(crypto: &web_sys::SubtleCrypto, key_bytes: &[u8]) -> Result<
     let key_data = js_sys::Uint8Array::from(key_bytes);
 
     let promise = crypto
-        .import_key_with_object(
-            "raw",
-            &key_data.buffer(),
-            &algorithm,
-            false,
-            &key_usages,
-        )
+        .import_key_with_object("raw", &key_data.buffer(), &algorithm, false, &key_usages)
         .map_err(|e| Error::from(format!("Failed to import key: {:?}", e)))?;
 
     let result = wasm_bindgen_futures::JsFuture::from(promise)
@@ -113,8 +114,12 @@ async fn encrypt(
     plaintext: &[u8],
 ) -> Result<Vec<u8>> {
     let algorithm = js_sys::Object::new();
-    js_sys::Reflect::set(&algorithm, &JsValue::from_str("name"), &JsValue::from_str(ALGORITHM))
-        .map_err(|_| Error::from("Failed to set algorithm name"))?;
+    js_sys::Reflect::set(
+        &algorithm,
+        &JsValue::from_str("name"),
+        &JsValue::from_str(ALGORITHM),
+    )
+    .map_err(|_| Error::from("Failed to set algorithm name"))?;
     js_sys::Reflect::set(
         &algorithm,
         &JsValue::from_str("iv"),
@@ -153,8 +158,12 @@ async fn decrypt(
     ciphertext: &[u8],
 ) -> Result<Vec<u8>> {
     let algorithm = js_sys::Object::new();
-    js_sys::Reflect::set(&algorithm, &JsValue::from_str("name"), &JsValue::from_str(ALGORITHM))
-        .map_err(|_| Error::from("Failed to set algorithm name"))?;
+    js_sys::Reflect::set(
+        &algorithm,
+        &JsValue::from_str("name"),
+        &JsValue::from_str(ALGORITHM),
+    )
+    .map_err(|_| Error::from("Failed to set algorithm name"))?;
     js_sys::Reflect::set(
         &algorithm,
         &JsValue::from_str("iv"),
@@ -188,7 +197,8 @@ async fn decrypt(
 
 fn generate_iv() -> Result<[u8; IV_LENGTH]> {
     let mut iv = [0u8; IV_LENGTH];
-    getrandom::getrandom(&mut iv).map_err(|e| Error::from(format!("Failed to generate IV: {}", e)))?;
+    getrandom::getrandom(&mut iv)
+        .map_err(|e| Error::from(format!("Failed to generate IV: {}", e)))?;
     Ok(iv)
 }
 
@@ -204,8 +214,7 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>> {
     (0..hex.len())
         .step_by(2)
         .map(|i| {
-            u8::from_str_radix(&hex[i..i + 2], 16)
-                .map_err(|_| Error::from("Invalid hex character"))
+            u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| Error::from("Invalid hex character"))
         })
         .collect()
 }

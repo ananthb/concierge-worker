@@ -26,10 +26,15 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str) -> String 
     let fields_json = serde_json::to_string(&form.fields).unwrap_or_else(|_| "[]".into());
     let style_json = serde_json::to_string(&form.style).unwrap_or_else(|_| "{}".into());
     let responders_json = serde_json::to_string(&form.responders).unwrap_or_else(|_| "[]".into());
-    let digest_json = serde_json::to_string(&form.digest).unwrap_or_else(|_| r#"{"frequency":"none","recipients":[]}"#.into());
+    let digest_json = serde_json::to_string(&form.digest)
+        .unwrap_or_else(|_| r#"{"frequency":"none","recipients":[]}"#.into());
     let google_sheet_url = form.google_sheet_url.as_deref().unwrap_or("");
 
-    let js_escape = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+    let js_escape = |s: &str| {
+        s.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+    };
     let admin_email_escaped = js_escape(admin_email);
     let slug_escaped = js_escape(&form.slug);
     let is_new_str = if is_new { "true" } else { "false" };
@@ -509,8 +514,20 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
     </script>
 </body>
 </html>"##,
-        title = if is_new { "New Form".to_string() } else if form.archived { format!("{} (Archived)", html_escape(&form.name)) } else { html_escape(&form.name) },
-        header = if is_new { "Create New Form" } else if form.archived { "View Archived Form" } else { "Edit Form" },
+        title = if is_new {
+            "New Form".to_string()
+        } else if form.archived {
+            format!("{} (Archived)", html_escape(&form.name))
+        } else {
+            html_escape(&form.name)
+        },
+        header = if is_new {
+            "Create New Form"
+        } else if form.archived {
+            "View Archived Form"
+        } else {
+            "Edit Form"
+        },
         name = html_escape(&form.name),
         slug = html_escape(&form.slug),
         form_title = html_escape(&form.title),
@@ -526,19 +543,29 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
         slug_js = slug_escaped,
         admin_email_js = admin_email_escaped,
         is_new = is_new_str,
-        save_button = if is_new { "Create Form" } else { "Save Changes" },
+        save_button = if is_new {
+            "Create Form"
+        } else {
+            "Save Changes"
+        },
         archived_notice = if form.archived {
             r#"<div class="card" style="background: #fff3cd; border-color: #ffc107; margin-bottom: 1rem;">
                 <p style="margin: 0; color: #856404;"><strong>This form is archived.</strong> It is read-only. Unarchive from the dashboard to make changes.</p>
             </div>"#
-        } else { "" },
+        } else {
+            ""
+        },
         danger_zone = if !is_new && !form.archived {
-            format!(r#"<div class="card" style="border-color: #dc3545;">
+            format!(
+                r#"<div class="card" style="border-color: #dc3545;">
                 <h3 style="color: #dc3545;">Danger Zone</h3>
                 <p style="margin-bottom: 1rem; color: #666;">Permanently delete this form and all its submissions.</p>
                 <button type="button" class="btn btn-danger" onclick="deleteForm()">Delete Form</button>
-            </div>"#)
-        } else { String::new() }
+            </div>"#
+            )
+        } else {
+            String::new()
+        }
     )
 }
 
@@ -556,7 +583,8 @@ pub fn responses_view_html(form: &FormConfig, submissions: &[Submission]) -> Str
                     .fields
                     .iter()
                     .map(|f| {
-                        let value = s.fields_data
+                        let value = s
+                            .fields_data
                             .get(&f.id)
                             .map(|v| match v {
                                 serde_json::Value::String(s) => html_escape(s),
@@ -635,7 +663,13 @@ pub fn responses_view_html(form: &FormConfig, submissions: &[Submission]) -> Str
     )
 }
 
-pub fn render_form(form: &FormConfig, inline_css: Option<&str>, css_url: Option<&str>, base_url: &str, is_htmx: bool) -> String {
+pub fn render_form(
+    form: &FormConfig,
+    inline_css: Option<&str>,
+    css_url: Option<&str>,
+    base_url: &str,
+    is_htmx: bool,
+) -> String {
     if is_htmx {
         render_form_fragment(form, base_url)
     } else {
@@ -643,9 +677,17 @@ pub fn render_form(form: &FormConfig, inline_css: Option<&str>, css_url: Option<
     }
 }
 
-fn render_form_html(form: &FormConfig, inline_css: Option<&str>, css_url: Option<&str>, base_url: &str) -> String {
+fn render_form_html(
+    form: &FormConfig,
+    inline_css: Option<&str>,
+    css_url: Option<&str>,
+    base_url: &str,
+) -> String {
     let s = &form.style;
-    let has_file = form.fields.iter().any(|f| matches!(f.field_type, FieldType::File));
+    let has_file = form
+        .fields
+        .iter()
+        .any(|f| matches!(f.field_type, FieldType::File));
 
     let css_link = css_url
         .map(|url| format!(r#"<link rel="stylesheet" href="{}">"#, html_escape(url)))
@@ -702,7 +744,11 @@ fn render_form_html(form: &FormConfig, inline_css: Option<&str>, css_url: Option
         })
         .collect();
 
-    let enctype = if has_file { r#" enctype="multipart/form-data""# } else { "" };
+    let enctype = if has_file {
+        r#" enctype="multipart/form-data""#
+    } else {
+        ""
+    };
 
     format!(
         r##"<!DOCTYPE html>
@@ -782,7 +828,10 @@ fn render_form_html(form: &FormConfig, inline_css: Option<&str>, css_url: Option
 
 fn render_form_fragment(form: &FormConfig, base_url: &str) -> String {
     let s = &form.style;
-    let has_file = form.fields.iter().any(|f| matches!(f.field_type, FieldType::File));
+    let has_file = form
+        .fields
+        .iter()
+        .any(|f| matches!(f.field_type, FieldType::File));
 
     let fields_html: String = form
         .fields
@@ -828,7 +877,11 @@ fn render_form_fragment(form: &FormConfig, base_url: &str) -> String {
         })
         .collect();
 
-    let enctype = if has_file { r#" enctype="multipart/form-data""# } else { "" };
+    let enctype = if has_file {
+        r#" enctype="multipart/form-data""#
+    } else {
+        ""
+    };
 
     let title_html = if s.show_title {
         format!("<h1>{}</h1>", html_escape(&form.title))
@@ -863,7 +916,10 @@ pub fn form_success_html(message: &str, slug: &str, base_url: &str) -> String {
 }
 
 pub fn form_error_html(message: &str) -> String {
-    format!(r##"<div class="error"><strong>Error:</strong> {}</div>"##, html_escape(message))
+    format!(
+        r##"<div class="error"><strong>Error:</strong> {}</div>"##,
+        html_escape(message)
+    )
 }
 
 pub fn format_digest_email(form: &FormConfig, submissions: &[Submission]) -> String {
@@ -874,9 +930,14 @@ pub fn format_digest_email(form: &FormConfig, submissions: &[Submission]) -> Str
     );
 
     for (i, sub) in submissions.iter().enumerate() {
-        body.push_str(&format!("--- Response #{} ({}) ---\n", i + 1, sub.created_at));
+        body.push_str(&format!(
+            "--- Response #{} ({}) ---\n",
+            i + 1,
+            sub.created_at
+        ));
         for field in &form.fields {
-            let value = sub.fields_data
+            let value = sub
+                .fields_data
                 .get(&field.id)
                 .map(|v| match v {
                     serde_json::Value::String(s) => s.clone(),

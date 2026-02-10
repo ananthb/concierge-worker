@@ -22,7 +22,9 @@ pub fn booking_form_html(
     let slots_by_date: std::collections::BTreeMap<String, Vec<&AvailableSlot>> = {
         let mut map = std::collections::BTreeMap::new();
         for slot in available_slots {
-            map.entry(slot.date.clone()).or_insert_with(Vec::new).push(slot);
+            map.entry(slot.date.clone())
+                .or_insert_with(Vec::new)
+                .push(slot);
         }
         map
     };
@@ -261,7 +263,13 @@ pub fn build_nav_button(
     }
 }
 
-pub fn booking_success_html(calendar: &CalendarConfig, booking: &Booking, link: &BookingLink, css: &CssOptions, is_htmx: bool) -> String {
+pub fn booking_success_html(
+    calendar: &CalendarConfig,
+    booking: &Booking,
+    link: &BookingLink,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     let content = format!(
         "<div class=\"success\" id=\"booking-container\">
             <h1>Booking Confirmed!</h1>
@@ -283,7 +291,13 @@ pub fn booking_success_html(calendar: &CalendarConfig, booking: &Booking, link: 
 }
 
 /// Display pending booking status (awaiting admin approval)
-pub fn booking_pending_html(calendar: &CalendarConfig, booking: &Booking, link: &BookingLink, css: &CssOptions, is_htmx: bool) -> String {
+pub fn booking_pending_html(
+    calendar: &CalendarConfig,
+    booking: &Booking,
+    link: &BookingLink,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     let content = format!(
         "<div id=\"booking-container\" style=\"text-align: center;\">
             <div class=\"card\" style=\"background: {hash}fff3cd; border-color: {hash}ffc107; padding: 2rem;\">
@@ -306,11 +320,22 @@ pub fn booking_pending_html(calendar: &CalendarConfig, booking: &Booking, link: 
         hash = HASH,
     );
 
-    wrap_html(&content, "Booking Pending Approval", &calendar.style, css, is_htmx)
+    wrap_html(
+        &content,
+        "Booking Pending Approval",
+        &calendar.style,
+        css,
+        is_htmx,
+    )
 }
 
 /// Display approval success page for admin
-pub fn approval_success_html(calendar: &CalendarConfig, booking: &Booking, css: &CssOptions, is_htmx: bool) -> String {
+pub fn approval_success_html(
+    calendar: &CalendarConfig,
+    booking: &Booking,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     let content = format!(
         "<div class=\"success\" id=\"booking-container\">
             <h1>Booking Approved!</h1>
@@ -335,7 +360,12 @@ pub fn approval_success_html(calendar: &CalendarConfig, booking: &Booking, css: 
 }
 
 /// Display denial success page
-pub fn denial_success_html(calendar: &CalendarConfig, booking: &Booking, css: &CssOptions, is_htmx: bool) -> String {
+pub fn denial_success_html(
+    calendar: &CalendarConfig,
+    booking: &Booking,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     let content = format!(
         "<div class=\"success\" id=\"booking-container\" style=\"--cal-primary: #dc3545;\">
             <h1>Booking Denied</h1>
@@ -360,7 +390,12 @@ pub fn denial_success_html(calendar: &CalendarConfig, booking: &Booking, css: &C
 }
 
 /// Display approval error page
-pub fn approval_error_html(calendar: &CalendarConfig, message: &str, css: &CssOptions, is_htmx: bool) -> String {
+pub fn approval_error_html(
+    calendar: &CalendarConfig,
+    message: &str,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     let content = format!(
         "<div class=\"error\" id=\"booking-container\">
             <h1>Approval Failed</h1>

@@ -54,7 +54,12 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             }
         }
 
-        let mut resp = Response::from_html(admin_dashboard_html(&forms, &calendars, &response_counts, &base_url))?;
+        let mut resp = Response::from_html(admin_dashboard_html(
+            &forms,
+            &calendars,
+            &response_counts,
+            &base_url,
+        ))?;
         resp.headers_mut().set("Cache-Control", "no-store")?;
         return Ok(resp);
     }
@@ -101,10 +106,9 @@ async fn handle_forms_admin(
                 return Response::error("Slug required", 400);
             }
             match get_form(&kv, slug).await? {
-                Some(form) => Response::from_html(form_editor_html(
-                    Some(&form),
-                    access_user.unwrap_or(""),
-                )),
+                Some(form) => {
+                    Response::from_html(form_editor_html(Some(&form), access_user.unwrap_or("")))
+                }
                 None => Response::error("Form not found", 404),
             }
         }
@@ -114,9 +118,9 @@ async fn handle_forms_admin(
 
             let slug = body["slug"].as_str().unwrap_or("").to_string();
             if slug.is_empty()
-                || !slug.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
-                })
+                || !slug
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
             {
                 return Response::error("Invalid slug", 400);
             }
@@ -181,9 +185,10 @@ async fn handle_forms_admin(
             let new_slug = body["slug"].as_str().unwrap_or(slug).to_string();
 
             if new_slug != slug {
-                if !new_slug.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
-                }) {
+                if !new_slug
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+                {
                     return Response::error("Invalid slug", 400);
                 }
                 if get_form(&kv, &new_slug).await?.is_some() {
@@ -194,10 +199,7 @@ async fn handle_forms_admin(
 
             let form = FormConfig {
                 slug: new_slug,
-                name: body["name"]
-                    .as_str()
-                    .unwrap_or(&existing.name)
-                    .to_string(),
+                name: body["name"].as_str().unwrap_or(&existing.name).to_string(),
                 title: body["title"]
                     .as_str()
                     .unwrap_or(&existing.title)
@@ -619,13 +621,19 @@ async fn handle_calendars_admin(
 
             // Check which responder channels are available
             let channels = crate::templates::AvailableChannels {
-                twilio_sms: env.secret("TWILIO_SID").is_ok() && env.secret("TWILIO_FROM_SMS").is_ok(),
-                twilio_whatsapp: env.secret("TWILIO_SID").is_ok() && env.secret("TWILIO_FROM_WHATSAPP").is_ok(),
-                twilio_email: env.secret("SENDGRID_API_KEY").is_ok() && env.secret("TWILIO_FROM_EMAIL").is_ok(),
-                resend_email: env.secret("RESEND_API_KEY").is_ok() && env.secret("RESEND_FROM").is_ok(),
+                twilio_sms: env.secret("TWILIO_SID").is_ok()
+                    && env.secret("TWILIO_FROM_SMS").is_ok(),
+                twilio_whatsapp: env.secret("TWILIO_SID").is_ok()
+                    && env.secret("TWILIO_FROM_WHATSAPP").is_ok(),
+                twilio_email: env.secret("SENDGRID_API_KEY").is_ok()
+                    && env.secret("TWILIO_FROM_EMAIL").is_ok(),
+                resend_email: env.secret("RESEND_API_KEY").is_ok()
+                    && env.secret("RESEND_FROM").is_ok(),
             };
 
-            Response::from_html(admin_booking_link_html(&calendar, link, base_url, &channels))
+            Response::from_html(admin_booking_link_html(
+                &calendar, link, base_url, &channels,
+            ))
         }
 
         (Method::Put, [id, "booking", link_id]) => {

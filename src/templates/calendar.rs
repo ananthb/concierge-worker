@@ -36,10 +36,7 @@ pub fn calendar_view_html(
                 .iter()
                 .filter(|e| e.start_time.starts_with(&current))
                 .collect();
-            let day_bookings: Vec<_> = bookings
-                .iter()
-                .filter(|b| b.slot_date == current)
-                .collect();
+            let day_bookings: Vec<_> = bookings.iter().filter(|b| b.slot_date == current).collect();
 
             // Filter based on show_events and show_bookings settings
             let visible_events: Vec<_> = if link.show_events {
@@ -60,7 +57,11 @@ pub fn calendar_view_html(
                     .map(|e| format!("<div class=\"event\">{}</div>", html_escape(&e.title)))
                     .collect()
             } else if !visible_events.is_empty() {
-                format!("<div class=\"busy\">{} event{}</div>", visible_events.len(), if visible_events.len() == 1 { "" } else { "s" })
+                format!(
+                    "<div class=\"busy\">{} event{}</div>",
+                    visible_events.len(),
+                    if visible_events.len() == 1 { "" } else { "s" }
+                )
             } else {
                 String::new()
             };
@@ -78,7 +79,11 @@ pub fn calendar_view_html(
                     })
                     .collect()
             } else if !visible_bookings.is_empty() {
-                format!("<div class=\"busy\">{} booking{}</div>", visible_bookings.len(), if visible_bookings.len() == 1 { "" } else { "s" })
+                format!(
+                    "<div class=\"busy\">{} booking{}</div>",
+                    visible_bookings.len(),
+                    if visible_bookings.len() == 1 { "" } else { "s" }
+                )
             } else {
                 String::new()
             };
@@ -90,7 +95,11 @@ pub fn calendar_view_html(
                     <div class=\"day-number\">{day}</div>
                     {events}
                 </td>",
-                class = if is_current_month { "current-month" } else { "other-month" },
+                class = if is_current_month {
+                    "current-month"
+                } else {
+                    "other-month"
+                },
                 day = cur_day,
                 events = events_display,
             ));
@@ -112,11 +121,12 @@ pub fn calendar_view_html(
     };
     let mut extra_params = Vec::new();
     // Only include view param if it differs from link default
-    if !matches!((&link.view_type, view_type),
-        (ViewType::Week, ViewType::Week) |
-        (ViewType::Month, ViewType::Month) |
-        (ViewType::Year, ViewType::Year) |
-        (ViewType::Endless, ViewType::Endless)
+    if !matches!(
+        (&link.view_type, view_type),
+        (ViewType::Week, ViewType::Week)
+            | (ViewType::Month, ViewType::Month)
+            | (ViewType::Year, ViewType::Year)
+            | (ViewType::Endless, ViewType::Endless)
     ) {
         extra_params.push(format!("view={}", view_str));
     }
@@ -167,7 +177,11 @@ pub fn calendar_view_html(
         format!(
             "<h1>{}</h1>{}",
             html_escape(&link.name),
-            calendar.description.as_ref().map(|d| format!("<p style=\"margin-bottom: 1rem;\">{}</p>", html_escape(d))).unwrap_or_default()
+            calendar
+                .description
+                .as_ref()
+                .map(|d| format!("<p style=\"margin-bottom: 1rem;\">{}</p>", html_escape(d)))
+                .unwrap_or_default()
         )
     };
 
@@ -239,7 +253,11 @@ pub fn calendar_view_html(
 // iCal Feed
 // ============================================================================
 
-pub fn ical_feed(calendar: &CalendarConfig, events: &[CalendarEvent], bookings: &[Booking]) -> String {
+pub fn ical_feed(
+    calendar: &CalendarConfig,
+    events: &[CalendarEvent],
+    bookings: &[Booking],
+) -> String {
     let mut ical = String::from(
         "BEGIN:VCALENDAR\r\n\
          VERSION:2.0\r\n\
@@ -270,14 +288,23 @@ pub fn ical_feed(calendar: &CalendarConfig, events: &[CalendarEvent], bookings: 
         }
         ical.push_str("BEGIN:VEVENT\r\n");
         ical.push_str(&format!("UID:booking-{}\r\n", booking.id));
-        ical.push_str(&format!("DTSTAMP:{}\r\n", ical_datetime(&booking.created_at)));
+        ical.push_str(&format!(
+            "DTSTAMP:{}\r\n",
+            ical_datetime(&booking.created_at)
+        ));
         let start = format!("{}T{}:00", booking.slot_date, booking.slot_time);
         let end_time = add_minutes(&booking.slot_time, booking.duration);
         let end = format!("{}T{}:00", booking.slot_date, end_time);
         ical.push_str(&format!("DTSTART:{}\r\n", ical_datetime(&start)));
         ical.push_str(&format!("DTEND:{}\r\n", ical_datetime(&end)));
-        ical.push_str(&format!("SUMMARY:Booking: {}\r\n", ical_escape(&booking.name)));
-        ical.push_str(&format!("DESCRIPTION:Email: {}\r\n", ical_escape(&booking.email)));
+        ical.push_str(&format!(
+            "SUMMARY:Booking: {}\r\n",
+            ical_escape(&booking.name)
+        ));
+        ical.push_str(&format!(
+            "DESCRIPTION:Email: {}\r\n",
+            ical_escape(&booking.email)
+        ));
         ical.push_str("END:VEVENT\r\n");
     }
 
@@ -308,7 +335,10 @@ fn ical_escape(s: &str) -> String {
 // ============================================================================
 
 pub fn calendar_error_html(message: &str) -> String {
-    format!("<div class=\"error\"><strong>Error:</strong> {}</div>", html_escape(message))
+    format!(
+        "<div class=\"error\"><strong>Error:</strong> {}</div>",
+        html_escape(message)
+    )
 }
 
 pub fn calendar_success_html(message: &str) -> String {
