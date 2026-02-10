@@ -44,21 +44,20 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str) -> String 
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <style>
         * {{ box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 2rem; background: #f5f5f5; }}
-        .container {{ max-width: 1000px; margin: 0 auto; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 1rem; background: #f5f5f5; line-height: 1.5; }}
+        .container {{ max-width: 1200px; margin: 0 auto; }}
         h1, h2, h3 {{ color: #333; }}
+        a {{ color: #0070f3; }}
         .card {{ background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }}
         .form-group {{ margin-bottom: 1rem; }}
-        label {{ display: block; margin-bottom: 0.5rem; font-weight: 500; color: #555; }}
-        input, textarea, select {{ width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }}
-        input:focus, textarea:focus, select:focus {{ outline: none; border-color: #0070f3; }}
-        .btn {{ display: inline-block; padding: 0.75rem 1.5rem; background: #0070f3; color: white; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }}
-        .btn:hover {{ background: #0060df; }}
+        .form-group label {{ display: block; margin-bottom: 0.25rem; font-weight: 500; }}
+        .form-group input, .form-group textarea, .form-group select {{ width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }}
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {{ outline: none; border-color: #0070f3; }}
+        .btn {{ display: inline-block; padding: 0.5rem 1rem; background: #0070f3; color: white; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-family: inherit; line-height: 1.2; vertical-align: middle; }}
+        .btn:hover {{ opacity: 0.9; }}
         .btn-secondary {{ background: #6c757d; }}
-        .btn-secondary:hover {{ background: #5a6268; }}
         .btn-danger {{ background: #dc3545; }}
-        .btn-danger:hover {{ background: #c82333; }}
-        .btn-sm {{ padding: 0.4rem 0.8rem; font-size: 0.85rem; }}
+        .btn-sm {{ padding: 0.25rem 0.5rem; font-size: 0.75rem; }}
         .field-item {{ background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }}
         .field-item > input[type="text"] {{ flex: 1; min-width: 120px; }}
         .field-item > select {{ flex: 0 0 auto; min-width: 100px; }}
@@ -69,12 +68,16 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str) -> String 
         .color-input input[type="color"] {{ width: 50px; height: 38px; padding: 2px; }}
         .color-input input[type="text"] {{ flex: 1; }}
         code {{ background: #e9ecef; padding: 0.2rem 0.4rem; border-radius: 3px; }}
+        small {{ color: #666; }}
         .tabs {{ display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
-        .tab {{ padding: 0.5rem 1rem; background: #e9ecef; border-radius: 4px; cursor: pointer; border: none; font-size: 1rem; }}
+        .tab {{ padding: 0.5rem 1rem; background: #e9ecef; border-radius: 4px; cursor: pointer; border: none; font-size: 1rem; font-family: inherit; }}
         .tab.active {{ background: #0070f3; color: white; }}
         .tab-content {{ display: none; }}
         .tab-content.active {{ display: block; }}
         .preview-frame {{ border: 1px solid #ddd; border-radius: 4px; min-height: 400px; background: white; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ padding: 0.5rem; text-align: left; border-bottom: 1px solid #eee; }}
+        th {{ background: #f8f9fa; font-weight: 600; }}
     </style>
 </head>
 <body>

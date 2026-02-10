@@ -756,7 +756,109 @@ pub fn admin_bookings_html(calendar: &CalendarConfig, bookings: &[Booking], base
     base_html(&format!("Bookings: {}", calendar.name), &content, &calendar.style)
 }
 
-pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, base_url: &str) -> String {
+pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, base_url: &str, channels: &super::base::AvailableChannels) -> String {
+    let responders_json = serde_json::to_string(&link.responders).unwrap_or_else(|_| "[]".into());
+    let js_escape = |s: &str| s.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
+
+    // Build channel options based on what's available
+    let mut channel_options = Vec::new();
+    if channels.twilio_sms {
+        channel_options.push(("twilio_sms", "Twilio SMS"));
+    }
+    if channels.twilio_whatsapp {
+        channel_options.push(("twilio_whatsapp", "Twilio WhatsApp"));
+    }
+    if channels.twilio_email {
+        channel_options.push(("twilio_email", "Twilio Email"));
+    }
+    if channels.resend_email {
+        channel_options.push(("resend_email", "Resend Email"));
+    }
+
+    let has_channels = !channel_options.is_empty();
+    let default_channel = channel_options.first().map(|(c, _)| *c).unwrap_or("resend_email");
+    let is_default_email = default_channel.contains("email");
+
+    // Build JS channel options string
+    let js_channel_options: String = channel_options
+        .iter()
+        .map(|(value, label)| format!("<option value=\"{}\" ${{r.channel==='{}'?'selected':''}}>{}</option>", value, value, label))
+        .collect::<Vec<_>>()
+        .join("\\n                                ");
+
+    let responders_section = if has_channels {
+        format!(
+            r#"<h3 style="margin-top: 1.5rem; margin-bottom: 1rem;">Auto-Responders</h3>
+                <p style="color: #666; margin-bottom: 1rem;">Send automatic confirmation messages when bookings are confirmed. Use {{{{{{{{name}}}}}}}}, {{{{{{{{email}}}}}}}}, {{{{{{{{date}}}}}}}}, {{{{{{{{time}}}}}}}} placeholders.</p>
+                <div id="responders-list"></div>
+                <button type="button" class="btn btn-secondary" onclick="addResponder()" style="margin-bottom: 1rem;">+ Add Responder</button>
+                <input type="hidden" name="responders_json" id="responders-json">"#
+        )
+    } else {
+        String::from(r#"<input type="hidden" name="responders_json" id="responders-json" value="[]">"#)
+    };
+
+    let responders_script = if has_channels {
+        format!(
+            r#"<script>
+            let responders = {responders_json};
+
+            function renderResponders() {{
+                const list = document.getElementById('responders-list');
+                list.innerHTML = responders.map((r, i) => {{
+                    const isEmail = r.channel === 'twilio_email' || r.channel === 'resend_email';
+                    return `<div class="card" style="margin-bottom:1rem;padding:1rem;background:#f8f9fa;">
+                        <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;flex-wrap:wrap;">
+                            <input type="text" value="${{r.name||''}}" onchange="responders[${{i}}].name=this.value" placeholder="Responder Name" style="flex:1;min-width:150px;">
+                            <select onchange="responders[${{i}}].channel=this.value;renderResponders();">
+                                {js_channel_options}
+                            </select>
+                            <label style="white-space:nowrap;"><input type="checkbox" ${{r.enabled?'checked':''}} onchange="responders[${{i}}].enabled=this.checked" style="width:auto;"> Enabled</label>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="removeResponder(${{i}})">Delete</button>
+                        </div>
+                        ${{isEmail ? `<div class="form-group" style="margin-bottom:0.5rem;">
+                            <input type="text" value="${{r.subject||''}}" onchange="responders[${{i}}].subject=this.value" placeholder="Email Subject">
+                        </div>` : ''}}
+                        <div class="form-group" style="margin-bottom:0;">
+                            <textarea rows="3" onchange="responders[${{i}}].body=this.value" placeholder="Message body. Use {{{{{{{{name}}}}}}}}, {{{{{{{{email}}}}}}}}, {{{{{{{{date}}}}}}}}, {{{{{{{{time}}}}}}}} placeholders.">${{r.body||''}}</textarea>
+                        </div>
+                    </div>`;
+                }}).join('');
+            }}
+
+            function addResponder() {{
+                responders.push({{
+                    name: 'Booking Confirmation',
+                    channel: '{default_channel}',
+                    target_field: 'email',
+                    subject: {default_subject},
+                    body: 'Hi {{{{{{{{name}}}}}}}},\\n\\nYour booking for {{{{{{{{date}}}}}}}} at {{{{{{{{time}}}}}}}} has been confirmed.\\n\\nThank you!',
+                    enabled: true,
+                    use_ai: false
+                }});
+                renderResponders();
+            }}
+
+            function removeResponder(i) {{
+                responders.splice(i, 1);
+                renderResponders();
+            }}
+
+            function updateRespondersField() {{
+                document.getElementById('responders-json').value = JSON.stringify(responders);
+            }}
+
+            renderResponders();
+        </script>"#,
+            responders_json = js_escape(&responders_json),
+            js_channel_options = js_channel_options,
+            default_channel = default_channel,
+            default_subject = if is_default_email { "'Your booking is confirmed'" } else { "''" },
+        )
+    } else {
+        String::from("<script>function updateRespondersField() { document.getElementById('responders-json').value = '[]'; }</script>")
+    };
+
     let content = format!(
         "<p><a href=\"{base_url}/admin/calendars/{cal_id}\">&larr; Back to {cal_name}</a></p>
         <h1>Edit Booking Link: {name}</h1>
@@ -766,7 +868,7 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
         </div>
 
         <div class=\"card\">
-            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" hx-swap=\"none\" hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\" hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save Changes'\">
+            <form id=\"booking-link-form\" hx-put=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" hx-swap=\"none\" hx-on::before-request=\"updateRespondersField();this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\" hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save Changes'\">
                 <div class=\"form-group\">
                     <label>Name</label>
                     <input type=\"text\" name=\"name\" value=\"{name}\" required>
@@ -806,6 +908,8 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
                     <small style=\"color: #666;\">Receives approval requests when auto-accept is disabled</small>
                 </div>
 
+                {responders_section}
+
                 <div class=\"form-group\">
                     <label style=\"display: flex; align-items: center; gap: 0.5rem; cursor: pointer;\">
                         <input type=\"checkbox\" name=\"enabled\" {enabled_checked} style=\"width: auto;\">
@@ -814,7 +918,9 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
                 </div>
                 <button type=\"submit\" class=\"btn\">Save Changes</button>
             </form>
-        </div>",
+        </div>
+
+        {responders_script}",
         base_url = base_url,
         cal_id = html_escape(&calendar.id),
         cal_name = html_escape(&calendar.name),
@@ -830,6 +936,8 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
         admin_email = html_escape(link.admin_email.as_deref().unwrap_or("")),
         admin_email_display = if link.auto_accept { "display: none;" } else { "" },
         enabled_checked = if link.enabled { "checked" } else { "" },
+        responders_section = responders_section,
+        responders_script = responders_script,
     );
 
     base_html(&format!("Edit: {}", link.name), &content, &calendar.style)

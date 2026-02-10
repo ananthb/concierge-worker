@@ -160,7 +160,8 @@ pub fn calendar_view_html(
         endless_sel = if matches!(view_type, ViewType::Endless) { "selected" } else { "" },
     );
 
-    let title_html = if hide_title {
+    // Only show title on initial page load, not on HTMX navigation
+    let title_html = if hide_title || is_htmx {
         String::new()
     } else {
         format!(

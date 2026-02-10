@@ -616,7 +616,16 @@ async fn handle_calendars_admin(
                 Some(l) => l,
                 None => return Response::error("Booking link not found", 404),
             };
-            Response::from_html(admin_booking_link_html(&calendar, link, base_url))
+
+            // Check which responder channels are available
+            let channels = crate::templates::AvailableChannels {
+                twilio_sms: env.secret("TWILIO_SID").is_ok() && env.secret("TWILIO_FROM_SMS").is_ok(),
+                twilio_whatsapp: env.secret("TWILIO_SID").is_ok() && env.secret("TWILIO_FROM_WHATSAPP").is_ok(),
+                twilio_email: env.secret("SENDGRID_API_KEY").is_ok() && env.secret("TWILIO_FROM_EMAIL").is_ok(),
+                resend_email: env.secret("RESEND_API_KEY").is_ok() && env.secret("RESEND_FROM").is_ok(),
+            };
+
+            Response::from_html(admin_booking_link_html(&calendar, link, base_url, &channels))
         }
 
         (Method::Put, [id, "booking", link_id]) => {
@@ -650,6 +659,11 @@ async fn handle_calendars_admin(
                 link.auto_accept = form.get("auto_accept").is_some();
                 if let Some(FormEntry::Field(email)) = form.get("admin_email") {
                     link.admin_email = if email.is_empty() { None } else { Some(email) };
+                }
+                if let Some(FormEntry::Field(responders_json)) = form.get("responders_json") {
+                    if let Ok(responders) = serde_json::from_str(&responders_json) {
+                        link.responders = responders;
+                    }
                 }
             }
 

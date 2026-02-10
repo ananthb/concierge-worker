@@ -328,6 +328,62 @@ pub async fn handle_booking(mut req: Request, env: Env, path: &str, method: Meth
             Response::from_html(html)
         }
 
+        // Denial endpoint: POST /book/{cal_id}/{slug}/deny/{booking_id}?token={confirmation_token}
+        (Method::Post, "deny") if !booking_id.is_empty() => {
+            let token = query_pairs.get("token").map(|s| s.to_string());
+
+            // Get the booking
+            let mut booking = match get_booking(&db, booking_id).await? {
+                Some(b) => b,
+                None => {
+                    let html = approval_error_html(&calendar, "Booking not found", &css_options, false);
+                    return Response::from_html(html);
+                }
+            };
+
+            // Verify token matches
+            let expected_token = booking.confirmation_token.as_deref().unwrap_or("");
+            let provided_token = token.as_deref().unwrap_or("");
+            if expected_token.is_empty() || expected_token != provided_token {
+                let html = approval_error_html(&calendar, "Invalid token", &css_options, false);
+                return Response::from_html(html);
+            }
+
+            // Verify booking is still pending
+            if booking.status != BookingStatus::Pending {
+                let html = approval_error_html(
+                    &calendar,
+                    &format!("Booking is already {:?}", booking.status),
+                    &css_options,
+                    false,
+                );
+                return Response::from_html(html);
+            }
+
+            // Update status to Cancelled
+            booking.status = BookingStatus::Cancelled;
+            booking.updated_at = now_iso();
+            save_booking(&db, &booking).await?;
+
+            // Build fields_data from booking for responders
+            let mut fields_data = match &booking.fields_data {
+                Some(serde_json::Value::Object(map)) => map.clone(),
+                _ => serde_json::Map::new(),
+            };
+            fields_data.insert("name".to_string(), serde_json::Value::String(booking.name.clone()));
+            fields_data.insert("email".to_string(), serde_json::Value::String(booking.email.clone()));
+            fields_data.insert("date".to_string(), serde_json::Value::String(booking.slot_date.clone()));
+            fields_data.insert("time".to_string(), serde_json::Value::String(booking.slot_time.clone()));
+            fields_data.insert("status".to_string(), serde_json::Value::String("denied".to_string()));
+
+            // Trigger denial responders
+            trigger_denial_responders(&env, &link, &fields_data).await;
+
+            // Return denial success HTML
+            let html = denial_success_html(&calendar, &booking, &css_options, false);
+            Response::from_html(html)
+        }
+
         _ => Response::error("Not Found", 404),
     }
 }
@@ -397,6 +453,82 @@ async fn trigger_customer_responders(
     }
 }
 
+/// Trigger denial responders (notify customer that booking was denied)
+async fn trigger_denial_responders(
+    env: &Env,
+    link: &BookingLink,
+    fields_data: &serde_json::Map<String, serde_json::Value>,
+) {
+    // Use the same responders but with a denial message
+    for responder in &link.responders {
+        if !responder.enabled {
+            continue;
+        }
+
+        let target = if matches!(responder.channel, ResponderChannel::MetaWhatsapp) {
+            continue;
+        } else {
+            match fields_data.get(&responder.target_field) {
+                Some(serde_json::Value::String(t)) => t.clone(),
+                _ => {
+                    // For email responders, try the email field directly
+                    match fields_data.get("email") {
+                        Some(serde_json::Value::String(t)) => t.clone(),
+                        _ => continue,
+                    }
+                }
+            }
+        };
+
+        // Create a denial message based on the responder type
+        let name = fields_data.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Guest");
+        let date = fields_data.get("date")
+            .and_then(|v| v.as_str())
+            .unwrap_or("the requested date");
+        let time = fields_data.get("time")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let body = format!(
+            "Hi {},\n\nUnfortunately, your booking request for {} at {} could not be approved at this time.\n\nPlease contact us for more information or to reschedule.\n\nThank you for your understanding.",
+            name, date, format_time(time)
+        );
+
+        let result = match responder.channel {
+            ResponderChannel::TwilioSms => {
+                if let Ok(from) = env.secret("TWILIO_FROM_SMS") {
+                    send_twilio_message(env, &target, &from.to_string(), &body).await
+                } else {
+                    continue;
+                }
+            }
+            ResponderChannel::TwilioEmail => {
+                if let Ok(from) = env.secret("TWILIO_FROM_EMAIL") {
+                    let subject = format!("Booking Request Update for {}", link.name);
+                    send_twilio_email(env, &target, &from.to_string(), &subject, &body).await
+                } else {
+                    continue;
+                }
+            }
+            ResponderChannel::ResendEmail => {
+                if let Ok(from) = env.secret("RESEND_FROM") {
+                    let subject = format!("Booking Request Update for {}", link.name);
+                    send_resend_email(env, &target, &from.to_string(), &subject, &body).await
+                } else {
+                    continue;
+                }
+            }
+            _ => continue,
+        };
+
+        if let Err(e) = result {
+            console_log!("Booking denial responder error for {}: {:?}", responder.name, e);
+        }
+    }
+}
+
 /// Send approval notification email to admin
 async fn send_admin_approval_notification(
     env: &Env,
@@ -418,6 +550,10 @@ async fn send_admin_approval_notification(
         "{}/book/{}/{}/approve/{}?token={}",
         base_url, calendar.id, link.slug, booking.id, token
     );
+    let denial_url = format!(
+        "{}/book/{}/{}/deny/{}?token={}",
+        base_url, calendar.id, link.slug, booking.id, token
+    );
 
     let subject = format!("Booking Approval Required: {} on {}", booking.name, booking.slot_date);
     let body = format!(
@@ -429,16 +565,19 @@ async fn send_admin_approval_notification(
          - Time: {}\n\
          - Duration: {} minutes\n\
          - Event: {}\n\n\
-         To approve this booking, click the link below:\n\
+         To APPROVE this booking:\n\
          {}\n\n\
-         If you do not approve, the booking will remain pending.",
+         To DENY this booking:\n\
+         {}\n\n\
+         If you take no action, the booking will remain pending.",
         booking.name,
         booking.email,
         booking.slot_date,
         format_time(&booking.slot_time),
         booking.duration,
         link.name,
-        approval_url
+        approval_url,
+        denial_url
     );
 
     // Try Resend first, then Twilio

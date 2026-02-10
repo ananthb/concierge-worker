@@ -328,6 +328,15 @@ impl<'a> Default for CssOptions<'a> {
     }
 }
 
+/// Available responder channels based on configured secrets
+#[derive(Default)]
+pub struct AvailableChannels {
+    pub twilio_sms: bool,
+    pub twilio_whatsapp: bool,
+    pub twilio_email: bool,
+    pub resend_email: bool,
+}
+
 /// Base HTML wrapper with custom CSS support for public pages
 pub fn base_html_with_css(title: &str, content: &str, style: &CalendarStyle, css: &CssOptions) -> String {
     let css_link = css.css_url
