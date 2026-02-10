@@ -127,7 +127,11 @@ async fn handle_forms_admin(
                         resend_email: env.secret("RESEND_API_KEY").is_ok()
                             && env.secret("RESEND_FROM").is_ok(),
                     };
-                    Response::from_html(form_editor_html(Some(&form), access_user.unwrap_or(""), &channels))
+                    Response::from_html(form_editor_html(
+                        Some(&form),
+                        access_user.unwrap_or(""),
+                        &channels,
+                    ))
                 }
                 None => Response::error("Form not found", 404),
             }
@@ -389,7 +393,12 @@ async fn handle_calendars_admin(
                 resend_email: env.secret("RESEND_API_KEY").is_ok()
                     && env.secret("RESEND_FROM").is_ok(),
             };
-            Response::from_html(admin_calendar_html(&calendar, &time_slots, base_url, &channels))
+            Response::from_html(admin_calendar_html(
+                &calendar,
+                &time_slots,
+                base_url,
+                &channels,
+            ))
         }
 
         (Method::Put, [id]) => {

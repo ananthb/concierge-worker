@@ -348,3 +348,149 @@ pub fn interpolate_template(
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_html_escape() {
+        assert_eq!(html_escape("hello"), "hello");
+        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
+        assert_eq!(html_escape("a & b"), "a &amp; b");
+        assert_eq!(html_escape("\"quoted\""), "&quot;quoted&quot;");
+        assert_eq!(html_escape("it's"), "it&#x27;s");
+        assert_eq!(
+            html_escape("<div class=\"foo\">bar & baz</div>"),
+            "&lt;div class=&quot;foo&quot;&gt;bar &amp; baz&lt;/div&gt;"
+        );
+    }
+
+    #[test]
+    fn test_url_encode() {
+        assert_eq!(url_encode("hello"), "hello");
+        assert_eq!(url_encode("hello world"), "hello%20world");
+        assert_eq!(url_encode("a+b=c"), "a%2Bb%3Dc");
+        assert_eq!(url_encode("foo@bar.com"), "foo%40bar.com");
+        assert_eq!(url_encode("safe-chars_here.txt~"), "safe-chars_here.txt~");
+    }
+
+    #[test]
+    fn test_is_origin_allowed() {
+        // Empty allowed list allows all
+        assert!(is_origin_allowed("https://example.com", &[]));
+
+        let allowed = vec!["https://example.com".to_string()];
+        assert!(is_origin_allowed("https://example.com", &allowed));
+        assert!(is_origin_allowed("https://EXAMPLE.COM", &allowed)); // case insensitive
+        assert!(is_origin_allowed("https://example.com/", &allowed)); // trailing slash
+        assert!(!is_origin_allowed("https://other.com", &allowed));
+
+        let multi = vec![
+            "https://example.com".to_string(),
+            "https://app.example.com".to_string(),
+        ];
+        assert!(is_origin_allowed("https://example.com", &multi));
+        assert!(is_origin_allowed("https://app.example.com", &multi));
+        assert!(!is_origin_allowed("https://other.com", &multi));
+    }
+
+    #[test]
+    fn test_parse_date() {
+        assert_eq!(parse_date("2024-03-15"), Some((2024, 3, 15)));
+        assert_eq!(parse_date("1999-12-31"), Some((1999, 12, 31)));
+        assert_eq!(parse_date("invalid"), None);
+        assert_eq!(parse_date("2024-03"), None);
+        assert_eq!(parse_date("2024-03-15-extra"), None);
+        assert_eq!(parse_date("abc-03-15"), None);
+    }
+
+    #[test]
+    fn test_day_of_week() {
+        // Known dates
+        assert_eq!(day_of_week("2024-01-01"), Some(1)); // Monday
+        assert_eq!(day_of_week("2024-01-07"), Some(0)); // Sunday
+        assert_eq!(day_of_week("2024-03-15"), Some(5)); // Friday
+        assert_eq!(day_of_week("2024-12-25"), Some(3)); // Wednesday
+        assert_eq!(day_of_week("invalid"), None);
+    }
+
+    #[test]
+    fn test_format_time() {
+        assert_eq!(format_time("09:30"), "9:30 AM");
+        assert_eq!(format_time("13:45"), "1:45 PM");
+        assert_eq!(format_time("00:00"), "12:00 AM");
+        assert_eq!(format_time("12:00"), "12:00 PM");
+        assert_eq!(format_time("23:59"), "11:59 PM");
+        assert_eq!(format_time("invalid"), "invalid");
+    }
+
+    #[test]
+    fn test_add_minutes() {
+        assert_eq!(add_minutes("09:00", 30), "09:30");
+        assert_eq!(add_minutes("09:30", 60), "10:30");
+        assert_eq!(add_minutes("23:30", 60), "00:30"); // wrap around midnight
+        assert_eq!(add_minutes("10:00", -30), "09:30");
+        assert_eq!(add_minutes("invalid", 30), "invalid");
+    }
+
+    #[test]
+    fn test_time_to_minutes() {
+        assert_eq!(time_to_minutes("00:00"), 0);
+        assert_eq!(time_to_minutes("01:00"), 60);
+        assert_eq!(time_to_minutes("09:30"), 570);
+        assert_eq!(time_to_minutes("23:59"), 1439);
+        assert_eq!(time_to_minutes("invalid"), 0);
+    }
+
+    #[test]
+    fn test_month_name() {
+        assert_eq!(month_name(1), "January");
+        assert_eq!(month_name(6), "June");
+        assert_eq!(month_name(12), "December");
+        assert_eq!(month_name(0), "Unknown");
+        assert_eq!(month_name(13), "Unknown");
+    }
+
+    #[test]
+    fn test_day_name() {
+        assert_eq!(day_name(0), "Sunday");
+        assert_eq!(day_name(1), "Monday");
+        assert_eq!(day_name(6), "Saturday");
+        assert_eq!(day_name(7), "Unknown");
+    }
+
+    #[test]
+    fn test_interpolate_template() {
+        let mut fields = serde_json::Map::new();
+        fields.insert(
+            "name".to_string(),
+            serde_json::Value::String("Alice".to_string()),
+        );
+        fields.insert("count".to_string(), serde_json::Value::Number(42.into()));
+
+        assert_eq!(
+            interpolate_template("Hello {{name}}!", &fields),
+            "Hello Alice!"
+        );
+        assert_eq!(
+            interpolate_template("{{name}} has {{count}} items", &fields),
+            "Alice has 42 items"
+        );
+        assert_eq!(
+            interpolate_template("No placeholders here", &fields),
+            "No placeholders here"
+        );
+        assert_eq!(
+            interpolate_template("Unknown {{unknown}} field", &fields),
+            "Unknown {{unknown}} field"
+        );
+    }
+
+    #[test]
+    fn test_start_of_month() {
+        assert_eq!(start_of_month("2024-03-15"), "2024-03-01");
+        assert_eq!(start_of_month("2024-12-31"), "2024-12-01");
+        assert_eq!(start_of_month("2024-01-01"), "2024-01-01");
+    }
+}

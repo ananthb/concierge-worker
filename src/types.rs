@@ -36,7 +36,6 @@ pub enum DigestFrequency {
     Weekly,
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct DigestConfig {
     pub frequency: DigestFrequency,
@@ -626,4 +625,249 @@ pub struct IncomingMessage {
     pub text: String,
     pub message_id: String,
     pub timestamp: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_field_type_serialization() {
+        assert_eq!(serde_json::to_string(&FieldType::Text).unwrap(), "\"text\"");
+        assert_eq!(
+            serde_json::to_string(&FieldType::Email).unwrap(),
+            "\"email\""
+        );
+        assert_eq!(
+            serde_json::to_string(&FieldType::LongText).unwrap(),
+            "\"long_text\""
+        );
+
+        let ft: FieldType = serde_json::from_str("\"mobile\"").unwrap();
+        assert!(matches!(ft, FieldType::Mobile));
+    }
+
+    #[test]
+    fn test_responder_channel_serialization() {
+        assert_eq!(
+            serde_json::to_string(&ResponderChannel::TwilioSms).unwrap(),
+            "\"twilio_sms\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ResponderChannel::MetaWhatsapp).unwrap(),
+            "\"meta_whatsapp\""
+        );
+
+        let ch: ResponderChannel = serde_json::from_str("\"resend_email\"").unwrap();
+        assert!(matches!(ch, ResponderChannel::ResendEmail));
+    }
+
+    #[test]
+    fn test_digest_frequency_default() {
+        let freq = DigestFrequency::default();
+        assert_eq!(freq, DigestFrequency::None);
+
+        assert_eq!(
+            serde_json::to_string(&DigestFrequency::Daily).unwrap(),
+            "\"daily\""
+        );
+        assert_eq!(
+            serde_json::to_string(&DigestFrequency::Weekly).unwrap(),
+            "\"weekly\""
+        );
+    }
+
+    #[test]
+    fn test_booking_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&BookingStatus::Pending).unwrap(),
+            "\"pending\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BookingStatus::Confirmed).unwrap(),
+            "\"confirmed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BookingStatus::Cancelled).unwrap(),
+            "\"cancelled\""
+        );
+
+        let status: BookingStatus = serde_json::from_str("\"completed\"").unwrap();
+        assert_eq!(status, BookingStatus::Completed);
+    }
+
+    #[test]
+    fn test_view_type_serialization() {
+        assert_eq!(serde_json::to_string(&ViewType::Week).unwrap(), "\"week\"");
+        assert_eq!(
+            serde_json::to_string(&ViewType::Month).unwrap(),
+            "\"month\""
+        );
+        assert_eq!(serde_json::to_string(&ViewType::Year).unwrap(), "\"year\"");
+        assert_eq!(
+            serde_json::to_string(&ViewType::Endless).unwrap(),
+            "\"endless\""
+        );
+    }
+
+    #[test]
+    fn test_form_style_default() {
+        let style = FormStyle::default();
+        assert_eq!(style.primary_color, "#0070f3");
+        assert_eq!(style.font_family, "inherit");
+        assert!(style.show_title);
+        assert!(style.custom_css.is_empty());
+    }
+
+    #[test]
+    fn test_calendar_style_default() {
+        let style = CalendarStyle::default();
+        assert_eq!(style.primary_color, "#0070f3");
+        assert_eq!(style.text_color, "#333333");
+        assert_eq!(style.background_color, "#ffffff");
+        assert!(style.custom_css.is_empty());
+    }
+
+    #[test]
+    fn test_booking_link_default() {
+        let link = BookingLink::default();
+        assert_eq!(link.duration, 30);
+        assert_eq!(link.min_notice, 24);
+        assert_eq!(link.max_advance, 30);
+        assert!(link.auto_accept);
+        assert!(link.enabled);
+        assert!(!link.hide_title);
+        assert_eq!(link.fields.len(), 2);
+    }
+
+    #[test]
+    fn test_view_link_default() {
+        let link = ViewLink::default();
+        assert!(link.show_events);
+        assert!(link.show_event_details);
+        assert!(link.show_bookings);
+        assert!(link.show_booking_details);
+        assert!(link.enabled);
+        assert!(matches!(link.view_type, ViewType::Month));
+    }
+
+    #[test]
+    fn test_calendar_config_default() {
+        let config = CalendarConfig::default();
+        assert_eq!(config.name, "New Calendar");
+        assert_eq!(config.timezone, "UTC");
+        assert!(!config.archived);
+        assert!(config.booking_links.is_empty());
+        assert!(config.view_links.is_empty());
+    }
+
+    #[test]
+    fn test_form_config_default_fields() {
+        let fields = FormConfig::default_fields();
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].id, "name");
+        assert_eq!(fields[1].id, "email");
+        assert_eq!(fields[2].id, "message");
+        assert!(fields.iter().all(|f| f.required));
+    }
+
+    #[test]
+    fn test_extracted_event_default() {
+        let event = ExtractedEvent::default();
+        assert!(event.title.is_none());
+        assert!(event.date.is_none());
+        assert!(!event.is_cancellation);
+        assert_eq!(event.confidence, 0.0);
+    }
+
+    #[test]
+    fn test_processing_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&ProcessingStatus::Pending).unwrap(),
+            "\"pending\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ProcessingStatus::Processed).unwrap(),
+            "\"processed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ProcessingStatus::NoEvent).unwrap(),
+            "\"no_event\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ProcessingStatus::Failed).unwrap(),
+            "\"failed\""
+        );
+    }
+
+    #[test]
+    fn test_digest_config_default() {
+        let config = DigestConfig::default();
+        assert_eq!(config.frequency, DigestFrequency::None);
+        assert!(config.responders.is_empty());
+        assert!(config.last_sent_at.is_none());
+    }
+
+    #[test]
+    fn test_booking_link_serde_with_defaults() {
+        // Test that missing optional fields use defaults
+        let json = r#"{
+            "id": "test-id",
+            "slug": "test-slug",
+            "name": "Test Booking",
+            "duration": 60,
+            "buffer_before": 5,
+            "buffer_after": 5,
+            "min_notice": 12,
+            "max_advance": 14,
+            "fields": [],
+            "confirmation_message": "Thanks!",
+            "enabled": true
+        }"#;
+
+        let link: BookingLink = serde_json::from_str(json).unwrap();
+        assert!(link.auto_accept); // default_true
+        assert!(link.responders.is_empty()); // default vec
+        assert!(link.admin_responders.is_empty()); // default vec
+        assert!(!link.hide_title); // default false
+    }
+
+    #[test]
+    fn test_whatsapp_webhook_deserialization() {
+        let json = r#"{
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "123456789",
+                "changes": [{
+                    "field": "messages",
+                    "value": {
+                        "messaging_product": "whatsapp",
+                        "metadata": {
+                            "display_phone_number": "+1234567890",
+                            "phone_number_id": "phone-123"
+                        },
+                        "contacts": [{
+                            "wa_id": "user123",
+                            "profile": {"name": "Test User"}
+                        }],
+                        "messages": [{
+                            "from": "user123",
+                            "id": "msg-123",
+                            "timestamp": "1234567890",
+                            "type": "text",
+                            "text": {"body": "Hello!"}
+                        }]
+                    }
+                }]
+            }]
+        }"#;
+
+        let webhook: WhatsAppWebhook = serde_json::from_str(json).unwrap();
+        assert_eq!(webhook.object, "whatsapp_business_account");
+        assert_eq!(webhook.entry.len(), 1);
+        assert_eq!(
+            webhook.entry[0].changes[0].value.messages[0].from,
+            "user123"
+        );
+    }
 }

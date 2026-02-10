@@ -284,11 +284,7 @@ async fn send_booking_digests(env: &Env) -> Result<()> {
         // Update last_sent_at
         calendar.digest.last_sent_at = Some(now.clone());
         if let Err(e) = save_calendar(&kv, &calendar).await {
-            console_log!(
-                "Failed to update last_sent_at for {}: {:?}",
-                calendar.id,
-                e
-            );
+            console_log!("Failed to update last_sent_at for {}: {:?}", calendar.id, e);
         }
 
         console_log!(

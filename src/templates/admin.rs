@@ -280,12 +280,21 @@ pub fn admin_calendar_html(
     let time_slots_summary = if time_slots.is_empty() {
         "<p class=\"text-muted\">No time slots configured. Bookings won't be available until you configure availability.</p>".to_string()
     } else {
-        let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let days = [
+            "Sunday",
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+        ];
         let mut summary_html = String::from("<table style=\"width: 100%; margin-top: 0.5rem;\"><thead><tr><th>Day</th><th>Hours</th><th>Duration</th><th>Capacity</th></tr></thead><tbody>");
 
         // Group slots by day of week
         for (dow, day_name) in days.iter().enumerate() {
-            let day_slots: Vec<_> = time_slots.iter()
+            let day_slots: Vec<_> = time_slots
+                .iter()
                 .filter(|s| s.day_of_week == Some(dow as i32))
                 .collect();
 
@@ -304,7 +313,8 @@ pub fn admin_calendar_html(
         }
 
         // Add specific date slots
-        let date_slots: Vec<_> = time_slots.iter()
+        let date_slots: Vec<_> = time_slots
+            .iter()
             .filter(|s| s.specific_date.is_some())
             .collect();
         for slot in date_slots {
@@ -355,8 +365,8 @@ pub fn admin_calendar_html(
         .collect::<Vec<_>>()
         .join("\\n                                ");
 
-    let digest_json =
-        serde_json::to_string(&calendar.digest).unwrap_or_else(|_| r#"{"frequency":"none","responders":[]}"#.into());
+    let digest_json = serde_json::to_string(&calendar.digest)
+        .unwrap_or_else(|_| r#"{"frequency":"none","responders":[]}"#.into());
 
     let booking_links_html: String = calendar
         .booking_links
