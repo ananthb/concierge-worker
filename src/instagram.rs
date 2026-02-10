@@ -212,7 +212,10 @@ pub async fn exchange_code_for_token(
 
     let body = format!(
         "client_id={}&client_secret={}&grant_type=authorization_code&redirect_uri={}&code={}",
-        app_id, app_secret, urlencoding_encode(redirect_uri), code
+        app_id,
+        app_secret,
+        urlencoding_encode(redirect_uri),
+        code
     );
 
     let mut init = RequestInit::new();

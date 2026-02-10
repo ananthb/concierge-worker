@@ -11,7 +11,11 @@ use crate::types::{
 // ============================================================================
 
 pub async fn get_form(kv: &kv::KvStore, slug: &str) -> Result<Option<FormConfig>> {
-    match kv.get(&format!("form:{}", slug)).json::<FormConfig>().await? {
+    match kv
+        .get(&format!("form:{}", slug))
+        .json::<FormConfig>()
+        .await?
+    {
         Some(form) => Ok(Some(form)),
         None => Ok(None),
     }
@@ -65,13 +69,21 @@ pub async fn delete_calendar(kv: &kv::KvStore, id: &str) -> Result<()> {
 }
 
 pub async fn list_calendars(kv: &kv::KvStore) -> Result<Vec<CalendarConfig>> {
-    let list = kv.list().prefix("calendar:".into()).execute().await
+    let list = kv
+        .list()
+        .prefix("calendar:".into())
+        .execute()
+        .await
         .map_err(|e| Error::from(e.to_string()))?;
     let mut calendars = Vec::new();
 
     for key in list.keys {
-        if let Some(calendar) = kv.get(&key.name).json::<CalendarConfig>().await
-            .map_err(|e| Error::from(e.to_string()))? {
+        if let Some(calendar) = kv
+            .get(&key.name)
+            .json::<CalendarConfig>()
+            .await
+            .map_err(|e| Error::from(e.to_string()))?
+        {
             calendars.push(calendar);
         }
     }
@@ -117,14 +129,15 @@ pub async fn save_submission_with_source(
          VALUES (?1, ?2, '', '', '', '', ?3, ?4) RETURNING id",
     );
 
-    let results = stmt.bind(&[
-        form_slug.into(),
-        fields_json.into(),
-        source_type.into(),
-        source_id.into(),
-    ])?
-    .all()
-    .await?;
+    let results = stmt
+        .bind(&[
+            form_slug.into(),
+            fields_json.into(),
+            source_type.into(),
+            source_id.into(),
+        ])?
+        .all()
+        .await?;
 
     let rows = results.results::<serde_json::Value>()?;
     if let Some(row) = rows.into_iter().next() {
@@ -137,7 +150,10 @@ pub async fn save_submission_with_source(
 pub async fn get_submission_count(db: &D1Database, form_slug: &str) -> Result<i64> {
     let stmt = db.prepare("SELECT COUNT(*) as count FROM contacts WHERE form_slug = ?1");
 
-    let result = stmt.bind(&[form_slug.into()])?.first::<serde_json::Value>(None).await?;
+    let result = stmt
+        .bind(&[form_slug.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
 
     if let Some(row) = result {
         Ok(row.get("count").and_then(|c| c.as_i64()).unwrap_or(0))
@@ -160,7 +176,11 @@ pub async fn get_submissions(
     let mut submissions = Vec::new();
     for row in results.results::<serde_json::Value>()? {
         let id = row.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-        let created_at = row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let created_at = row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let fields_data: serde_json::Map<String, serde_json::Value> = row
             .get("fields_data")
             .and_then(|v| v.as_str())
@@ -191,7 +211,11 @@ pub async fn get_submissions_since(
     let mut submissions = Vec::new();
     for row in results.results::<serde_json::Value>()? {
         let id = row.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-        let created_at = row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let created_at = row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let fields_data: serde_json::Map<String, serde_json::Value> = row
             .get("fields_data")
             .and_then(|v| v.as_str())
@@ -446,7 +470,11 @@ pub async fn save_booking(db: &D1Database, booking: &Booking) -> Result<()> {
             .unwrap_or_default()
             .into(),
         status_str.into(),
-        booking.confirmation_token.clone().unwrap_or_default().into(),
+        booking
+            .confirmation_token
+            .clone()
+            .unwrap_or_default()
+            .into(),
         booking.created_at.clone().into(),
         booking.updated_at.clone().into(),
     ])?
@@ -646,7 +674,10 @@ pub async fn save_event_source(db: &D1Database, source: &EventSource) -> Result<
     stmt.bind(&[
         source.id.clone().into(),
         source.event_id.clone().unwrap_or_default().into(),
-        source.contact_id.map(|id| id.into()).unwrap_or(JsValue::NULL),
+        source
+            .contact_id
+            .map(|id| id.into())
+            .unwrap_or(JsValue::NULL),
         source.source_type.clone().into(),
         source.source_id.clone().into(),
         source.external_id.clone().unwrap_or_default().into(),

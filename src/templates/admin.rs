@@ -377,7 +377,11 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
                 source_id = html_escape(&source.id),
                 username = html_escape(&source.instagram_username),
                 last_synced = last_synced,
-                status = if source.enabled { "Enabled" } else { "Disabled" },
+                status = if source.enabled {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                },
             )
         })
         .collect();
@@ -542,7 +546,11 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
     base_html(&title, &content, &calendar.style)
 }
 
-pub fn admin_events_html(calendar: &CalendarConfig, events: &[CalendarEvent], base_url: &str) -> String {
+pub fn admin_events_html(
+    calendar: &CalendarConfig,
+    events: &[CalendarEvent],
+    base_url: &str,
+) -> String {
     let event_rows: String = events
         .iter()
         .map(|event| {
@@ -614,7 +622,11 @@ pub fn admin_events_html(calendar: &CalendarConfig, events: &[CalendarEvent], ba
         hash = HASH,
     );
 
-    base_html(&format!("Events: {}", calendar.name), &content, &calendar.style)
+    base_html(
+        &format!("Events: {}", calendar.name),
+        &content,
+        &calendar.style,
+    )
 }
 
 pub fn admin_slots_html(calendar: &CalendarConfig, slots: &[TimeSlot], base_url: &str) -> String {
@@ -704,10 +716,18 @@ pub fn admin_slots_html(calendar: &CalendarConfig, slots: &[TimeSlot], base_url:
         hash = HASH,
     );
 
-    base_html(&format!("Slots: {}", calendar.name), &content, &calendar.style)
+    base_html(
+        &format!("Slots: {}", calendar.name),
+        &content,
+        &calendar.style,
+    )
 }
 
-pub fn admin_bookings_html(calendar: &CalendarConfig, bookings: &[Booking], base_url: &str) -> String {
+pub fn admin_bookings_html(
+    calendar: &CalendarConfig,
+    bookings: &[Booking],
+    base_url: &str,
+) -> String {
     let booking_rows: String = bookings
         .iter()
         .map(|booking| {
@@ -753,12 +773,25 @@ pub fn admin_bookings_html(calendar: &CalendarConfig, bookings: &[Booking], base
         booking_rows = booking_rows,
     );
 
-    base_html(&format!("Bookings: {}", calendar.name), &content, &calendar.style)
+    base_html(
+        &format!("Bookings: {}", calendar.name),
+        &content,
+        &calendar.style,
+    )
 }
 
-pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, base_url: &str, channels: &super::base::AvailableChannels) -> String {
+pub fn admin_booking_link_html(
+    calendar: &CalendarConfig,
+    link: &BookingLink,
+    base_url: &str,
+    channels: &super::base::AvailableChannels,
+) -> String {
     let responders_json = serde_json::to_string(&link.responders).unwrap_or_else(|_| "[]".into());
-    let js_escape = |s: &str| s.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
+    let js_escape = |s: &str| {
+        s.replace('\\', "\\\\")
+            .replace('\'', "\\'")
+            .replace('\n', "\\n")
+    };
 
     // Build channel options based on what's available
     let mut channel_options = Vec::new();
@@ -776,13 +809,21 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
     }
 
     let has_channels = !channel_options.is_empty();
-    let default_channel = channel_options.first().map(|(c, _)| *c).unwrap_or("resend_email");
+    let default_channel = channel_options
+        .first()
+        .map(|(c, _)| *c)
+        .unwrap_or("resend_email");
     let is_default_email = default_channel.contains("email");
 
     // Build JS channel options string
     let js_channel_options: String = channel_options
         .iter()
-        .map(|(value, label)| format!("<option value=\"{}\" ${{r.channel==='{}'?'selected':''}}>{}</option>", value, value, label))
+        .map(|(value, label)| {
+            format!(
+                "<option value=\"{}\" ${{r.channel==='{}'?'selected':''}}>{}</option>",
+                value, value, label
+            )
+        })
         .collect::<Vec<_>>()
         .join("\\n                                ");
 
@@ -795,7 +836,9 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
                 <input type="hidden" name="responders_json" id="responders-json">"#
         )
     } else {
-        String::from(r#"<input type="hidden" name="responders_json" id="responders-json" value="[]">"#)
+        String::from(
+            r#"<input type="hidden" name="responders_json" id="responders-json" value="[]">"#,
+        )
     };
 
     let responders_script = if has_channels {
@@ -853,7 +896,11 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
             responders_json = js_escape(&responders_json),
             js_channel_options = js_channel_options,
             default_channel = default_channel,
-            default_subject = if is_default_email { "'Your booking is confirmed'" } else { "''" },
+            default_subject = if is_default_email {
+                "'Your booking is confirmed'"
+            } else {
+                "''"
+            },
         )
     } else {
         String::from("<script>function updateRespondersField() { document.getElementById('responders-json').value = '[]'; }</script>")

@@ -44,14 +44,21 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
         return Response::error("Method not allowed", 405);
     }
 
-    let link = match calendar.view_links.iter().find(|l| l.slug == slug && l.enabled) {
+    let link = match calendar
+        .view_links
+        .iter()
+        .find(|l| l.slug == slug && l.enabled)
+    {
         Some(l) => l.clone(),
         None => return Response::error("View link not found", 404),
     };
 
     let url = req.url()?;
     let query_pairs: std::collections::HashMap<_, _> = url.query_pairs().collect();
-    let date = query_pairs.get("date").map(|s| s.to_string()).unwrap_or_else(today_date);
+    let date = query_pairs
+        .get("date")
+        .map(|s| s.to_string())
+        .unwrap_or_else(today_date);
     let inline_css = query_pairs.get("css").map(|s| s.to_string());
     let css_url = query_pairs.get("css_url").map(|s| s.to_string());
     let css_options = CssOptions {
@@ -70,7 +77,10 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
         })
         .unwrap_or_else(|| link.view_type.clone());
 
-    let hide_title = query_pairs.get("notitle").map(|v| v == "1" || v == "true").unwrap_or(false);
+    let hide_title = query_pairs
+        .get("notitle")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
 
     let (start_date, end_date) = match &view_type {
         ViewType::Week => {
@@ -96,8 +106,16 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
 
     let (start_date, end_date) = if let Some(range) = &link.date_range {
         (
-            if start_date < range.start { range.start.clone() } else { start_date },
-            if end_date > range.end { range.end.clone() } else { end_date },
+            if start_date < range.start {
+                range.start.clone()
+            } else {
+                start_date
+            },
+            if end_date > range.end {
+                range.end.clone()
+            } else {
+                end_date
+            },
         )
     } else {
         (start_date, end_date)
@@ -107,9 +125,24 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
     let bookings = get_bookings(&db, calendar_id, &start_date, &end_date).await?;
 
     let is_htmx = is_htmx_request(&req);
-    let html = calendar_view_html(&calendar, &link, &view_type, &events, &bookings, &date, &base_url, &css_options, is_htmx, hide_title);
+    let html = calendar_view_html(
+        &calendar,
+        &link,
+        &view_type,
+        &events,
+        &bookings,
+        &date,
+        &base_url,
+        &css_options,
+        is_htmx,
+        hide_title,
+    );
     let response = Response::from_html(html)?;
-    Ok(with_cors(response, origin.as_deref(), &calendar.allowed_origins))
+    Ok(with_cors(
+        response,
+        origin.as_deref(),
+        &calendar.allowed_origins,
+    ))
 }
 
 /// Handle iCal feed routes (/feed/*)
@@ -142,7 +175,11 @@ pub async fn handle_feed(req: Request, env: Env, path: &str, method: Method) -> 
         None => return Response::error("Calendar not found", 404),
     };
 
-    let link = match calendar.feed_links.iter().find(|l| l.slug == slug && l.enabled) {
+    let link = match calendar
+        .feed_links
+        .iter()
+        .find(|l| l.slug == slug && l.enabled)
+    {
         Some(l) => l.clone(),
         None => return Response::error("Feed link not found", 404),
     };

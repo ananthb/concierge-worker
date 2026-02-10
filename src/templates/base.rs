@@ -28,7 +28,10 @@ pub fn timezone_options(selected: &str) -> String {
         ("America/Toronto", "America/Toronto (EST)"),
         ("America/Vancouver", "America/Vancouver (PST)"),
         ("America/Winnipeg", "America/Winnipeg (CST)"),
-        ("America/Argentina/Buenos_Aires", "America/Buenos Aires (ART)"),
+        (
+            "America/Argentina/Buenos_Aires",
+            "America/Buenos Aires (ART)",
+        ),
         ("America/Bogota", "America/Bogota (COT)"),
         ("America/Caracas", "America/Caracas (VET)"),
         ("America/Guatemala", "America/Guatemala (CST)"),
@@ -338,8 +341,14 @@ pub struct AvailableChannels {
 }
 
 /// Base HTML wrapper with custom CSS support for public pages
-pub fn base_html_with_css(title: &str, content: &str, style: &CalendarStyle, css: &CssOptions) -> String {
-    let css_link = css.css_url
+pub fn base_html_with_css(
+    title: &str,
+    content: &str,
+    style: &CalendarStyle,
+    css: &CssOptions,
+) -> String {
+    let css_link = css
+        .css_url
         .map(|url| format!("<link rel=\"stylesheet\" href=\"{}\">", html_escape(url)))
         .unwrap_or_default();
     let query_css = css.inline_css.unwrap_or_default();
@@ -473,7 +482,13 @@ fn fragment_html_with_css(content: &str, _style: &CalendarStyle, _css: &CssOptio
 }
 
 /// Wrap content with full page or fragment based on HTMX request
-pub fn wrap_html(content: &str, title: &str, style: &CalendarStyle, css: &CssOptions, is_htmx: bool) -> String {
+pub fn wrap_html(
+    content: &str,
+    title: &str,
+    style: &CalendarStyle,
+    css: &CssOptions,
+    is_htmx: bool,
+) -> String {
     if is_htmx {
         fragment_html_with_css(content, style, css)
     } else {

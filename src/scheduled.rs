@@ -184,7 +184,15 @@ async fn sync_calendar_instagram_sources(env: &Env) -> Result<()> {
             );
 
             // Get and validate token
-            let token = match get_instagram_token(env, &kv, &calendar_id, &source_id, &encryption_key).await {
+            let token = match get_instagram_token(
+                env,
+                &kv,
+                &calendar_id,
+                &source_id,
+                &encryption_key,
+            )
+            .await
+            {
                 Ok(Some(t)) => t,
                 Ok(None) => continue,
                 Err(e) => {
@@ -222,7 +230,9 @@ async fn sync_calendar_instagram_sources(env: &Env) -> Result<()> {
                     &post.id,
                     &post.permalink,
                     &caption,
-                ).await {
+                )
+                .await
+                {
                     console_log!("Failed to process post {}: {:?}", post.id, e);
                 }
             }
@@ -273,34 +283,41 @@ async fn process_calendar_instagram_post(
     }
 
     // Extract event using AI
-    let (extracted, ai_response) = match ai::extract_event_from_caption(env, caption, timezone, today).await {
-        Ok(result) => result,
-        Err(e) => {
-            let failed_post = ProcessedPost {
-                id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
-                calendar_id: Some(calendar_id.to_string()),
-                form_slug: None,
-                instagram_source_id: source_id.to_string(),
-                instagram_post_id: post_id.to_string(),
-                instagram_permalink: permalink.to_string(),
-                caption_hash,
-                event_id: None,
-                contact_id: None,
-                event_signature: None,
-                processing_status: ProcessingStatus::Failed,
-                ai_response: Some(format!("Error: {:?}", e)),
-                processed_at: now_iso(),
-                updated_at: Some(now_iso()),
-            };
-            save_instagram_post(db, &failed_post).await?;
-            return Err(e);
-        }
-    };
+    let (extracted, ai_response) =
+        match ai::extract_event_from_caption(env, caption, timezone, today).await {
+            Ok(result) => result,
+            Err(e) => {
+                let failed_post = ProcessedPost {
+                    id: existing
+                        .as_ref()
+                        .map(|p| p.id.clone())
+                        .unwrap_or_else(generate_id),
+                    calendar_id: Some(calendar_id.to_string()),
+                    form_slug: None,
+                    instagram_source_id: source_id.to_string(),
+                    instagram_post_id: post_id.to_string(),
+                    instagram_permalink: permalink.to_string(),
+                    caption_hash,
+                    event_id: None,
+                    contact_id: None,
+                    event_signature: None,
+                    processing_status: ProcessingStatus::Failed,
+                    ai_response: Some(format!("Error: {:?}", e)),
+                    processed_at: now_iso(),
+                    updated_at: Some(now_iso()),
+                };
+                save_instagram_post(db, &failed_post).await?;
+                return Err(e);
+            }
+        };
 
     // Check if valid event
     if !ai::event_is_valid(&extracted) {
         let no_event_post = ProcessedPost {
-            id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+            id: existing
+                .as_ref()
+                .map(|p| p.id.clone())
+                .unwrap_or_else(generate_id),
             calendar_id: Some(calendar_id.to_string()),
             form_slug: None,
             instagram_source_id: source_id.to_string(),
@@ -335,7 +352,10 @@ async fn process_calendar_instagram_post(
         }
 
         let cancelled_post = ProcessedPost {
-            id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+            id: existing
+                .as_ref()
+                .map(|p| p.id.clone())
+                .unwrap_or_else(generate_id),
             calendar_id: Some(calendar_id.to_string()),
             form_slug: None,
             instagram_source_id: source_id.to_string(),
@@ -368,7 +388,10 @@ async fn process_calendar_instagram_post(
 
     if is_duplicate {
         let dup_post = ProcessedPost {
-            id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+            id: existing
+                .as_ref()
+                .map(|p| p.id.clone())
+                .unwrap_or_else(generate_id),
             calendar_id: Some(calendar_id.to_string()),
             form_slug: None,
             instagram_source_id: source_id.to_string(),
@@ -410,7 +433,9 @@ async fn process_calendar_instagram_post(
     let event = CalendarEvent {
         id: event_id.clone(),
         calendar_id: calendar_id.to_string(),
-        title: extracted.title.unwrap_or_else(|| "Instagram Event".to_string()),
+        title: extracted
+            .title
+            .unwrap_or_else(|| "Instagram Event".to_string()),
         description: Some(description),
         start_time: start_datetime,
         end_time: end_datetime,
@@ -424,7 +449,12 @@ async fn process_calendar_instagram_post(
     console_log!("Saved event {} from post {}", event_id, post_id);
 
     // Save event source
-    if existing.is_none() || existing.as_ref().and_then(|p| p.event_id.as_ref()).is_none() {
+    if existing.is_none()
+        || existing
+            .as_ref()
+            .and_then(|p| p.event_id.as_ref())
+            .is_none()
+    {
         let event_source = EventSource {
             id: generate_id(),
             event_id: Some(event_id.clone()),
@@ -439,7 +469,10 @@ async fn process_calendar_instagram_post(
 
     // Save processed post
     let processed_post = ProcessedPost {
-        id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+        id: existing
+            .as_ref()
+            .map(|p| p.id.clone())
+            .unwrap_or_else(generate_id),
         calendar_id: Some(calendar_id.to_string()),
         form_slug: None,
         instagram_source_id: source_id.to_string(),
@@ -500,7 +533,15 @@ async fn sync_form_instagram_sources(env: &Env) -> Result<()> {
             );
 
             // Try to get token (tokens stored with form_slug prefix)
-            let token = match get_instagram_token(env, &calendars_kv, &form_slug, &source_id, &encryption_key).await {
+            let token = match get_instagram_token(
+                env,
+                &calendars_kv,
+                &form_slug,
+                &source_id,
+                &encryption_key,
+            )
+            .await
+            {
                 Ok(Some(t)) => t,
                 Ok(None) => continue,
                 Err(e) => {
@@ -533,7 +574,9 @@ async fn sync_form_instagram_sources(env: &Env) -> Result<()> {
                     &post.id,
                     &post.permalink,
                     &caption,
-                ).await {
+                )
+                .await
+                {
                     console_log!("Failed to process form post {}: {:?}", post.id, e);
                 }
             }
@@ -581,34 +624,41 @@ async fn process_form_instagram_post(
     }
 
     // Extract contact info using AI
-    let (fields_data, ai_response) = match ai::extract_contact_from_caption(env, caption, form_fields).await {
-        Ok(result) => result,
-        Err(e) => {
-            let failed_post = ProcessedPost {
-                id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
-                calendar_id: None,
-                form_slug: Some(form_slug.to_string()),
-                instagram_source_id: source_id.to_string(),
-                instagram_post_id: post_id.to_string(),
-                instagram_permalink: permalink.to_string(),
-                caption_hash,
-                event_id: None,
-                contact_id: None,
-                event_signature: None,
-                processing_status: ProcessingStatus::Failed,
-                ai_response: Some(format!("Error: {:?}", e)),
-                processed_at: now_iso(),
-                updated_at: Some(now_iso()),
-            };
-            save_instagram_post(db, &failed_post).await?;
-            return Err(e);
-        }
-    };
+    let (fields_data, ai_response) =
+        match ai::extract_contact_from_caption(env, caption, form_fields).await {
+            Ok(result) => result,
+            Err(e) => {
+                let failed_post = ProcessedPost {
+                    id: existing
+                        .as_ref()
+                        .map(|p| p.id.clone())
+                        .unwrap_or_else(generate_id),
+                    calendar_id: None,
+                    form_slug: Some(form_slug.to_string()),
+                    instagram_source_id: source_id.to_string(),
+                    instagram_post_id: post_id.to_string(),
+                    instagram_permalink: permalink.to_string(),
+                    caption_hash,
+                    event_id: None,
+                    contact_id: None,
+                    event_signature: None,
+                    processing_status: ProcessingStatus::Failed,
+                    ai_response: Some(format!("Error: {:?}", e)),
+                    processed_at: now_iso(),
+                    updated_at: Some(now_iso()),
+                };
+                save_instagram_post(db, &failed_post).await?;
+                return Err(e);
+            }
+        };
 
     // Skip if no contact info extracted
     if fields_data.is_empty() {
         let no_contact_post = ProcessedPost {
-            id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+            id: existing
+                .as_ref()
+                .map(|p| p.id.clone())
+                .unwrap_or_else(generate_id),
             calendar_id: None,
             form_slug: Some(form_slug.to_string()),
             instagram_source_id: source_id.to_string(),
@@ -641,12 +691,20 @@ async fn process_form_instagram_post(
     let fields_json = serde_json::to_string(&enriched_data).unwrap_or_else(|_| "{}".to_string());
 
     // Save as form submission
-    let contact_id = save_submission_with_source(db, form_slug, &fields_json, "instagram", post_id).await?;
-    console_log!("Saved contact {} from Instagram post {}", contact_id, post_id);
+    let contact_id =
+        save_submission_with_source(db, form_slug, &fields_json, "instagram", post_id).await?;
+    console_log!(
+        "Saved contact {} from Instagram post {}",
+        contact_id,
+        post_id
+    );
 
     // Save processed post record
     let processed_post = ProcessedPost {
-        id: existing.as_ref().map(|p| p.id.clone()).unwrap_or_else(generate_id),
+        id: existing
+            .as_ref()
+            .map(|p| p.id.clone())
+            .unwrap_or_else(generate_id),
         calendar_id: None,
         form_slug: Some(form_slug.to_string()),
         instagram_source_id: source_id.to_string(),

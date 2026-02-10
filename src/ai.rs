@@ -111,7 +111,10 @@ Guidelines:
         timezone = timezone
     );
 
-    let user_prompt = format!("Extract event details from this Instagram caption:\n\n{}", caption);
+    let user_prompt = format!(
+        "Extract event details from this Instagram caption:\n\n{}",
+        caption
+    );
 
     let request = AiRequest {
         messages: vec![
@@ -161,7 +164,10 @@ Guidelines:
 - Set confidence based on how clearly the post contains contact information (0.0 to 1.0)
 - If no contact info is found, set has_contact=false and confidence=0"#;
 
-    let user_prompt = format!("Extract contact details from this Instagram caption:\n\n{}", caption);
+    let user_prompt = format!(
+        "Extract contact details from this Instagram caption:\n\n{}",
+        caption
+    );
 
     let request = AiRequest {
         messages: vec![
@@ -180,26 +186,48 @@ Guidelines:
 
     // Parse the response into fields_data
     let json_str = extract_json_from_response(&ai_response);
-    let parsed: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| Error::from(format!("Failed to parse AI JSON: {} - Response: {}", e, ai_response)))?;
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| {
+        Error::from(format!(
+            "Failed to parse AI JSON: {} - Response: {}",
+            e, ai_response
+        ))
+    })?;
 
-    let has_contact = parsed.get("has_contact").and_then(|v| v.as_bool()).unwrap_or(false);
-    let confidence = parsed.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let has_contact = parsed
+        .get("has_contact")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let confidence = parsed
+        .get("confidence")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
 
     let mut fields_data = serde_json::Map::new();
 
     if has_contact && confidence >= 0.5 {
         if let Some(name) = parsed.get("name").and_then(|v| v.as_str()) {
-            fields_data.insert("name".to_string(), serde_json::Value::String(name.to_string()));
+            fields_data.insert(
+                "name".to_string(),
+                serde_json::Value::String(name.to_string()),
+            );
         }
         if let Some(email) = parsed.get("email").and_then(|v| v.as_str()) {
-            fields_data.insert("email".to_string(), serde_json::Value::String(email.to_string()));
+            fields_data.insert(
+                "email".to_string(),
+                serde_json::Value::String(email.to_string()),
+            );
         }
         if let Some(phone) = parsed.get("phone").and_then(|v| v.as_str()) {
-            fields_data.insert("phone".to_string(), serde_json::Value::String(phone.to_string()));
+            fields_data.insert(
+                "phone".to_string(),
+                serde_json::Value::String(phone.to_string()),
+            );
         }
         if let Some(message) = parsed.get("message").and_then(|v| v.as_str()) {
-            fields_data.insert("message".to_string(), serde_json::Value::String(message.to_string()));
+            fields_data.insert(
+                "message".to_string(),
+                serde_json::Value::String(message.to_string()),
+            );
         }
     }
 
@@ -228,7 +256,8 @@ async fn run_ai_model(env: &Env, request: &AiRequest) -> Result<String> {
         .as_str()
         .map(|s| s.to_string())
         .or_else(|| {
-            response.get("response")
+            response
+                .get("response")
                 .and_then(|r| r.as_str())
                 .map(|s| s.to_string())
         })
@@ -240,8 +269,12 @@ async fn run_ai_model(env: &Env, request: &AiRequest) -> Result<String> {
 fn parse_ai_response(response: &str) -> Result<ExtractedEvent> {
     let json_str = extract_json_from_response(response);
 
-    let parsed: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| Error::from(format!("Failed to parse AI JSON: {} - Response: {}", e, response)))?;
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| {
+        Error::from(format!(
+            "Failed to parse AI JSON: {} - Response: {}",
+            e, response
+        ))
+    })?;
 
     let has_event = parsed
         .get("has_event")
@@ -350,9 +383,7 @@ fn extract_json_from_response(response: &str) -> String {
 
 /// Check if an extracted event meets the minimum quality threshold
 pub fn event_is_valid(event: &ExtractedEvent) -> bool {
-    event.confidence >= MIN_CONFIDENCE
-        && event.title.is_some()
-        && event.date.is_some()
+    event.confidence >= MIN_CONFIDENCE && event.title.is_some() && event.date.is_some()
 }
 
 /// Generate a signature for deduplication
