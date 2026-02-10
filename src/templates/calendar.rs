@@ -53,26 +53,37 @@ pub fn calendar_view_html(
                 Vec::new()
             };
 
-            let events_display: String = if link.show_details {
+            // Build display for events based on show_event_details setting
+            let events_str: String = if link.show_event_details {
                 visible_events
                     .iter()
                     .map(|e| format!("<div class=\"event\">{}</div>", html_escape(&e.title)))
-                    .chain(visible_bookings.iter().map(|b| {
+                    .collect()
+            } else if !visible_events.is_empty() {
+                format!("<div class=\"busy\">{} event{}</div>", visible_events.len(), if visible_events.len() == 1 { "" } else { "s" })
+            } else {
+                String::new()
+            };
+
+            // Build display for bookings based on show_booking_details setting
+            let bookings_str: String = if link.show_booking_details {
+                visible_bookings
+                    .iter()
+                    .map(|b| {
                         format!(
                             "<div class=\"booking\">{} - {}</div>",
                             format_time(&b.slot_time),
                             html_escape(&b.name)
                         )
-                    }))
+                    })
                     .collect()
+            } else if !visible_bookings.is_empty() {
+                format!("<div class=\"busy\">{} booking{}</div>", visible_bookings.len(), if visible_bookings.len() == 1 { "" } else { "s" })
             } else {
-                let total = visible_events.len() + visible_bookings.len();
-                if total > 0 {
-                    format!("<div class=\"busy\">{} items</div>", total)
-                } else {
-                    String::new()
-                }
+                String::new()
             };
+
+            let events_display = format!("{}{}", events_str, bookings_str);
 
             week_html.push_str(&format!(
                 "<td class=\"{class}\">

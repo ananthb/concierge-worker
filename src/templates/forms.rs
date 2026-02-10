@@ -211,7 +211,7 @@ button {{ text-transform: uppercase; }}" onchange="style.custom_css=this.value">
 
             <div class="card" style="display:flex;gap:1rem;justify-content:flex-end;">
                 <a href="/admin" class="btn btn-secondary">Cancel</a>
-                <button type="submit" class="btn">{save_button}</button>
+                <button type="submit" id="save-btn" class="btn">{save_button}</button>
             </div>
         </form>
     </div>
@@ -426,6 +426,10 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
 
         async function saveForm(e) {{
             e.preventDefault();
+            const btn = document.getElementById('save-btn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
             try {{
                 const form = e.target;
                 const fd = new FormData(form);
@@ -457,12 +461,17 @@ ${{s.show_title?`<h1>${{data.title}}</h1>`:''}}
                 }});
 
                 if (resp.ok) {{
+                    btn.textContent = 'Saved!';
                     await new Promise(r => setTimeout(r, 500));
                     window.location.href = '/admin';
                 }} else {{
+                    btn.disabled = false;
+                    btn.textContent = originalText;
                     alert('Error: ' + await resp.text());
                 }}
             }} catch (err) {{
+                btn.disabled = false;
+                btn.textContent = originalText;
                 alert('Error: ' + err.message);
             }}
         }}
