@@ -676,8 +676,9 @@ async fn handle_calendars_admin(
                     };
                 }
                 link.show_events = form.get("show_events").is_some();
+                link.show_event_details = form.get("show_event_details").is_some();
                 link.show_bookings = form.get("show_bookings").is_some();
-                link.show_details = form.get("show_details").is_some();
+                link.show_booking_details = form.get("show_booking_details").is_some();
                 link.enabled = form.get("enabled").is_some();
             }
 

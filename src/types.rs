@@ -299,11 +299,14 @@ pub struct ViewLink {
     pub name: String,
     pub view_type: ViewType,
     pub date_range: Option<DateRange>,
-    pub show_details: bool,
     #[serde(default = "default_true")]
     pub show_events: bool,
     #[serde(default = "default_true")]
+    pub show_event_details: bool,
+    #[serde(default = "default_true")]
     pub show_bookings: bool,
+    #[serde(default = "default_true")]
+    pub show_booking_details: bool,
     pub enabled: bool,
 }
 
@@ -315,9 +318,10 @@ impl Default for ViewLink {
             name: String::from("Calendar View"),
             view_type: ViewType::Month,
             date_range: None,
-            show_details: true,
             show_events: true,
+            show_event_details: true,
             show_bookings: true,
+            show_booking_details: true,
             enabled: true,
         }
     }

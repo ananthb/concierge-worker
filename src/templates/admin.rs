@@ -25,8 +25,8 @@ pub fn admin_dashboard_html(
                     <td><code>/f/{slug}</code></td>
                     <td>{count}</td>
                     <td>
-                        <button onclick=\"copyLink('/f/{slug}', this)\" class=\"btn btn-sm btn-secondary\">Copy</button>
-                        <a href=\"{base_url}/admin/forms/{slug}/responses\" class=\"btn btn-sm btn-secondary\">Responses</a>
+                        <button onclick=\"copyLink('/f/{slug}', this)\" class=\"btn btn-sm\">Copy Link</button>
+                        <a href=\"{base_url}/admin/forms/{slug}/responses\" class=\"btn btn-sm\">Responses</a>
                         <a href=\"{base_url}/admin/forms/{slug}\" class=\"btn btn-sm\">Edit</a>
                     </td>
                 </tr>",
@@ -283,7 +283,7 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
         <div id=\"tab-settings\" class=\"tab-content active\">
             <div class=\"card\">
                 <h2>Calendar Settings</h2>
-                <form hx-put=\"{base_url}/admin/calendars/{id}\" hx-swap=\"none\">
+                <form hx-put=\"{base_url}/admin/calendars/{id}\" hx-swap=\"none\" hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\" hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save Settings'\">
                     <div class=\"form-group\">
                         <label>Name</label>
                         <input type=\"text\" name=\"name\" value=\"{name}\" required>
@@ -311,23 +311,6 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
                     <button type=\"submit\" class=\"btn\">Save Settings</button>
                 </form>
             </div>
-        </div>
-
-        <div id=\"tab-events\" class=\"tab-content\">
-            <div class=\"card\">
-                <h2>Manage Events</h2>
-                <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Open Event Editor</a></p>
-            </div>
-
-            <div class=\"card\">
-                <h2>Instagram Sources</h2>
-                <p style=\"margin-bottom: 1rem; color: #666;\">Connect Instagram accounts to automatically import events from posts using AI.</p>
-                <a href=\"{base_url}/instagram/auth/{id}\" class=\"btn\">Connect Instagram Account</a>
-                <table id=\"instagram-sources\" style=\"margin-top: 1rem;\">
-                    <thead><tr><th>Account</th><th>Last Synced</th><th>Status</th><th>Actions</th></tr></thead>
-                    <tbody>{instagram_sources_html}</tbody>
-                </table>
-            </div>
 
             <div class=\"card\">
                 <h2>View Links</h2>
@@ -348,6 +331,23 @@ pub fn admin_calendar_html(calendar: &CalendarConfig, base_url: &str) -> String 
                 <table id=\"feed-links\" style=\"margin-top: 1rem;\">
                     <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>{feed_links_html}</tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id=\"tab-events\" class=\"tab-content\">
+            <div class=\"card\">
+                <h2>Manage Events</h2>
+                <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Open Event Editor</a></p>
+            </div>
+
+            <div class=\"card\">
+                <h2>Instagram Sources</h2>
+                <p style=\"margin-bottom: 1rem; color: #666;\">Connect Instagram accounts to automatically import events from posts using AI.</p>
+                <a href=\"{base_url}/instagram/auth/{id}\" class=\"btn\">Connect Instagram Account</a>
+                <table id=\"instagram-sources\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Account</th><th>Last Synced</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{instagram_sources_html}</tbody>
                 </table>
             </div>
         </div>
@@ -625,7 +625,7 @@ pub fn admin_booking_link_html(calendar: &CalendarConfig, link: &BookingLink, ba
         </div>
 
         <div class=\"card\">
-            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" hx-swap=\"none\">
+            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/booking/{link_id}\" hx-swap=\"none\" hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\" hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save Changes'\">
                 <div class=\"form-group\">
                     <label>Name</label>
                     <input type=\"text\" name=\"name\" value=\"{name}\" required>
@@ -704,7 +704,7 @@ pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url
         </div>
 
         <div class=\"card\">
-            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/view/{link_id}\" hx-swap=\"none\">
+            <form hx-put=\"{base_url}/admin/calendars/{cal_id}/view/{link_id}\" hx-swap=\"none\" hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\" hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save Changes'\">
                 <div class=\"form-group\">
                     <label>Name</label>
                     <input type=\"text\" name=\"name\" value=\"{name}\" required>
@@ -718,6 +718,7 @@ pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url
                         <option value=\"endless\" {endless_sel}>Endless</option>
                     </select>
                 </div>
+                <h3 style=\"margin-top: 1.5rem; margin-bottom: 1rem;\">Events</h3>
                 <div class=\"form-group\">
                     <label>
                         <input type=\"checkbox\" name=\"show_events\" {events_checked}>
@@ -726,15 +727,25 @@ pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url
                 </div>
                 <div class=\"form-group\">
                     <label>
+                        <input type=\"checkbox\" name=\"show_event_details\" {event_details_checked}>
+                        Show Event Details (titles, times)
+                    </label>
+                    <small style=\"color: #666; display: block; margin-top: 0.25rem;\">When unchecked, shows \"busy\" instead of details</small>
+                </div>
+
+                <h3 style=\"margin-top: 1.5rem; margin-bottom: 1rem;\">Bookings</h3>
+                <div class=\"form-group\">
+                    <label>
                         <input type=\"checkbox\" name=\"show_bookings\" {bookings_checked}>
                         Show Bookings
                     </label>
                 </div>
                 <div class=\"form-group\">
                     <label>
-                        <input type=\"checkbox\" name=\"show_details\" {details_checked}>
-                        Show Details (vs busy/free only)
+                        <input type=\"checkbox\" name=\"show_booking_details\" {booking_details_checked}>
+                        Show Booking Details (names, times)
                     </label>
+                    <small style=\"color: #666; display: block; margin-top: 0.25rem;\">When unchecked, shows \"busy\" instead of details</small>
                 </div>
                 <div class=\"form-group\">
                     <label>
@@ -756,8 +767,9 @@ pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url
         year_sel = if matches!(link.view_type, ViewType::Year) { "selected" } else { "" },
         endless_sel = if matches!(link.view_type, ViewType::Endless) { "selected" } else { "" },
         events_checked = if link.show_events { "checked" } else { "" },
+        event_details_checked = if link.show_event_details { "checked" } else { "" },
         bookings_checked = if link.show_bookings { "checked" } else { "" },
-        details_checked = if link.show_details { "checked" } else { "" },
+        booking_details_checked = if link.show_booking_details { "checked" } else { "" },
         enabled_checked = if link.enabled { "checked" } else { "" },
     );
 
