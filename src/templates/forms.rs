@@ -67,10 +67,9 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str) -> String 
         .color-input {{ display: flex; gap: 0.5rem; align-items: center; }}
         .color-input input[type="color"] {{ width: 50px; height: 38px; padding: 2px; }}
         .color-input input[type="text"] {{ flex: 1; }}
-        .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }}
         code {{ background: #e9ecef; padding: 0.2rem 0.4rem; border-radius: 3px; }}
-        .tabs {{ display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }}
-        .tab {{ padding: 0.5rem 1rem; background: #e9ecef; border-radius: 4px; cursor: pointer; }}
+        .tabs {{ display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }}
+        .tab {{ padding: 0.5rem 1rem; background: #e9ecef; border-radius: 4px; cursor: pointer; border: none; font-size: 1rem; }}
         .tab.active {{ background: #0070f3; color: white; }}
         .tab-content {{ display: none; }}
         .tab-content.active {{ display: block; }}
@@ -79,18 +78,16 @@ pub fn form_editor_html(form: Option<&FormConfig>, admin_email: &str) -> String 
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>{header}</h1>
-            <a href="/admin" class="btn btn-secondary">Back to Dashboard</a>
-        </div>
+        <p><a href="/admin">&larr; Back to Dashboard</a></p>
+        <h1>{header}</h1>
 
         <div class="tabs">
-            <div class="tab active" onclick="showTab('basic')">Basic Settings</div>
-            <div class="tab" onclick="showTab('fields')">Fields</div>
-            <div class="tab" onclick="showTab('responders')">Responders</div>
-            <div class="tab" onclick="showTab('digest')">Digest</div>
-            <div class="tab" onclick="showTab('style')">Styling</div>
-            <div class="tab" onclick="showTab('preview')">Preview</div>
+            <button class="tab active" onclick="showTab('basic')">Basic Settings</button>
+            <button class="tab" onclick="showTab('fields')">Fields</button>
+            <button class="tab" onclick="showTab('responders')">Responders</button>
+            <button class="tab" onclick="showTab('digest')">Digest</button>
+            <button class="tab" onclick="showTab('style')">Styling</button>
+            <button class="tab" onclick="showTab('preview')">Preview</button>
         </div>
 
         <form id="formEditor" onsubmit="saveForm(event); return false;">
