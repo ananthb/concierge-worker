@@ -1,0 +1,17 @@
+[book]
+title = "Concierge Worker"
+authors = ["Ananth Bhaskararaman"]
+language = "en"
+src = "src"
+description = "Documentation for Concierge Worker - Forms, Calendars, and Bookings on Cloudflare"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/ananthb/concierge-worker"
+edit-url-template = "https://github.com/ananthb/concierge-worker/edit/main/docs/{path}"
+site-url = "/"

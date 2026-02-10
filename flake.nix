@@ -28,12 +28,15 @@
             wasm-pack
             nodejs_22
             nodePackages.npm
+            mdbook
           ];
           shellHook = ''
             echo "Concierge Worker Rust dev environment"
             echo "Commands:"
-            echo "  wrangler dev    - Start local dev server"
-            echo "  wrangler deploy - Deploy to Cloudflare"
+            echo "  wrangler dev        - Start local dev server"
+            echo "  wrangler deploy     - Deploy to Cloudflare"
+            echo "  mdbook serve docs   - Preview documentation"
+            echo "  mdbook build docs   - Build documentation"
           '';
         };
       }

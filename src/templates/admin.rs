@@ -489,7 +489,6 @@ pub fn admin_calendar_html(
             .tab-content {{ display: none; }}
             .tab-content.active {{ display: block; }}
             .form-actions {{ display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }}
-            .warning {{ background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-text); }}
         </style>
 
         <p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
@@ -559,8 +558,8 @@ pub fn admin_calendar_html(
                 </table>
             </div>
 
-            <div class=\"card\" style=\"border-color: #dc3545;\">
-                <h2 style=\"color: #dc3545;\">Danger Zone</h2>
+            <div class=\"card danger\">
+                <h2>Danger Zone</h2>
                 <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Permanently delete this calendar and all its data.</p>
                 <button class=\"btn btn-danger\"
                         hx-delete=\"{base_url}/admin/calendars/{id}\"
