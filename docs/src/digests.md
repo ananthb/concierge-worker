@@ -1,140 +1,57 @@
-# Digests
+# Digest Notifications
 
-Receive periodic summaries of new form submissions and bookings.
+Get periodic summaries of new bookings delivered to your WhatsApp. Never miss an appointment, even when you're busy.
 
-## Prerequisites
+## How It Works
 
-Configure at least one notification channel. See [Configuration](./configuration.md).
+Concierge checks for new bookings on a schedule and sends you a WhatsApp message with a summary. Each digest includes:
 
-> **Note:** The Digest tab only appears when channels are configured.
+- Customer name and email
+- Date, time, and duration
+- Booking status (confirmed, pending)
+- Phone number and notes (if provided)
 
-## Form Digests
+## Setting Up
 
-Get summaries of new form submissions.
+In the calendar editor > **Digest** tab:
 
-### Setup
+1. Set **Frequency** to Daily or Weekly
+2. Click **+ Add Recipient**
+3. Enter a name and WhatsApp phone number
+4. Save
 
-1. Open form editor
-2. Go to **Digest** tab
-3. Select frequency
-4. Add recipients
+### Frequency Options
 
-### Configuration
+| Frequency | When It Sends |
+|-----------|--------------|
+| **Daily** | Every day (on the cron schedule) |
+| **Weekly** | Every Monday |
+| **Disabled** | No digests sent |
 
-| Field | Description |
-|-------|-------------|
-| Frequency | None, Daily, or Weekly |
-| Recipients | List of notification recipients |
+### Multiple Recipients
 
-### Adding Recipients
+You can add multiple recipients — each gets the same digest. Useful when multiple people need to know about upcoming appointments.
 
-1. Click **+ Add Recipient**
-2. Configure:
-   - **Name** - Recipient identifier
-   - **Channel** - SMS, WhatsApp, or Email
-   - **Address** - Phone number or email
-   - **Enabled** - Toggle on/off
-
-### Digest Content
-
-Form digests include:
-
-- Form name
-- Number of new submissions
-- For each submission:
-  - Timestamp
-  - All field values
-
-Example email digest:
+## Example Digest
 
 ```
-New submissions for form: Contact Form
+New bookings for calendar: My Business
 
-You have 3 new response(s) since the last digest.
+You have 3 new booking(s) since the last digest.
 
---- Response #1 (2024-03-15 10:30:00) ---
-Name: John Doe
-Email: john@example.com
-Message: I'd like to learn more about your services.
-
---- Response #2 (2024-03-15 14:45:00) ---
+--- Booking #1 (2026-03-28T14:30:00Z) ---
 Name: Jane Smith
 Email: jane@example.com
-Message: Do you offer weekend appointments?
-
-...
-```
-
-## Booking Digests
-
-Get summaries of new bookings.
-
-### Setup
-
-1. Open calendar editor
-2. Go to **Digest** tab
-3. Select frequency
-4. Add recipients
-
-### Digest Content
-
-Booking digests include:
-
-- Calendar name
-- Number of new bookings
-- For each booking:
-  - Timestamp
-  - Customer name and contact
-  - Date and time
-  - Duration
-  - Status (Pending/Confirmed)
-  - Notes (if any)
-
-Example:
-
-```
-New bookings for calendar: Appointments
-
-You have 2 new booking(s) since the last digest.
-
---- Booking #1 (2024-03-15 09:00:00) ---
-Name: John Doe
-Email: john@example.com
 Phone: +1234567890
-Date: 2024-03-20
+Date: 2026-03-30
 Time: 2:00 PM
 Duration: 30 minutes
 Status: Confirmed
 
---- Booking #2 (2024-03-15 11:30:00) ---
-Name: Jane Smith
-Email: jane@example.com
-Date: 2024-03-21
-Time: 10:00 AM
-Duration: 60 minutes
-Status: Pending
-Notes: First-time consultation
+--- Booking #2 ...
 ```
 
-## Frequency
+## Requirements
 
-| Option | When Sent |
-|--------|-----------|
-| None | Disabled |
-| Daily | Every day (via cron) |
-| Weekly | Every week (via cron) |
-
-Digests are sent via Cloudflare's cron trigger. The exact timing depends on your cron configuration in `wrangler.toml`:
-
-```toml
-[triggers]
-crons = ["0 * * * *"]  # Every hour
-```
-
-## Multiple Recipients
-
-Add multiple recipients to send the same digest to different people or channels:
-
-- Send email to admin and SMS to on-call staff
-- CC multiple team members
-- Use different channels for redundancy
+- WhatsApp Business API configured (see [Configuration](./configuration.md))
+- Cron trigger configured in `wrangler.toml` (included in default setup)

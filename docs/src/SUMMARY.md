@@ -1,28 +1,32 @@
 # Summary
 
-[Introduction](./README.md)
+[Concierge](./README.md)
 
 # Getting Started
 
-- [Deployment](./deployment.md)
-- [Configuration](./configuration.md)
+- [How It Works](./how-it-works.md)
+- [Setup Guide](./setup.md)
 
 # Features
 
-- [Forms](./forms.md)
-- [Calendars & Bookings](./calendars.md)
-- [Auto-Responders](./responders.md)
-- [Digests](./digests.md)
+- [WhatsApp Automation](./whatsapp.md)
+- [Event Calendars](./calendars.md)
+- [Booking & Appointments](./bookings.md)
+- [Google Forms](./forms.md)
+- [Instagram Integration](./instagram.md)
+- [Digest Notifications](./digests.md)
 
-# Embedding
+# Embedding on Your Website
 
+- [Quick Start](./embedding.md)
 - [iframe Embedding](./embedding-iframe.md)
 - [HTMX Embedding](./embedding-htmx.md)
-- [CSS Customization](./customization.md)
+- [Customizing Appearance](./customization.md)
 
 # Reference
 
-- [CSS Variables](./generated/css-variables.md)
-- [Query Parameters](./generated/query-params.md)
-- [Channels](./generated/channels.md)
+- [Configuration & Secrets](./configuration.md)
+- [Deployment](./deployment.md)
 - [URL Routes](./generated/routes.md)
+- [Query Parameters](./generated/query-params.md)
+- [CSS Variables](./generated/css-variables.md)

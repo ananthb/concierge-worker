@@ -1,84 +1,87 @@
 //! Admin dashboard and calendar management templates
 
-use std::collections::HashMap;
-
 use crate::helpers::*;
 use crate::types::*;
 
 use super::base::{base_html, timezone_options};
 use super::HASH;
 
+pub fn auth_login_html(base_url: &str, client_id: &str) -> String {
+    let redirect_uri = format!("{}/auth/callback", base_url);
+    let google_url = format!(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=online&prompt=select_account",
+        urlencoding::encode(client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode("openid email profile"),
+    );
+
+    let style = CalendarStyle::default();
+    let content = format!(
+        "<div style=\"max-width: 400px; margin: 4rem auto; text-align: center;\">
+            <h1 style=\"margin-bottom: 0.5rem;\">Concierge</h1>
+            <p style=\"color: {hash}666; margin-bottom: 2rem;\">Sign in to manage your calendars, bookings, and forms.</p>
+            <a href=\"{google_url}\" class=\"btn\" style=\"display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; font-size: 1rem;\">
+                <svg width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z\" fill=\"#4285F4\"/><path d=\"M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z\" fill=\"#34A853\"/><path d=\"M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z\" fill=\"#FBBC05\"/><path d=\"M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z\" fill=\"#EA4335\"/></svg>
+                Sign in with Google
+            </a>
+        </div>",
+        google_url = html_escape(&google_url),
+        hash = HASH,
+    );
+
+    base_html("Sign In - Concierge", &content, &style)
+}
+
+pub fn admin_settings_html(creds: &TenantCredentials, base_url: &str) -> String {
+    let style = CalendarStyle::default();
+    let content = format!(
+        "<p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
+        <h1>Settings</h1>
+
+        <div class=\"card\">
+            <h2>Google Integration</h2>
+            <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Service account credentials for Google Calendar and Google Forms.</p>
+            <form hx-put=\"{base_url}/admin/settings\" hx-swap=\"none\"
+                  hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true\"
+                  hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false\">
+                <div class=\"form-group\">
+                    <label>Service Account Email</label>
+                    <input type=\"email\" name=\"google_service_account_email\" value=\"{google_email}\" placeholder=\"concierge@project.iam.gserviceaccount.com\" style=\"font-family: monospace;\">
+                </div>
+                <div class=\"form-group\">
+                    <label>Private Key</label>
+                    <textarea name=\"google_private_key\" rows=\"4\" placeholder=\"-----BEGIN PRIVATE KEY-----\" style=\"font-family: monospace; font-size: 0.8rem;\">{google_key}</textarea>
+                    <small class=\"text-muted\">The private_key field from your service account JSON key file.</small>
+                </div>
+                <div style=\"display: flex; justify-content: flex-end; margin-top: 1rem;\">
+                    <button type=\"submit\" class=\"btn\">Save Credentials</button>
+                </div>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Account</h2>
+            <p><a href=\"{base_url}/auth/logout\" class=\"btn btn-secondary\">Sign Out</a></p>
+        </div>",
+        base_url = base_url,
+        google_email = html_escape(creds.google_service_account_email.as_deref().unwrap_or("")),
+        google_key = html_escape(creds.google_private_key.as_deref().unwrap_or("")),
+    );
+
+    base_html("Settings - Concierge", &content, &style)
+}
+
 pub fn admin_dashboard_html(
-    forms: &[FormConfig],
     calendars: &[CalendarConfig],
-    response_counts: &HashMap<String, i64>,
+    whatsapp_accounts: &[WhatsAppAccount],
+    form_resources: &[GoogleFormResource],
+    instagram_accounts: &[InstagramAccount],
     base_url: &str,
 ) -> String {
-    // Split forms into active and archived
-    let active_forms: Vec<_> = forms.iter().filter(|f| !f.archived).collect();
-    let archived_forms: Vec<_> = forms.iter().filter(|f| f.archived).collect();
-
     // Split calendars into active and archived
     let active_calendars: Vec<_> = calendars.iter().filter(|c| !c.archived).collect();
     let archived_calendars: Vec<_> = calendars.iter().filter(|c| c.archived).collect();
 
-    // Active forms section
-    let form_rows: String = active_forms
-        .iter()
-        .map(|f| {
-            let count = response_counts.get(&f.slug).unwrap_or(&0);
-            format!(
-                "<tr>
-                    <td><a href=\"{base_url}/admin/forms/{slug}\">{name}</a></td>
-                    <td><code>/f/{slug}</code></td>
-                    <td>{count}</td>
-                    <td>
-                        <button onclick=\"copyLink('/f/{slug}', this)\" class=\"btn btn-sm\">Copy Link</button>
-                        <a href=\"{base_url}/admin/forms/{slug}/responses\" class=\"btn btn-sm\">Responses</a>
-                        <a href=\"{base_url}/admin/forms/{slug}\" class=\"btn btn-sm\">Edit</a>
-                        <button class=\"btn btn-sm btn-secondary\"
-                                hx-post=\"{base_url}/admin/forms/{slug}/archive\"
-                                hx-confirm=\"Archive this form? It will become read-only.\"
-                                hx-target=\"closest tr\"
-                                hx-swap=\"outerHTML\">Archive</button>
-                    </td>
-                </tr>",
-                base_url = base_url,
-                name = html_escape(&f.name),
-                slug = html_escape(&f.slug),
-                count = count
-            )
-        })
-        .collect();
-
-    // Archived forms section
-    let archived_form_rows: String = archived_forms
-        .iter()
-        .map(|f| {
-            let count = response_counts.get(&f.slug).unwrap_or(&0);
-            format!(
-                "<tr>
-                    <td>{name} <span class=\"text-muted\" style=\"font-size:0.85em;\">(archived)</span></td>
-                    <td><code>/f/{slug}</code></td>
-                    <td>{count}</td>
-                    <td>
-                        <a href=\"{base_url}/admin/forms/{slug}/responses\" class=\"btn btn-sm\">Responses</a>
-                        <a href=\"{base_url}/admin/forms/{slug}\" class=\"btn btn-sm\">View</a>
-                        <button class=\"btn btn-sm\"
-                                hx-post=\"{base_url}/admin/forms/{slug}/unarchive\"
-                                hx-target=\"closest tr\"
-                                hx-swap=\"outerHTML\">Unarchive</button>
-                    </td>
-                </tr>",
-                base_url = base_url,
-                name = html_escape(&f.name),
-                slug = html_escape(&f.slug),
-                count = count
-            )
-        })
-        .collect();
-
-    // Active calendars section
     let calendar_rows: String = active_calendars
         .iter()
         .map(|cal| {
@@ -144,29 +147,6 @@ pub fn admin_dashboard_html(
         .collect();
 
     // Build archived sections HTML
-    let archived_forms_section = if archived_forms.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "<details style=\"margin-top: 1rem;\">
-                <summary class=\"text-muted\" style=\"cursor: pointer;\">Archived Forms ({count})</summary>
-                <table style=\"margin-top: 0.5rem;\">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>URL</th>
-                            <th>Responses</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>{rows}</tbody>
-                </table>
-            </details>",
-            count = archived_forms.len(),
-            rows = archived_form_rows
-        )
-    };
-
     let archived_calendars_section = if archived_calendars.is_empty() {
         String::new()
     } else {
@@ -196,25 +176,22 @@ pub fn admin_dashboard_html(
             <img src=\"/logo.svg\" alt=\"\" style=\"width: 32px; height: 32px;\">
             Concierge Admin
         </h1>
+        <p style=\"margin-bottom: 1rem;\"><a href=\"{base_url}/admin/settings\" class=\"btn btn-secondary\">Settings</a></p>
 
-        <h2 style=\"margin-top: 2rem;\">Forms</h2>
-        <p style=\"margin: 1rem 0;\">
-            <a href=\"{base_url}/admin/forms/new\" class=\"btn\">+ Create Form</a>
-        </p>
-        <table id=\"form-list\">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>URL</th>
-                    <th>Responses</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {form_rows}
-            </tbody>
-        </table>
-        {archived_forms_section}
+        <div style=\"display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0;\">
+            <a href=\"{base_url}/admin/whatsapp\" class=\"card\" style=\"text-decoration: none; text-align: center; padding: 1rem;\">
+                <div style=\"font-size: 1.5rem; font-weight: bold;\">{wa_count}</div>
+                <div class=\"text-muted\">WhatsApp Account{wa_s}</div>
+            </a>
+            <a href=\"{base_url}/admin/forms\" class=\"card\" style=\"text-decoration: none; text-align: center; padding: 1rem;\">
+                <div style=\"font-size: 1.5rem; font-weight: bold;\">{form_count}</div>
+                <div class=\"text-muted\">Form{form_s}</div>
+            </a>
+            <a href=\"{base_url}/admin/instagram\" class=\"card\" style=\"text-decoration: none; text-align: center; padding: 1rem;\">
+                <div style=\"font-size: 1.5rem; font-weight: bold;\">{ig_count}</div>
+                <div class=\"text-muted\">Instagram Account{ig_s}</div>
+            </a>
+        </div>
 
         <h2 style=\"margin-top: 2rem;\">Calendars</h2>
         <p style=\"margin: 1rem 0;\">
@@ -252,17 +229,17 @@ pub fn admin_dashboard_html(
         }}
         </script>",
         base_url = base_url,
-        form_rows = if form_rows.is_empty() {
-            "<tr><td colspan=\"4\" class=\"text-muted\" style=\"text-align:center;\">No forms yet.</td></tr>".to_string()
-        } else {
-            form_rows
-        },
+        wa_count = whatsapp_accounts.len(),
+        wa_s = if whatsapp_accounts.len() == 1 { "" } else { "s" },
+        form_count = form_resources.len(),
+        form_s = if form_resources.len() == 1 { "" } else { "s" },
+        ig_count = instagram_accounts.len(),
+        ig_s = if instagram_accounts.len() == 1 { "" } else { "s" },
         calendar_rows = if calendar_rows.is_empty() {
             "<tr><td colspan=\"5\" class=\"text-muted\" style=\"text-align:center;\">No calendars yet.</td></tr>".to_string()
         } else {
             calendar_rows
         },
-        archived_forms_section = archived_forms_section,
         archived_calendars_section = archived_calendars_section,
         hash = HASH,
     );
@@ -274,7 +251,6 @@ pub fn admin_calendar_html(
     calendar: &CalendarConfig,
     time_slots: &[TimeSlot],
     base_url: &str,
-    channels: &super::base::AvailableChannels,
 ) -> String {
     // Build time slots summary
     let time_slots_summary = if time_slots.is_empty() {
@@ -334,25 +310,9 @@ pub fn admin_calendar_html(
         summary_html
     };
 
-    // Build channel options for digest responders
-    let mut channel_options = Vec::new();
-    if channels.twilio_sms {
-        channel_options.push(("twilio_sms", "Twilio SMS"));
-    }
-    if channels.twilio_whatsapp {
-        channel_options.push(("twilio_whatsapp", "Twilio WhatsApp"));
-    }
-    if channels.twilio_email {
-        channel_options.push(("twilio_email", "Twilio Email"));
-    }
-    if channels.resend_email {
-        channel_options.push(("resend_email", "Resend Email"));
-    }
-    let has_channels = !channel_options.is_empty();
-    let default_channel = channel_options
-        .first()
-        .map(|(c, _)| *c)
-        .unwrap_or("resend_email");
+    // WhatsApp is the only supported channel
+    let channel_options = [("whatsapp", "WhatsApp")];
+    let default_channel = "whatsapp";
 
     let js_channel_options: String = channel_options
         .iter()
@@ -428,19 +388,26 @@ pub fn admin_calendar_html(
         })
         .collect();
 
-    let feed_links_html: String = calendar
-        .feed_links
+    let form_links_html: String = calendar
+        .form_links
         .iter()
         .map(|link| {
-            let url = format!("{}/feed/{}/{}?token={}", base_url, calendar.id, link.slug, link.token);
+            let url = format!("{}/form/{}/{}", base_url, calendar.id, link.slug);
+            let form_display = if link.google_form_url.is_empty() {
+                "Not set".to_string()
+            } else {
+                "Configured".to_string()
+            };
             format!(
                 "<tr>
                     <td>{name}</td>
                     <td><div class=\"url-cell\"><code>{url}</code><button class=\"btn btn-copy\" onclick=\"copyUrl(this, '{url}')\">Copy</button></div></td>
+                    <td>{form_display}</td>
                     <td>{status}</td>
                     <td>
+                        <a href=\"{base_url}/admin/calendars/{cal_id}/form/{link_id}\" class=\"btn btn-sm\">Edit</a>
                         <button class=\"btn btn-sm btn-danger\"
-                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/feed/{link_id}\"
+                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/form/{link_id}\"
                                 hx-target=\"closest tr\"
                                 hx-swap=\"outerHTML\">Delete</button>
                     </td>
@@ -450,6 +417,7 @@ pub fn admin_calendar_html(
                 link_id = html_escape(&link.id),
                 url = html_escape(&url),
                 name = html_escape(&link.name),
+                form_display = form_display,
                 status = if link.enabled { "Enabled" } else { "Disabled" },
             )
         })
@@ -507,7 +475,7 @@ pub fn admin_calendar_html(
 
         <div class=\"tabs\">
             <a href=\"#settings\" class=\"tab active\" onclick=\"showTab('settings', this)\">Settings</a>
-            <a href=\"#events\" class=\"tab\" onclick=\"showTab('events', this)\">Events</a>
+            <a href=\"#google-calendar\" class=\"tab\" onclick=\"showTab('google-calendar', this)\">Google Calendar</a>
             <a href=\"#bookings\" class=\"tab\" onclick=\"showTab('bookings', this)\">Bookings</a>
             {digest_tab}
         </div>
@@ -536,6 +504,11 @@ pub fn admin_calendar_html(
                         <small class=\"text-muted\">One domain per line. Leave empty to allow embedding from any domain.</small>
                     </div>
                     <div class=\"form-group\">
+                        <label>Google Calendar ID</label>
+                        <input type=\"text\" name=\"google_calendar_id\" value=\"{google_calendar_id}\" placeholder=\"example@group.calendar.google.com\" style=\"font-family: monospace;\">
+                        <small class=\"text-muted\">Share your Google Calendar with the service account email, then paste the Calendar ID here.</small>
+                    </div>
+                    <div class=\"form-group\">
                         <label>Custom CSS</label>
                         <textarea name=\"custom_css\" rows=\"5\" style=\"font-family: monospace; font-size: 0.9rem;\" placeholder=\"/* Custom styles */&#10;.booking-container {{ max-width: 500px; }}\">{custom_css}</textarea>
                         <small class=\"text-muted\">CSS variables: <code>--cal-primary</code>, <code>--cal-text</code>, <code>--cal-bg</code>, <code>--cal-border-radius</code>, <code>--cal-font</code></small>
@@ -544,6 +517,17 @@ pub fn admin_calendar_html(
                         <button type=\"submit\" class=\"btn\">Save Settings</button>
                     </div>
                 </form>
+            </div>
+
+            <div class=\"card\">
+                <h2>Form Links (Google Forms)</h2>
+                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Embed Google Forms that can be shared or embedded on your site.</p>
+                <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/form\"
+                        hx-target=\"{hash}form-links tbody\" hx-swap=\"beforeend\">+ Add Form Link</button>
+                <table id=\"form-links\" style=\"margin-top: 1rem;\">
+                    <thead><tr><th>Name</th><th>URL</th><th>Google Form</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>{form_links_html}</tbody>
+                </table>
             </div>
 
             <div class=\"card\">
@@ -557,17 +541,6 @@ pub fn admin_calendar_html(
                 </table>
             </div>
 
-            <div class=\"card\">
-                <h2>Feed Links (iCal)</h2>
-                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Subscribe to this calendar from other apps.</p>
-                <button class=\"btn\" hx-post=\"{base_url}/admin/calendars/{id}/feed\"
-                        hx-target=\"{hash}feed-links tbody\" hx-swap=\"beforeend\"{readonly_disabled}>+ Add Feed Link</button>
-                <table id=\"feed-links\" style=\"margin-top: 1rem;\">
-                    <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
-                    <tbody>{feed_links_html}</tbody>
-                </table>
-            </div>
-
             <div class=\"card danger\">
                 <h2>Danger Zone</h2>
                 <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Permanently delete this calendar and all its data.</p>
@@ -578,10 +551,17 @@ pub fn admin_calendar_html(
             </div>
         </div>
 
-        <div id=\"tab-events\" class=\"tab-content\">
+        <div id=\"tab-google-calendar\" class=\"tab-content\">
             <div class=\"card\">
-                <h2>Manage Events</h2>
-                <p><a href=\"{base_url}/admin/calendars/{id}/events\" class=\"btn\">Open Event Editor</a></p>
+                <h2>Google Calendar Integration</h2>
+                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Connect a Google Calendar to display events and automatically create events for bookings. Share the calendar with your service account email.</p>
+                <div class=\"form-group\">
+                    <label>Google Calendar ID</label>
+                    <input type=\"text\" id=\"google-calendar-id\" value=\"{google_calendar_id}\" placeholder=\"example@group.calendar.google.com\" style=\"font-family: monospace;\">
+                    <small class=\"text-muted\">Found in Google Calendar Settings &rarr; Integrate calendar. Share the calendar with your service account email.</small>
+                </div>
+                <p class=\"text-muted\"><strong>Status:</strong> {gcal_status}</p>
+                {gcal_link_html}
             </div>
 
             <div class=\"card\">
@@ -652,9 +632,19 @@ pub fn admin_calendar_html(
         timezone_options = timezone_options(&calendar.timezone),
         allowed_origins = html_escape(&calendar.allowed_origins.join("\n")),
         custom_css = html_escape(&calendar.style.custom_css),
+        google_calendar_id = html_escape(calendar.google_calendar_id.as_deref().unwrap_or("")),
+        gcal_status = if calendar.google_calendar_id.is_some() { "Connected" } else { "Not configured" },
+        gcal_link_html = if let Some(ref gcal_id) = calendar.google_calendar_id {
+            format!(
+                "<p style=\"margin-top: 0.5rem;\"><a href=\"https://calendar.google.com/calendar/embed?src={}\" target=\"_blank\">Open in Google Calendar</a></p>",
+                html_escape(gcal_id)
+            )
+        } else {
+            String::new()
+        },
         booking_links_html = booking_links_html,
+        form_links_html = form_links_html,
         view_links_html = view_links_html,
-        feed_links_html = feed_links_html,
         instagram_sources_html = instagram_sources_html,
         time_slots_summary = time_slots_summary,
         archived_notice = if calendar.archived {
@@ -662,12 +652,9 @@ pub fn admin_calendar_html(
                 <p style=\"margin: 0;\"><strong>This calendar is archived.</strong> It is read-only. Unarchive from the dashboard to make changes.</p>
             </div>"
         } else { "" },
-        readonly_disabled = if calendar.archived { " disabled" } else { "" },
         hash = HASH,
-        digest_tab = if has_channels {
-            r##"<a href="#digest" class="tab" onclick="showTab('digest', this)">Digest</a>"##
-        } else { "" },
-        digest_content = if has_channels {
+        digest_tab = r##"<a href="#digest" class="tab" onclick="showTab('digest', this)">Digest</a>"##,
+        digest_content = {
             format!(r#"<div id="tab-digest" class="tab-content">
             <div class="card">
                 <h2>Booking Digest</h2>
@@ -691,8 +678,8 @@ pub fn admin_calendar_html(
                 </form>
             </div>
         </div>"#, base_url = base_url, id = html_escape(&calendar.id))
-        } else { String::new() },
-        digest_script = if has_channels {
+        },
+        digest_script = {
             format!(r#"
             let digest = {digest_json};
             if (!digest.responders) digest.responders = [];
@@ -748,7 +735,7 @@ pub fn admin_calendar_html(
 
             renderDigest();
             "#, digest_json = digest_json, js_channel_options = js_channel_options, default_channel = default_channel)
-        } else { String::new() },
+        },
     );
 
     let title = if calendar.archived {
@@ -757,89 +744,6 @@ pub fn admin_calendar_html(
         format!("Edit: {}", calendar.name)
     };
     base_html(&title, &content, &calendar.style)
-}
-
-pub fn admin_events_html(
-    calendar: &CalendarConfig,
-    events: &[CalendarEvent],
-    base_url: &str,
-) -> String {
-    let event_rows: String = events
-        .iter()
-        .map(|event| {
-            format!(
-                "<tr>
-                    <td>{title}</td>
-                    <td>{start}</td>
-                    <td>{end}</td>
-                    <td>
-                        <button class=\"btn btn-sm\"
-                                hx-get=\"{base_url}/admin/calendars/{cal_id}/events/{event_id}/edit\"
-                                hx-target=\"{hash}event-form\"
-                                hx-swap=\"innerHTML\">Edit</button>
-                        <button class=\"btn btn-sm btn-danger\"
-                                hx-delete=\"{base_url}/admin/calendars/{cal_id}/events/{event_id}\"
-                                hx-target=\"closest tr\"
-                                hx-swap=\"outerHTML\">Delete</button>
-                    </td>
-                </tr>",
-                base_url = base_url,
-                cal_id = html_escape(&calendar.id),
-                event_id = html_escape(&event.id),
-                title = html_escape(&event.title),
-                start = html_escape(&event.start_time),
-                end = html_escape(&event.end_time),
-                hash = HASH,
-            )
-        })
-        .collect();
-
-    let content = format!(
-        "<p><a href=\"{base_url}/admin/calendars/{id}\">&larr; Back to {name}</a></p>
-        <h1>Events: {name}</h1>
-
-        <div class=\"card\" id=\"event-form\">
-            <h2>Add Event</h2>
-            <form hx-post=\"{base_url}/admin/calendars/{id}/events\" hx-target=\"{hash}event-list tbody\" hx-swap=\"beforeend\" hx-on::after-request=\"this.reset()\">
-                <div class=\"form-group\">
-                    <label>Title</label>
-                    <input type=\"text\" name=\"title\" required>
-                </div>
-                <div class=\"form-group\">
-                    <label>Start</label>
-                    <input type=\"datetime-local\" name=\"start_time\" required>
-                </div>
-                <div class=\"form-group\">
-                    <label>End</label>
-                    <input type=\"datetime-local\" name=\"end_time\" required>
-                </div>
-                <div class=\"form-group\">
-                    <label>Description</label>
-                    <textarea name=\"description\" rows=\"2\"></textarea>
-                </div>
-                <button type=\"submit\" class=\"btn\">Add Event</button>
-            </form>
-        </div>
-
-        <div class=\"card\">
-            <h2>Upcoming Events</h2>
-            <table id=\"event-list\">
-                <thead><tr><th>Title</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
-                <tbody>{event_rows}</tbody>
-            </table>
-        </div>",
-        base_url = base_url,
-        id = html_escape(&calendar.id),
-        name = html_escape(&calendar.name),
-        event_rows = event_rows,
-        hash = HASH,
-    );
-
-    base_html(
-        &format!("Events: {}", calendar.name),
-        &content,
-        &calendar.style,
-    )
 }
 
 pub fn admin_slots_html(calendar: &CalendarConfig, slots: &[TimeSlot], base_url: &str) -> String {
@@ -997,7 +901,6 @@ pub fn admin_booking_link_html(
     calendar: &CalendarConfig,
     link: &BookingLink,
     base_url: &str,
-    channels: &super::base::AvailableChannels,
 ) -> String {
     let responders_json = serde_json::to_string(&link.responders).unwrap_or_else(|_| "[]".into());
     let admin_responders_json =
@@ -1008,27 +911,11 @@ pub fn admin_booking_link_html(
             .replace('\n', "\\n")
     };
 
-    // Build channel options based on what's available
-    let mut channel_options = Vec::new();
-    if channels.twilio_sms {
-        channel_options.push(("twilio_sms", "Twilio SMS"));
-    }
-    if channels.twilio_whatsapp {
-        channel_options.push(("twilio_whatsapp", "Twilio WhatsApp"));
-    }
-    if channels.twilio_email {
-        channel_options.push(("twilio_email", "Twilio Email"));
-    }
-    if channels.resend_email {
-        channel_options.push(("resend_email", "Resend Email"));
-    }
-
-    let has_channels = !channel_options.is_empty();
-    let default_channel = channel_options
-        .first()
-        .map(|(c, _)| *c)
-        .unwrap_or("resend_email");
-    let is_default_email = default_channel.contains("email");
+    // WhatsApp is the only supported channel
+    let channel_options = [("whatsapp", "WhatsApp")];
+    let has_channels = true;
+    let default_channel = "whatsapp";
+    let is_default_email = false;
 
     // Build JS channel options string
     let js_channel_options: String = channel_options
@@ -1354,4 +1241,681 @@ pub fn admin_view_link_html(calendar: &CalendarConfig, link: &ViewLink, base_url
     );
 
     base_html(&format!("Edit: {}", link.name), &content, &calendar.style)
+}
+
+pub fn admin_form_link_html(calendar: &CalendarConfig, link: &FormLink, base_url: &str) -> String {
+    let embed_url = format!("{}/form/{}/{}", base_url, calendar.id, link.slug);
+    let responses_url = format!(
+        "{}/admin/calendars/{}/form/{}/responses",
+        base_url, calendar.id, link.id
+    );
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{id}\">&larr; Back to {cal_name}</a></p>
+        <h1>Edit Form Link: {name}</h1>
+
+        <div class=\"card\">
+            <h2>Form Settings</h2>
+            <form hx-put=\"{base_url}/admin/calendars/{id}/form/{link_id}\" hx-swap=\"none\"
+                  hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Saving...'\"
+                  hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false;this.querySelector('button[type=submit]').textContent='Save'\">
+                <div class=\"form-group\">
+                    <label>Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Google Form URL</label>
+                    <input type=\"url\" name=\"google_form_url\" value=\"{google_form_url}\" placeholder=\"https://docs.google.com/forms/d/.../edit\" style=\"font-family: monospace;\" required>
+                    <small class=\"text-muted\">Paste the Google Form URL. Share the form with your service account email to enable response viewing.</small>
+                </div>
+                <div class=\"form-group\">
+                    <label><input type=\"checkbox\" name=\"enabled\" {enabled_checked} style=\"width: auto;\"> Enabled</label>
+                </div>
+                <div style=\"display: flex; justify-content: flex-end; gap: 0.5rem;\">
+                    <button type=\"submit\" class=\"btn\">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Embed URL</h2>
+            <div class=\"url-cell\">
+                <code>{embed_url}</code>
+                <button class=\"btn btn-copy\" onclick=\"copyUrl(this, '{embed_url}')\">Copy</button>
+            </div>
+            <p class=\"text-muted\" style=\"margin-top: 0.5rem;\">Use this URL to embed the form via iframe or HTMX.</p>
+        </div>
+
+        <div class=\"card\">
+            <h2>Responses</h2>
+            <p><a href=\"{responses_url}\" class=\"btn\">View Responses</a></p>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        cal_name = html_escape(&calendar.name),
+        link_id = html_escape(&link.id),
+        name = html_escape(&link.name),
+        google_form_url = html_escape(&link.google_form_url),
+        enabled_checked = if link.enabled { "checked" } else { "" },
+        embed_url = html_escape(&embed_url),
+        responses_url = html_escape(&responses_url),
+    );
+
+    base_html(&format!("Form: {}", link.name), &content, &calendar.style)
+}
+
+pub fn admin_form_responses_html(
+    calendar: &CalendarConfig,
+    link: &FormLink,
+    form: &crate::google_forms::GoogleForm,
+    responses: &[crate::google_forms::FormResponse],
+    base_url: &str,
+) -> String {
+    // Build question ID -> title map from form structure
+    let question_ids: Vec<String> = form
+        .items
+        .iter()
+        .filter_map(|item| {
+            let qi = item.question_item.as_ref()?;
+            Some(qi.question.question_id.clone())
+        })
+        .collect();
+
+    let headers: Vec<String> = form
+        .items
+        .iter()
+        .filter_map(|item| {
+            item.question_item.as_ref()?;
+            item.title.clone()
+        })
+        .collect();
+
+    let header_html: String = headers
+        .iter()
+        .map(|h| format!("<th>{}</th>", html_escape(h)))
+        .collect();
+
+    let rows: String = responses
+        .iter()
+        .rev()
+        .map(|resp| {
+            let timestamp = resp
+                .create_time
+                .as_deref()
+                .unwrap_or("")
+                .split('T')
+                .next()
+                .unwrap_or("");
+
+            let cells: String = question_ids
+                .iter()
+                .map(|qid| {
+                    let value = resp
+                        .answers
+                        .get(qid)
+                        .and_then(|a| a.text_answers.as_ref())
+                        .and_then(|ta| ta.answers.first())
+                        .map(|a| a.value.as_str())
+                        .unwrap_or("");
+                    format!("<td>{}</td>", html_escape(value))
+                })
+                .collect();
+
+            format!(
+                "<tr><td>{}</td><td style=\"font-family: monospace; font-size: 0.8rem;\">{}</td>{}</tr>",
+                html_escape(timestamp),
+                html_escape(&resp.response_id),
+                cells,
+            )
+        })
+        .collect();
+
+    let form_description = form
+        .info
+        .description
+        .as_deref()
+        .filter(|d| !d.is_empty())
+        .map(|d| format!("<p class=\"text-muted\">{}</p>", html_escape(d)))
+        .unwrap_or_default();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/calendars/{id}/form/{link_id}\">&larr; Back to {link_name}</a></p>
+        <h1>Responses: {form_title}</h1>
+        {form_description}
+        <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">{count} response(s) &middot; Form ID: <code>{form_id}</code></p>
+
+        <div class=\"card\" style=\"overflow-x: auto;\">
+            <table>
+                <thead><tr><th>Date</th><th>Response ID</th>{header_html}</tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&calendar.id),
+        link_id = html_escape(&link.id),
+        link_name = html_escape(&link.name),
+        form_title = html_escape(&form.info.title),
+        form_description = form_description,
+        form_id = html_escape(&form.form_id),
+        count = responses.len(),
+        header_html = header_html,
+        rows = rows,
+    );
+
+    base_html(
+        &format!("Responses: {}", form.info.title),
+        &content,
+        &calendar.style,
+    )
+}
+
+// ============================================================================
+// WhatsApp Account Templates
+// ============================================================================
+
+pub fn admin_whatsapp_list_html(accounts: &[WhatsAppAccount], base_url: &str) -> String {
+    let style = CalendarStyle::default();
+    let rows: String = accounts
+        .iter()
+        .map(|a| {
+            format!(
+                "<tr>
+                    <td><a href=\"{base_url}/admin/whatsapp/{id}\">{name}</a></td>
+                    <td>{phone}</td>
+                    <td>{auto_reply}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/whatsapp/{id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/whatsapp/{id}\"
+                                hx-confirm=\"Delete this WhatsApp account?\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                id = html_escape(&a.id),
+                name = html_escape(&a.name),
+                phone = html_escape(&a.phone_number),
+                auto_reply = if a.auto_reply.enabled { "On" } else { "Off" },
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
+        <h1>WhatsApp Accounts</h1>
+        <p style=\"margin: 1rem 0;\">
+            <a href=\"{base_url}/admin/whatsapp\" class=\"btn\"
+               hx-post=\"{base_url}/admin/whatsapp\" hx-boost=\"false\">+ New WhatsApp Account</a>
+        </p>
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Name</th><th>Phone</th><th>Auto-Reply</th><th>Actions</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        rows = if rows.is_empty() {
+            "<tr><td colspan=\"4\" class=\"text-muted\" style=\"text-align:center;\">No WhatsApp accounts yet.</td></tr>".to_string()
+        } else {
+            rows
+        },
+    );
+
+    base_html("WhatsApp Accounts - Concierge", &content, &style)
+}
+
+pub fn admin_whatsapp_edit_html(
+    account: &WhatsAppAccount,
+    has_credentials: bool,
+    base_url: &str,
+) -> String {
+    let style = CalendarStyle::default();
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/whatsapp\">&larr; Back to WhatsApp Accounts</a></p>
+        <h1>Edit: {name}</h1>
+
+        <div class=\"card\">
+            <form hx-put=\"{base_url}/admin/whatsapp/{id}\" hx-swap=\"none\"
+                  hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true\"
+                  hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false\">
+                <div class=\"form-group\">
+                    <label>Account Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Display Phone Number</label>
+                    <input type=\"tel\" name=\"phone_number\" value=\"{phone}\" placeholder=\"+1 234 567 8900\">
+                    <small class=\"text-muted\">The phone number shown to users (display only)</small>
+                </div>
+
+                <h2 style=\"margin-top: 1.5rem;\">API Credentials</h2>
+                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">
+                    {cred_status}
+                </p>
+                <div class=\"form-group\">
+                    <label>Access Token</label>
+                    <input type=\"text\" name=\"access_token\" value=\"\" placeholder=\"{token_placeholder}\" style=\"font-family: monospace;\">
+                    <small class=\"text-muted\">Leave blank to keep existing credentials</small>
+                </div>
+                <div class=\"form-group\">
+                    <label>Phone Number ID</label>
+                    <input type=\"text\" name=\"phone_number_id\" value=\"\" placeholder=\"{phone_id_placeholder}\" style=\"font-family: monospace;\">
+                </div>
+
+                <h2 style=\"margin-top: 1.5rem;\">Auto-Reply</h2>
+                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Automatically reply to incoming WhatsApp messages.</p>
+                <div class=\"form-group\">
+                    <label><input type=\"checkbox\" name=\"auto_reply_enabled\" {ar_enabled} style=\"width: auto;\"> Enable auto-reply</label>
+                </div>
+                <div class=\"form-group\">
+                    <label>Mode</label>
+                    <select name=\"auto_reply_mode\">
+                        <option value=\"static\" {static_sel}>Static message</option>
+                        <option value=\"ai\" {ai_sel}>AI-generated reply</option>
+                    </select>
+                </div>
+                <div class=\"form-group\">
+                    <label>Message / AI Prompt</label>
+                    <textarea name=\"auto_reply_prompt\" rows=\"4\" placeholder=\"Enter a static reply message or an AI system prompt...\">{prompt}</textarea>
+                    <small class=\"text-muted\">For static mode: the exact message to send. For AI mode: the system prompt for generating replies.</small>
+                </div>
+
+                <div style=\"display: flex; justify-content: flex-end; margin-top: 1rem;\">
+                    <button type=\"submit\" class=\"btn\">Save</button>
+                </div>
+            </form>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&account.id),
+        name = html_escape(&account.name),
+        phone = html_escape(&account.phone_number),
+        cred_status = if has_credentials { "Credentials configured." } else { "No credentials set." },
+        token_placeholder = if has_credentials { "••••••••" } else { "EAAx..." },
+        phone_id_placeholder = if has_credentials { "••••••••" } else { "1234567890" },
+        ar_enabled = if account.auto_reply.enabled { "checked" } else { "" },
+        static_sel = if account.auto_reply.mode == AutoReplyMode::Static { "selected" } else { "" },
+        ai_sel = if account.auto_reply.mode == AutoReplyMode::Ai { "selected" } else { "" },
+        prompt = html_escape(&account.auto_reply.prompt),
+    );
+
+    base_html(&format!("Edit: {}", account.name), &content, &style)
+}
+
+// ============================================================================
+// Google Form Resource Templates
+// ============================================================================
+
+pub fn admin_forms_list_html(forms: &[GoogleFormResource], base_url: &str) -> String {
+    let style = CalendarStyle::default();
+    let rows: String = forms
+        .iter()
+        .map(|f| {
+            let embed_url = format!("{}/form/{}/{}", base_url, f.id, f.slug);
+            format!(
+                "<tr>
+                    <td><a href=\"{base_url}/admin/forms/{id}\">{name}</a></td>
+                    <td><div class=\"url-cell\"><code>{embed_url}</code></div></td>
+                    <td>{status}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/forms/{id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/forms/{id}\"
+                                hx-confirm=\"Delete this form?\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Delete</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                id = html_escape(&f.id),
+                name = html_escape(&f.name),
+                embed_url = html_escape(&embed_url),
+                status = if f.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
+        <h1>Google Forms</h1>
+        <p style=\"margin: 1rem 0;\">
+            <a href=\"{base_url}/admin/forms\" class=\"btn\"
+               hx-post=\"{base_url}/admin/forms\" hx-boost=\"false\">+ New Form</a>
+        </p>
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Name</th><th>URL</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        rows = if rows.is_empty() {
+            "<tr><td colspan=\"4\" class=\"text-muted\" style=\"text-align:center;\">No forms yet.</td></tr>".to_string()
+        } else {
+            rows
+        },
+    );
+
+    base_html("Google Forms - Concierge", &content, &style)
+}
+
+pub fn admin_form_edit_html(
+    form: &GoogleFormResource,
+    whatsapp_accounts: &[WhatsAppAccount],
+    base_url: &str,
+) -> String {
+    let style = CalendarStyle::default();
+    let embed_url = format!("{}/form/{}/{}", base_url, form.id, form.slug);
+
+    let wa_options: String = std::iter::once("<option value=\"\">None</option>".to_string())
+        .chain(whatsapp_accounts.iter().map(|a| {
+            let selected = form
+                .whatsapp_account_id
+                .as_ref()
+                .map(|id| id == &a.id)
+                .unwrap_or(false);
+            format!(
+                "<option value=\"{}\" {}>{}</option>",
+                html_escape(&a.id),
+                if selected { "selected" } else { "" },
+                html_escape(&a.name)
+            )
+        }))
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/forms\">&larr; Back to Forms</a></p>
+        <h1>Edit: {name}</h1>
+
+        <div class=\"card\">
+            <h2>Embed URL</h2>
+            <div class=\"url-cell\">
+                <code>{embed_url}</code>
+            </div>
+        </div>
+
+        <div class=\"card\">
+            <h2>Form Settings</h2>
+            <form hx-put=\"{base_url}/admin/forms/{id}\" hx-swap=\"none\"
+                  hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true\"
+                  hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false\">
+                <div class=\"form-group\">
+                    <label>Name</label>
+                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                </div>
+                <div class=\"form-group\">
+                    <label>Google Form URL</label>
+                    <input type=\"url\" name=\"google_form_url\" value=\"{google_form_url}\" placeholder=\"https://docs.google.com/forms/d/.../edit\" style=\"font-family: monospace;\">
+                </div>
+                <div class=\"form-group\">
+                    <label><input type=\"checkbox\" name=\"enabled\" {enabled_checked} style=\"width: auto;\"> Enabled</label>
+                </div>
+
+                <h3 style=\"margin-top: 1.5rem;\">Form &rarr; WhatsApp Automation</h3>
+                <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">Send a WhatsApp message when new form responses are submitted.</p>
+                <div class=\"form-group\">
+                    <label>WhatsApp Account</label>
+                    <select name=\"whatsapp_account_id\">{wa_options}</select>
+                </div>
+                <div class=\"form-group\">
+                    <label>Phone Number Field</label>
+                    <input type=\"text\" name=\"phone_field\" value=\"{phone_field}\" placeholder=\"Phone Number\">
+                    <small class=\"text-muted\">The form question title that contains the respondent's phone number</small>
+                </div>
+                <div class=\"form-group\">
+                    <label>Reply Message / AI Prompt</label>
+                    <textarea name=\"reply_prompt\" rows=\"3\" placeholder=\"Thank you for your submission, we'll be in touch!\">{reply_prompt}</textarea>
+                </div>
+                <div class=\"form-group\">
+                    <label><input type=\"checkbox\" name=\"use_ai\" {use_ai_checked} style=\"width: auto;\"> Use AI to generate reply</label>
+                </div>
+
+                <div style=\"display: flex; justify-content: flex-end; margin-top: 1rem;\">
+                    <button type=\"submit\" class=\"btn\">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <div class=\"card\">
+            <h2>Responses</h2>
+            <p><a href=\"{base_url}/admin/forms/{id}/responses\" class=\"btn\">View Responses</a></p>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&form.id),
+        name = html_escape(&form.name),
+        embed_url = html_escape(&embed_url),
+        google_form_url = html_escape(&form.google_form_url),
+        enabled_checked = if form.enabled { "checked" } else { "" },
+        wa_options = wa_options,
+        phone_field = html_escape(&form.phone_field),
+        reply_prompt = html_escape(&form.reply_prompt),
+        use_ai_checked = if form.use_ai { "checked" } else { "" },
+    );
+
+    base_html(&format!("Edit: {}", form.name), &content, &style)
+}
+
+pub fn admin_form_resource_responses_html(
+    form: &GoogleFormResource,
+    gform: &crate::google_forms::GoogleForm,
+    responses: &[crate::google_forms::FormResponse],
+    base_url: &str,
+) -> String {
+    let style = CalendarStyle::default();
+
+    let question_ids: Vec<String> = gform
+        .items
+        .iter()
+        .filter_map(|item| {
+            let qi = item.question_item.as_ref()?;
+            Some(qi.question.question_id.clone())
+        })
+        .collect();
+
+    let headers: Vec<String> = gform
+        .items
+        .iter()
+        .filter_map(|item| {
+            item.question_item.as_ref()?;
+            item.title.clone()
+        })
+        .collect();
+
+    let header_html: String = headers
+        .iter()
+        .map(|h| format!("<th>{}</th>", html_escape(h)))
+        .collect();
+
+    let rows: String = responses
+        .iter()
+        .rev()
+        .map(|resp| {
+            let timestamp = resp
+                .create_time
+                .as_deref()
+                .unwrap_or("")
+                .split('T')
+                .next()
+                .unwrap_or("");
+
+            let cells: String = question_ids
+                .iter()
+                .map(|qid| {
+                    let value = resp
+                        .answers
+                        .get(qid)
+                        .and_then(|a| a.text_answers.as_ref())
+                        .and_then(|ta| ta.answers.first())
+                        .map(|a| a.value.as_str())
+                        .unwrap_or("");
+                    format!("<td>{}</td>", html_escape(value))
+                })
+                .collect();
+
+            format!("<tr><td>{}</td>{}</tr>", html_escape(timestamp), cells,)
+        })
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/forms/{id}\">&larr; Back to {name}</a></p>
+        <h1>Responses: {form_title}</h1>
+        <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">{count} response(s)</p>
+
+        <div class=\"card\" style=\"overflow-x: auto;\">
+            <table>
+                <thead><tr><th>Date</th>{header_html}</tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&form.id),
+        name = html_escape(&form.name),
+        form_title = html_escape(&gform.info.title),
+        count = responses.len(),
+        header_html = header_html,
+        rows = rows,
+    );
+
+    base_html(
+        &format!("Responses: {}", gform.info.title),
+        &content,
+        &style,
+    )
+}
+
+// ============================================================================
+// Instagram Account Templates
+// ============================================================================
+
+pub fn admin_instagram_list_html(
+    accounts: &[InstagramAccount],
+    calendars: &[CalendarConfig],
+    base_url: &str,
+) -> String {
+    let style = CalendarStyle::default();
+    let rows: String = accounts
+        .iter()
+        .map(|a| {
+            let target = a
+                .target_calendar_id
+                .as_ref()
+                .and_then(|id| calendars.iter().find(|c| &c.id == id))
+                .map(|c| c.name.as_str())
+                .unwrap_or("Not set");
+            format!(
+                "<tr>
+                    <td><a href=\"{base_url}/admin/instagram/{id}\">@{username}</a></td>
+                    <td>{target}</td>
+                    <td>{status}</td>
+                    <td>
+                        <a href=\"{base_url}/admin/instagram/{id}\" class=\"btn btn-sm\">Edit</a>
+                        <button class=\"btn btn-sm btn-danger\"
+                                hx-delete=\"{base_url}/admin/instagram/{id}\"
+                                hx-confirm=\"Disconnect this Instagram account?\"
+                                hx-target=\"closest tr\"
+                                hx-swap=\"outerHTML\">Disconnect</button>
+                    </td>
+                </tr>",
+                base_url = base_url,
+                id = html_escape(&a.id),
+                username = html_escape(&a.instagram_username),
+                target = html_escape(target),
+                status = if a.enabled { "Enabled" } else { "Disabled" },
+            )
+        })
+        .collect();
+
+    // Extract tenant_id from first account or first calendar for the connect link
+    let tenant_id = accounts
+        .first()
+        .map(|a| a.tenant_id.as_str())
+        .or_else(|| calendars.first().map(|c| c.tenant_id.as_str()))
+        .unwrap_or("");
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin\">&larr; Back to Dashboard</a></p>
+        <h1>Instagram Accounts</h1>
+        <p style=\"margin: 1rem 0;\">
+            <a href=\"{base_url}/instagram/auth/{tenant_id}\" class=\"btn\">Connect Instagram Account</a>
+        </p>
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Account</th><th>Target Calendar</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>",
+        base_url = base_url,
+        tenant_id = html_escape(tenant_id),
+        rows = if rows.is_empty() {
+            "<tr><td colspan=\"4\" class=\"text-muted\" style=\"text-align:center;\">No Instagram accounts connected.</td></tr>".to_string()
+        } else {
+            rows
+        },
+    );
+
+    base_html("Instagram Accounts - Concierge", &content, &style)
+}
+
+pub fn admin_instagram_edit_html(
+    account: &InstagramAccount,
+    calendars: &[CalendarConfig],
+    base_url: &str,
+) -> String {
+    let style = CalendarStyle::default();
+
+    let cal_options: String = std::iter::once("<option value=\"\">None</option>".to_string())
+        .chain(calendars.iter().filter(|c| !c.archived).map(|c| {
+            let selected = account
+                .target_calendar_id
+                .as_ref()
+                .map(|id| id == &c.id)
+                .unwrap_or(false);
+            format!(
+                "<option value=\"{}\" {}>{}</option>",
+                html_escape(&c.id),
+                if selected { "selected" } else { "" },
+                html_escape(&c.name)
+            )
+        }))
+        .collect();
+
+    let content = format!(
+        "<p><a href=\"{base_url}/admin/instagram\">&larr; Back to Instagram Accounts</a></p>
+        <h1>@{username}</h1>
+
+        <div class=\"card\">
+            <form hx-put=\"{base_url}/admin/instagram/{id}\" hx-swap=\"none\"
+                  hx-on::before-request=\"this.querySelector('button[type=submit]').disabled=true\"
+                  hx-on::after-request=\"this.querySelector('button[type=submit]').disabled=false\">
+                <div class=\"form-group\">
+                    <label>Target Calendar</label>
+                    <select name=\"target_calendar_id\">{cal_options}</select>
+                    <small class=\"text-muted\">Events extracted from posts will be added to this calendar</small>
+                </div>
+                <div class=\"form-group\">
+                    <label>Classification Prompt (optional)</label>
+                    <textarea name=\"classification_prompt\" rows=\"3\" placeholder=\"Custom AI prompt for classifying posts...\">{prompt}</textarea>
+                    <small class=\"text-muted\">Override the default event extraction prompt</small>
+                </div>
+                <div class=\"form-group\">
+                    <label><input type=\"checkbox\" name=\"enabled\" {enabled_checked} style=\"width: auto;\"> Enabled</label>
+                </div>
+                <div style=\"display: flex; justify-content: flex-end; margin-top: 1rem;\">
+                    <button type=\"submit\" class=\"btn\">Save</button>
+                </div>
+            </form>
+        </div>",
+        base_url = base_url,
+        id = html_escape(&account.id),
+        username = html_escape(&account.instagram_username),
+        cal_options = cal_options,
+        prompt = html_escape(account.classification_prompt.as_deref().unwrap_or("")),
+        enabled_checked = if account.enabled { "checked" } else { "" },
+    );
+
+    base_html(
+        &format!("@{}", account.instagram_username),
+        &content,
+        &style,
+    )
 }

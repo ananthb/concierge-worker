@@ -1,131 +1,75 @@
-# Calendars & Bookings
+# Event Calendars
 
-Create calendars with time slots for appointments, events, or venue bookings.
+Display your events on an embeddable calendar powered by Google Calendar. Events can come from Google Calendar directly, be created automatically from Instagram posts, or be generated when customers book appointments.
 
-## Creating a Calendar
+## Setting Up
 
-1. Go to the admin dashboard (`/admin`)
-2. Click **+ New Calendar**
-3. Configure calendar settings
+### 1. Create a Calendar
 
-## Calendar Settings
+Go to the admin dashboard > **+ New Calendar**. Set a name and timezone.
 
-### Basic Settings
+### 2. Connect Google Calendar
 
-| Field | Description |
-|-------|-------------|
-| Name | Calendar name |
-| Description | Optional description |
-| Timezone | Calendar timezone |
-| Allowed Domains | Domains that can embed |
-| Custom CSS | Additional styling |
+In the calendar editor > **Settings** tab:
 
-## Time Slots
+1. Paste your Google Calendar ID (found in Google Calendar Settings > Integrate calendar)
+2. Make sure your Google Calendar is shared with the service account email
 
-Configure when bookings are available:
+Events from your Google Calendar will now appear in your embedded views.
 
-1. Go to calendar editor
-2. Click **Bookings** tab
-3. Click **Configure Available Slots**
+### 3. Create a View Link
 
-### Recurring Slots
-
-Set weekly availability:
-
-| Field | Description |
-|-------|-------------|
-| Day of Week | Monday, Tuesday, etc. |
-| Start Time | When slots begin |
-| End Time | When slots end |
-| Duration | Length of each slot (minutes) |
-| Capacity | Max bookings per slot |
-
-### Specific Date Slots
-
-Add availability for specific dates (overrides weekly pattern).
-
-## Booking Links
-
-Public pages where users can book time slots.
-
-### Creating a Booking Link
-
-1. Go to calendar editor
-2. Click **Bookings** tab
-3. Click **+ Add Booking Link**
-
-### Booking Link Settings
-
-| Field | Description |
-|-------|-------------|
-| Name | Link name |
-| Slug | URL path |
-| Duration | Booking duration (minutes) |
-| Confirmation Message | Shown after booking |
-| Hide Title | Hide name when embedded |
-| Auto-Accept | Confirm immediately or require approval |
-
-### Custom Fields
-
-Add fields to collect information during booking:
-
-- Name, Email, Phone (built-in)
-- Custom text fields
-- Notes/comments
-
-## Booking Approval
-
-When **Auto-Accept** is disabled:
-
-1. Booking is created with "Pending" status
-2. Admin receives notification (if configured)
-3. Admin clicks approval link
-4. Customer receives confirmation
-
-## View Links
-
-Public calendar views that can be embedded or shared.
+In **Settings** tab > **+ Add View Link**. This creates a public URL for your calendar.
 
 ### View Types
 
-| Type | Description |
-|------|-------------|
-| Week | 7-day view with time grid |
-| Month | Monthly calendar grid |
-| Year | Yearly overview |
-| List | Scrolling list of events |
+| Type | Best For |
+|------|----------|
+| **Month** | Overview of a full month |
+| **Week** | Detailed 7-day view |
+| **Year** | Annual overview with event indicators |
+| **List** | Scrolling list of upcoming events |
 
-### Creating a View Link
+### Visibility Controls
 
-1. Go to calendar editor
-2. Click **Settings** tab
-3. Click **+ Add View Link**
+Each view link can show or hide:
 
-## iCal Feeds
+- Event titles and details
+- Booking names and details
 
-Subscribe to the calendar from other apps (Google Calendar, Apple Calendar, etc.):
+Useful for public calendars where you want to show that slots are taken without revealing customer names.
 
-1. Go to calendar editor
-2. Click **Settings** tab
-3. Click **+ Add Feed Link**
-4. Copy the feed URL with token
+## Embedding
 
-## Events
+```html
+<!-- iframe -->
+<iframe src="https://your-worker.workers.dev/view/{calendar_id}/{slug}"
+        style="border: none; width: 100%; min-height: 500px;"></iframe>
 
-### Manual Events
+<!-- HTMX -->
+<div hx-get="https://your-worker.workers.dev/view/{calendar_id}/{slug}"
+     hx-trigger="load" hx-swap="innerHTML">Loading...</div>
+```
 
-Create events directly:
+### Navigation
 
-1. Go to calendar editor
-2. Click **Events** tab
-3. Click **Open Event Editor**
+Embedded calendars include prev/next navigation and a view type selector. When using HTMX, navigation is seamless — only the calendar content updates, not the whole page.
 
-### Instagram Integration
+## Where Events Come From
 
-Automatically import events from Instagram posts:
+Events appear on your calendar from three sources:
 
-1. Configure Instagram secrets (see [Configuration](./configuration.md))
-2. Go to **Events** tab
-3. Click **Connect Instagram Account**
-4. Authorize access
-5. Events are synced hourly via cron trigger
+1. **Google Calendar** — Any event you add to Google Calendar shows up automatically
+2. **Instagram** — AI extracts event details from your posts (see [Instagram Integration](./instagram.md))
+3. **Bookings** — Confirmed appointments create Google Calendar events (see [Bookings](./bookings.md))
+
+## Calendar Settings
+
+| Setting | Description |
+|---------|-------------|
+| Name | Calendar name shown in views |
+| Description | Optional description |
+| Timezone | Used for event display and Google Calendar API |
+| Google Calendar ID | Links to your Google Calendar |
+| Allowed Origins | Domains that can embed your calendar |
+| Custom CSS | Additional styling for embedded views |

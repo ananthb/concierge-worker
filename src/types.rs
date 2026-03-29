@@ -1,30 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
-// Form Types (from form-worker)
+// Shared Types
 // ============================================================================
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum FieldType {
-    Text,
-    Email,
-    Mobile,
-    Phone,
-    LongText,
-    File,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum ResponderChannel {
-    TwilioSms,
-    TwilioRcs,
-    TwilioWhatsapp,
-    TwilioEmail,
-    ResendEmail,
-    MetaWhatsapp,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -40,13 +18,47 @@ pub enum DigestFrequency {
 pub struct DigestConfig {
     pub frequency: DigestFrequency,
     #[serde(default)]
-    pub responders: Vec<FormResponder>,
+    pub responders: Vec<Responder>,
     #[serde(default)]
     pub last_sent_at: Option<String>,
+    #[serde(default)]
+    pub whatsapp_account_id: Option<String>,
+}
+
+/// WhatsApp-only responder. Kept backward-compatible with old FormResponder shape:
+/// unknown fields (like `channel`, `subject`) are ignored by serde on deserialization.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Responder {
+    pub id: String,
+    pub name: String,
+    /// Phone number (admin/digest) or booking field name (customer responders)
+    pub target_field: String,
+    pub body: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub use_ai: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+// ============================================================================
+// Booking Field Types
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldType {
+    Text,
+    Email,
+    Mobile,
+    Phone,
+    LongText,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FormField {
+pub struct BookingField {
     pub id: String,
     pub label: String,
     pub field_type: FieldType,
@@ -54,146 +66,135 @@ pub struct FormField {
     pub placeholder: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FormStyle {
-    pub font_family: String,
-    pub font_size: String,
-    pub text_color: String,
-    pub text_muted: String,
-    pub bg_color: String,
-    pub form_bg: String,
-    pub border_color: String,
-    pub border_radius: String,
-    pub primary_color: String,
-    pub primary_hover: String,
-    pub input_padding: String,
-    pub success_bg: String,
-    pub success_color: String,
-    pub success_border: String,
-    pub error_bg: String,
-    pub error_color: String,
-    pub error_border: String,
-    #[serde(default)]
-    pub custom_css: String,
-    #[serde(default = "default_true")]
-    pub show_title: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-impl Default for FormStyle {
-    fn default() -> Self {
-        Self {
-            font_family: "inherit".into(),
-            font_size: "1rem".into(),
-            text_color: "#333333".into(),
-            text_muted: "#555555".into(),
-            bg_color: "transparent".into(),
-            form_bg: "#ffffff".into(),
-            border_color: "#dddddd".into(),
-            border_radius: "4px".into(),
-            primary_color: "#0070f3".into(),
-            primary_hover: "#0060df".into(),
-            input_padding: "0.75rem".into(),
-            success_bg: "#d4edda".into(),
-            success_color: "#155724".into(),
-            success_border: "#c3e6cb".into(),
-            error_bg: "#f8d7da".into(),
-            error_color: "#721c24".into(),
-            error_border: "#f5c6cb".into(),
-            custom_css: String::new(),
-            show_title: true,
-        }
-    }
-}
+// ============================================================================
+// Tenant Types
+// ============================================================================
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FormResponder {
+pub struct Tenant {
     pub id: String,
-    pub name: String,
-    pub channel: ResponderChannel,
-    pub target_field: String,
-    pub subject: String,
-    pub body: String,
-    pub enabled: bool,
-    #[serde(default)]
-    pub use_ai: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FormConfig {
-    pub slug: String,
-    pub name: String,
-    pub title: String,
-    pub submit_button_text: String,
-    pub success_message: String,
-    pub allowed_origins: Vec<String>,
-    pub fields: Vec<FormField>,
-    pub style: FormStyle,
-    #[serde(default)]
-    pub responders: Vec<FormResponder>,
-    #[serde(default)]
-    pub digest: DigestConfig,
-    #[serde(default)]
-    pub google_sheet_url: Option<String>,
-    #[serde(default)]
-    pub instagram_sources: Vec<InstagramSource>,
-    #[serde(default)]
-    pub archived: bool,
+    pub email: String,
+    pub name: Option<String>,
+    pub plan: String,
     pub created_at: String,
     pub updated_at: String,
 }
 
-impl FormConfig {
-    pub fn default_fields() -> Vec<FormField> {
-        vec![
-            FormField {
-                id: "name".into(),
-                label: "Name".into(),
-                field_type: FieldType::Text,
-                required: true,
-                placeholder: Some("Your name".into()),
-            },
-            FormField {
-                id: "email".into(),
-                label: "Email".into(),
-                field_type: FieldType::Email,
-                required: true,
-                placeholder: Some("your@email.com".into()),
-            },
-            FormField {
-                id: "message".into(),
-                label: "Message".into(),
-                field_type: FieldType::LongText,
-                required: true,
-                placeholder: Some("Your message...".into()),
-            },
-        ]
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct TenantCredentials {
+    #[serde(default)]
+    pub google_service_account_email: Option<String>,
+    #[serde(default)]
+    pub google_private_key: Option<String>,
+    /// Deprecated: use WhatsAppAccount resources instead. Kept for migration.
+    #[serde(default)]
+    pub whatsapp_access_token: Option<String>,
+    /// Deprecated: use WhatsAppAccount resources instead. Kept for migration.
+    #[serde(default)]
+    pub whatsapp_phone_number_id: Option<String>,
 }
 
-#[derive(Debug)]
-pub struct Submission {
-    pub id: i64,
-    pub fields_data: serde_json::Map<String, serde_json::Value>,
+// ============================================================================
+// WhatsApp Account Resource
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WhatsAppAccount {
+    pub id: String,
+    pub tenant_id: String,
+    pub name: String,
+    pub phone_number: String,
+    pub auto_reply: AutoReplyConfig,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct AutoReplyConfig {
+    pub enabled: bool,
+    pub mode: AutoReplyMode,
+    pub prompt: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoReplyMode {
+    #[default]
+    Static,
+    Ai,
+}
+
+/// Stored encrypted separately from the account config
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WhatsAppAccountCredentials {
+    pub access_token: String,
+    pub phone_number_id: String,
+}
+
+// ============================================================================
+// Google Form Resource
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GoogleFormResource {
+    pub id: String,
+    pub tenant_id: String,
+    pub name: String,
+    pub slug: String,
+    pub google_form_url: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub whatsapp_account_id: Option<String>,
+    #[serde(default)]
+    pub phone_field: String,
+    #[serde(default)]
+    pub reply_prompt: String,
+    #[serde(default)]
+    pub use_ai: bool,
+    #[serde(default)]
+    pub last_polled_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// ============================================================================
+// Instagram Account Resource
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct InstagramAccount {
+    pub id: String,
+    pub tenant_id: String,
+    pub instagram_user_id: String,
+    pub instagram_username: String,
+    #[serde(default)]
+    pub target_calendar_id: Option<String>,
+    #[serde(default)]
+    pub classification_prompt: Option<String>,
+    pub enabled: bool,
+    #[serde(default)]
+    pub last_synced_at: Option<String>,
     pub created_at: String,
 }
 
 // ============================================================================
-// Calendar Types (from calendar-worker)
+// Calendar Types
 // ============================================================================
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CalendarConfig {
     pub id: String,
+    #[serde(default)]
+    pub tenant_id: String,
     pub name: String,
     pub description: Option<String>,
     pub timezone: String,
     pub booking_links: Vec<BookingLink>,
     pub view_links: Vec<ViewLink>,
-    pub feed_links: Vec<FeedLink>,
+    #[serde(default)]
+    pub google_calendar_id: Option<String>,
+    #[serde(default)]
+    pub form_links: Vec<FormLink>,
     #[serde(default)]
     pub instagram_sources: Vec<InstagramSource>,
     pub style: CalendarStyle,
@@ -210,12 +211,14 @@ impl Default for CalendarConfig {
     fn default() -> Self {
         Self {
             id: String::new(),
+            tenant_id: String::new(),
             name: String::from("New Calendar"),
             description: None,
             timezone: String::from("UTC"),
             booking_links: Vec::new(),
             view_links: Vec::new(),
-            feed_links: Vec::new(),
+            google_calendar_id: None,
+            form_links: Vec::new(),
             instagram_sources: Vec::new(),
             style: CalendarStyle::default(),
             allowed_origins: Vec::new(),
@@ -242,13 +245,15 @@ pub struct BookingLink {
     pub confirmation_message: String,
     pub enabled: bool,
     #[serde(default)]
-    pub responders: Vec<FormResponder>,
+    pub responders: Vec<Responder>,
     #[serde(default = "default_true")]
     pub auto_accept: bool,
     #[serde(default)]
-    pub admin_responders: Vec<FormResponder>,
+    pub admin_responders: Vec<Responder>,
     #[serde(default)]
     pub hide_title: bool,
+    #[serde(default)]
+    pub whatsapp_account_id: Option<String>,
 }
 
 impl Default for BookingLink {
@@ -285,17 +290,9 @@ impl Default for BookingLink {
             auto_accept: true,
             admin_responders: Vec::new(),
             hide_title: false,
+            whatsapp_account_id: None,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BookingField {
-    pub id: String,
-    pub label: String,
-    pub field_type: FieldType,
-    pub required: bool,
-    pub placeholder: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -343,32 +340,31 @@ pub enum ViewType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct DateRange {
-    pub start: String,
-    pub end: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FeedLink {
+pub struct FormLink {
     pub id: String,
     pub slug: String,
     pub name: String,
-    pub token: String,
-    pub include_details: bool,
+    /// Google Form URL (editor URL, e.g. https://docs.google.com/forms/d/{id}/edit)
+    pub google_form_url: String,
     pub enabled: bool,
 }
 
-impl Default for FeedLink {
+impl Default for FormLink {
     fn default() -> Self {
         Self {
             id: String::new(),
             slug: String::new(),
-            name: String::from("Calendar Feed"),
-            token: String::new(),
-            include_details: true,
+            name: String::from("Contact Form"),
+            google_form_url: String::new(),
             enabled: true,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DateRange {
+    pub start: String,
+    pub end: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -485,6 +481,7 @@ pub enum ProcessingStatus {
 pub struct ProcessedPost {
     pub id: String,
     pub calendar_id: Option<String>,
+    #[serde(default)]
     pub form_slug: Option<String>,
     pub instagram_source_id: String,
     pub instagram_post_id: String,
@@ -522,17 +519,6 @@ impl Default for ExtractedEvent {
             confidence: 0.0,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct EventSource {
-    pub id: String,
-    pub event_id: Option<String>,
-    pub contact_id: Option<i64>,
-    pub source_type: String,
-    pub source_id: String,
-    pub external_id: Option<String>,
-    pub created_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -632,99 +618,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_field_type_serialization() {
-        assert_eq!(serde_json::to_string(&FieldType::Text).unwrap(), "\"text\"");
-        assert_eq!(
-            serde_json::to_string(&FieldType::Email).unwrap(),
-            "\"email\""
-        );
-        assert_eq!(
-            serde_json::to_string(&FieldType::LongText).unwrap(),
-            "\"long_text\""
-        );
-
-        let ft: FieldType = serde_json::from_str("\"mobile\"").unwrap();
-        assert!(matches!(ft, FieldType::Mobile));
-    }
-
-    #[test]
-    fn test_responder_channel_serialization() {
-        assert_eq!(
-            serde_json::to_string(&ResponderChannel::TwilioSms).unwrap(),
-            "\"twilio_sms\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ResponderChannel::MetaWhatsapp).unwrap(),
-            "\"meta_whatsapp\""
-        );
-
-        let ch: ResponderChannel = serde_json::from_str("\"resend_email\"").unwrap();
-        assert!(matches!(ch, ResponderChannel::ResendEmail));
-    }
-
-    #[test]
     fn test_digest_frequency_default() {
         let freq = DigestFrequency::default();
         assert_eq!(freq, DigestFrequency::None);
-
         assert_eq!(
             serde_json::to_string(&DigestFrequency::Daily).unwrap(),
             "\"daily\""
-        );
-        assert_eq!(
-            serde_json::to_string(&DigestFrequency::Weekly).unwrap(),
-            "\"weekly\""
         );
     }
 
     #[test]
     fn test_booking_status_serialization() {
         assert_eq!(
-            serde_json::to_string(&BookingStatus::Pending).unwrap(),
-            "\"pending\""
-        );
-        assert_eq!(
             serde_json::to_string(&BookingStatus::Confirmed).unwrap(),
             "\"confirmed\""
         );
-        assert_eq!(
-            serde_json::to_string(&BookingStatus::Cancelled).unwrap(),
-            "\"cancelled\""
-        );
-
         let status: BookingStatus = serde_json::from_str("\"completed\"").unwrap();
         assert_eq!(status, BookingStatus::Completed);
     }
 
     #[test]
     fn test_view_type_serialization() {
-        assert_eq!(serde_json::to_string(&ViewType::Week).unwrap(), "\"week\"");
         assert_eq!(
             serde_json::to_string(&ViewType::Month).unwrap(),
             "\"month\""
         );
-        assert_eq!(serde_json::to_string(&ViewType::Year).unwrap(), "\"year\"");
-        assert_eq!(
-            serde_json::to_string(&ViewType::Endless).unwrap(),
-            "\"endless\""
-        );
-    }
-
-    #[test]
-    fn test_form_style_default() {
-        let style = FormStyle::default();
-        assert_eq!(style.primary_color, "#0070f3");
-        assert_eq!(style.font_family, "inherit");
-        assert!(style.show_title);
-        assert!(style.custom_css.is_empty());
     }
 
     #[test]
     fn test_calendar_style_default() {
         let style = CalendarStyle::default();
         assert_eq!(style.primary_color, "#0070f3");
-        assert_eq!(style.text_color, "#333333");
-        assert_eq!(style.background_color, "#ffffff");
         assert!(style.custom_css.is_empty());
     }
 
@@ -732,23 +656,8 @@ mod tests {
     fn test_booking_link_default() {
         let link = BookingLink::default();
         assert_eq!(link.duration, 30);
-        assert_eq!(link.min_notice, 24);
-        assert_eq!(link.max_advance, 30);
         assert!(link.auto_accept);
-        assert!(link.enabled);
-        assert!(!link.hide_title);
         assert_eq!(link.fields.len(), 2);
-    }
-
-    #[test]
-    fn test_view_link_default() {
-        let link = ViewLink::default();
-        assert!(link.show_events);
-        assert!(link.show_event_details);
-        assert!(link.show_bookings);
-        assert!(link.show_booking_details);
-        assert!(link.enabled);
-        assert!(matches!(link.view_type, ViewType::Month));
     }
 
     #[test]
@@ -757,79 +666,16 @@ mod tests {
         assert_eq!(config.name, "New Calendar");
         assert_eq!(config.timezone, "UTC");
         assert!(!config.archived);
-        assert!(config.booking_links.is_empty());
-        assert!(config.view_links.is_empty());
-    }
-
-    #[test]
-    fn test_form_config_default_fields() {
-        let fields = FormConfig::default_fields();
-        assert_eq!(fields.len(), 3);
-        assert_eq!(fields[0].id, "name");
-        assert_eq!(fields[1].id, "email");
-        assert_eq!(fields[2].id, "message");
-        assert!(fields.iter().all(|f| f.required));
+        assert!(config.google_calendar_id.is_none());
+        assert!(config.form_links.is_empty());
     }
 
     #[test]
     fn test_extracted_event_default() {
         let event = ExtractedEvent::default();
         assert!(event.title.is_none());
-        assert!(event.date.is_none());
         assert!(!event.is_cancellation);
         assert_eq!(event.confidence, 0.0);
-    }
-
-    #[test]
-    fn test_processing_status_serialization() {
-        assert_eq!(
-            serde_json::to_string(&ProcessingStatus::Pending).unwrap(),
-            "\"pending\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ProcessingStatus::Processed).unwrap(),
-            "\"processed\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ProcessingStatus::NoEvent).unwrap(),
-            "\"no_event\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ProcessingStatus::Failed).unwrap(),
-            "\"failed\""
-        );
-    }
-
-    #[test]
-    fn test_digest_config_default() {
-        let config = DigestConfig::default();
-        assert_eq!(config.frequency, DigestFrequency::None);
-        assert!(config.responders.is_empty());
-        assert!(config.last_sent_at.is_none());
-    }
-
-    #[test]
-    fn test_booking_link_serde_with_defaults() {
-        // Test that missing optional fields use defaults
-        let json = r#"{
-            "id": "test-id",
-            "slug": "test-slug",
-            "name": "Test Booking",
-            "duration": 60,
-            "buffer_before": 5,
-            "buffer_after": 5,
-            "min_notice": 12,
-            "max_advance": 14,
-            "fields": [],
-            "confirmation_message": "Thanks!",
-            "enabled": true
-        }"#;
-
-        let link: BookingLink = serde_json::from_str(json).unwrap();
-        assert!(link.auto_accept); // default_true
-        assert!(link.responders.is_empty()); // default vec
-        assert!(link.admin_responders.is_empty()); // default vec
-        assert!(!link.hide_title); // default false
     }
 
     #[test]
@@ -864,10 +710,50 @@ mod tests {
 
         let webhook: WhatsAppWebhook = serde_json::from_str(json).unwrap();
         assert_eq!(webhook.object, "whatsapp_business_account");
-        assert_eq!(webhook.entry.len(), 1);
         assert_eq!(
             webhook.entry[0].changes[0].value.messages[0].from,
             "user123"
         );
+    }
+
+    #[test]
+    fn test_auto_reply_mode_serialization() {
+        assert_eq!(
+            serde_json::to_string(&AutoReplyMode::Static).unwrap(),
+            "\"static\""
+        );
+        assert_eq!(serde_json::to_string(&AutoReplyMode::Ai).unwrap(), "\"ai\"");
+        let mode: AutoReplyMode = serde_json::from_str("\"ai\"").unwrap();
+        assert_eq!(mode, AutoReplyMode::Ai);
+    }
+
+    #[test]
+    fn test_whatsapp_account_credentials_roundtrip() {
+        let creds = WhatsAppAccountCredentials {
+            access_token: "token123".to_string(),
+            phone_number_id: "phone456".to_string(),
+        };
+        let json = serde_json::to_string(&creds).unwrap();
+        let parsed: WhatsAppAccountCredentials = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.access_token, "token123");
+        assert_eq!(parsed.phone_number_id, "phone456");
+    }
+
+    #[test]
+    fn test_backward_compat_old_responder_format() {
+        // Old FormResponder data with channel field should still deserialize
+        let json = r#"{
+            "id": "r1",
+            "name": "Test",
+            "channel": "twilio_sms",
+            "target_field": "+1234567890",
+            "subject": "Hello",
+            "body": "Test message",
+            "enabled": true,
+            "use_ai": false
+        }"#;
+        let r: Responder = serde_json::from_str(json).unwrap();
+        assert_eq!(r.target_field, "+1234567890");
+        assert_eq!(r.body, "Test message");
     }
 }

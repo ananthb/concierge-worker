@@ -1,4 +1,4 @@
-//! Public view handlers - calendar views and iCal feeds
+//! Public view handlers - calendar views
 
 use worker::*;
 
@@ -129,7 +129,43 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
         (start_date, end_date)
     };
 
-    let events = get_events(&db, calendar_id, &start_date, &end_date).await?;
+    // Fetch events from Google Calendar if configured, otherwise empty
+    let events = if let Some(gcal_id) = &calendar.google_calendar_id {
+        let encryption_key = env
+            .secret("ENCRYPTION_KEY")
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let kv = env.kv("CALENDARS_KV")?;
+        let creds = get_tenant_credentials(&kv, &calendar.tenant_id, &encryption_key)
+            .await
+            .unwrap_or_default();
+
+        let time_min = format!("{}T00:00:00Z", start_date);
+        let time_max = format!("{}T23:59:59Z", end_date);
+
+        match (
+            &creds.google_service_account_email,
+            &creds.google_private_key,
+        ) {
+            (Some(email), Some(key)) => crate::google_calendar::list_events(
+                email,
+                key,
+                gcal_id,
+                &time_min,
+                &time_max,
+                &calendar.timezone,
+            )
+            .await
+            .unwrap_or_else(|e| {
+                console_log!("Google Calendar error: {:?}", e);
+                Vec::new()
+            }),
+            _ => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+
     let bookings = get_bookings(&db, calendar_id, &start_date, &end_date).await?;
 
     let is_htmx = is_htmx_request(&req);
@@ -151,76 +187,4 @@ pub async fn handle_view(req: Request, env: Env, path: &str, method: Method) -> 
         origin.as_deref(),
         &calendar.allowed_origins,
     ))
-}
-
-/// Handle iCal feed routes (/feed/*)
-pub async fn handle_feed(req: Request, env: Env, path: &str, method: Method) -> Result<Response> {
-    if method != Method::Get {
-        return Response::error("Method not allowed", 405);
-    }
-
-    let kv = env.kv("CALENDARS_KV")?;
-    let db = env.d1("DB")?;
-
-    let path_parts: Vec<&str> = path
-        .strip_prefix("/feed/")
-        .unwrap_or("")
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    let calendar_id = match path_parts.first() {
-        Some(id) => *id,
-        None => return Response::error("Calendar ID required", 400),
-    };
-    let slug = match path_parts.get(1) {
-        Some(s) => *s,
-        None => return Response::error("Feed link required", 400),
-    };
-
-    let calendar = match get_calendar(&kv, calendar_id).await? {
-        Some(c) => c,
-        None => return Response::error("Calendar not found", 404),
-    };
-
-    let link = match calendar
-        .feed_links
-        .iter()
-        .find(|l| l.slug == slug && l.enabled)
-    {
-        Some(l) => l.clone(),
-        None => return Response::error("Feed link not found", 404),
-    };
-
-    let url = req.url()?;
-    let token = url
-        .query_pairs()
-        .find(|(k, _)| k == "token")
-        .map(|(_, v)| v.to_string());
-
-    if token.as_ref() != Some(&link.token) {
-        return Response::error("Invalid token", 403);
-    }
-
-    let today = today_date();
-    let start_date = add_days(&today, -365);
-    let end_date = add_days(&today, 365);
-
-    let events = get_events(&db, calendar_id, &start_date, &end_date).await?;
-    let bookings = if link.include_details {
-        get_bookings(&db, calendar_id, &start_date, &end_date).await?
-    } else {
-        Vec::new()
-    };
-
-    let ical = ical_feed(&calendar, &events, &bookings);
-
-    let headers = Headers::new();
-    headers.set("Content-Type", "text/calendar; charset=utf-8")?;
-    headers.set(
-        "Content-Disposition",
-        &format!("attachment; filename=\"{}.ics\"", calendar.name),
-    )?;
-
-    Ok(Response::ok(ical)?.with_headers(headers))
 }

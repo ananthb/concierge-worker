@@ -3,18 +3,23 @@
 //! Each module handles a specific domain of routes.
 
 mod admin;
+mod admin_forms;
+mod admin_instagram;
+mod admin_whatsapp;
+pub mod auth;
 mod booking;
 mod forms;
 mod instagram_oauth;
 mod views;
-mod webhooks;
+mod webhook;
 
 pub use admin::handle_admin;
+pub use auth::handle_auth;
 pub use booking::handle_booking;
-pub use forms::handle_form_routes;
+pub use forms::handle_form;
 pub use instagram_oauth::handle_instagram;
-pub use views::{handle_feed, handle_view};
-pub use webhooks::handle_webhook;
+pub use views::handle_view;
+pub use webhook::handle_webhook;
 
 use worker::Request;
 
