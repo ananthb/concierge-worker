@@ -7,6 +7,7 @@ mod google_forms;
 mod handlers;
 mod helpers;
 mod instagram;
+mod landing;
 mod scheduled;
 mod storage;
 mod templates;
@@ -82,9 +83,15 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_webhook(req, env, path, method).await;
     }
 
-    // Everything else: serve static assets (landing page + docs)
-    // The ASSETS binding serves files from docs/book/
-    env.assets("ASSETS")?.fetch_request(req).await
+    // Landing page
+    if path == "/" || path == "/index.html" {
+        let headers = Headers::new();
+        headers.set("Content-Type", "text/html; charset=utf-8")?;
+        headers.set("Cache-Control", "public, max-age=3600")?;
+        return Ok(Response::ok(landing::landing_page_html())?.with_headers(headers));
+    }
+
+    Response::error("Not Found", 404)
 }
 
 #[event(scheduled)]
