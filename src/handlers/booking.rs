@@ -5,10 +5,10 @@ use worker::*;
 use super::{get_base_url, get_origin};
 use crate::ai;
 use crate::helpers::*;
-use crate::responders::{send_resend_email, send_twilio_email, send_twilio_message};
 use crate::storage::*;
 use crate::templates::*;
 use crate::types::*;
+use crate::whatsapp::send_whatsapp_message;
 
 /// Handle public booking routes (/book/*)
 pub async fn handle_booking(
@@ -294,13 +294,53 @@ pub async fn handle_booking(
                 updated_at: now,
             };
 
-            save_booking(&db, &booking).await?;
+            save_booking(&db, &booking, &calendar.tenant_id).await?;
+
+            // Load tenant credentials for WhatsApp and Google Calendar
+            let creds = {
+                let encryption_key = env
+                    .secret("ENCRYPTION_KEY")
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let kv = env.kv("CALENDARS_KV")?;
+                get_tenant_credentials(&kv, &calendar.tenant_id, &encryption_key)
+                    .await
+                    .unwrap_or_default()
+            };
+
+            // Create Google Calendar event if configured and auto-accepted
+            if link.auto_accept {
+                if let (Some(gcal_id), Some(ref sa_email), Some(ref sa_key)) = (
+                    &calendar.google_calendar_id,
+                    &creds.google_service_account_email,
+                    &creds.google_private_key,
+                ) {
+                    let start = format!("{}T{}:00", booking.slot_date, booking.slot_time);
+                    let end_time_str = add_minutes(&booking.slot_time, link.duration);
+                    let end = format!("{}T{}:00", booking.slot_date, end_time_str);
+                    let desc = format!("Booking by {} ({})", booking.name, booking.email);
+                    if let Err(e) = crate::google_calendar::create_event(
+                        sa_email,
+                        sa_key,
+                        gcal_id,
+                        &link.name,
+                        Some(&desc),
+                        &start,
+                        &end,
+                        &calendar.timezone,
+                    )
+                    .await
+                    {
+                        console_log!("Failed to create Google Calendar event: {:?}", e);
+                    }
+                }
+            }
 
             let is_htmx = is_htmx_request(&req);
 
             if link.auto_accept {
                 // Trigger customer responders immediately
-                trigger_customer_responders(&env, &link, &fields_data).await;
+                trigger_customer_responders(&env, &creds, &link, &fields_data).await;
 
                 // Show confirmation
                 let html = booking_success_html(&calendar, &booking, &link, &css_options, is_htmx);
@@ -312,7 +352,10 @@ pub async fn handle_booking(
                 ))
             } else {
                 // Send admin approval notification
-                send_admin_approval_notification(&env, &link, &calendar, &booking, &base_url).await;
+                send_admin_approval_notification(
+                    &env, &creds, &link, &calendar, &booking, &base_url,
+                )
+                .await;
 
                 // Show "pending" message
                 let html = booking_pending_html(&calendar, &booking, &link, &css_options, is_htmx);
@@ -362,7 +405,7 @@ pub async fn handle_booking(
             // Update status to Confirmed
             booking.status = BookingStatus::Confirmed;
             booking.updated_at = now_iso();
-            save_booking(&db, &booking).await?;
+            save_booking(&db, &booking, &calendar.tenant_id).await?;
 
             // Build fields_data from booking for responders
             let mut fields_data = match &booking.fields_data {
@@ -386,8 +429,46 @@ pub async fn handle_booking(
                 serde_json::Value::String(booking.slot_time.clone()),
             );
 
+            // Load tenant credentials
+            let creds = {
+                let encryption_key = env
+                    .secret("ENCRYPTION_KEY")
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let kv = env.kv("CALENDARS_KV")?;
+                get_tenant_credentials(&kv, &calendar.tenant_id, &encryption_key)
+                    .await
+                    .unwrap_or_default()
+            };
+
+            // Create Google Calendar event if configured
+            if let (Some(gcal_id), Some(ref sa_email), Some(ref sa_key)) = (
+                &calendar.google_calendar_id,
+                &creds.google_service_account_email,
+                &creds.google_private_key,
+            ) {
+                let start = format!("{}T{}:00", booking.slot_date, booking.slot_time);
+                let end_time_str = add_minutes(&booking.slot_time, booking.duration);
+                let end = format!("{}T{}:00", booking.slot_date, end_time_str);
+                let desc = format!("Booking by {} ({})", booking.name, booking.email);
+                if let Err(e) = crate::google_calendar::create_event(
+                    sa_email,
+                    sa_key,
+                    gcal_id,
+                    &link.name,
+                    Some(&desc),
+                    &start,
+                    &end,
+                    &calendar.timezone,
+                )
+                .await
+                {
+                    console_log!("Failed to create Google Calendar event: {:?}", e);
+                }
+            }
+
             // Trigger customer responders now that booking is confirmed
-            trigger_customer_responders(&env, &link, &fields_data).await;
+            trigger_customer_responders(&env, &creds, &link, &fields_data).await;
 
             // Return approval success HTML
             let html = approval_success_html(&calendar, &booking, &css_options, false);
@@ -430,7 +511,7 @@ pub async fn handle_booking(
             // Update status to Cancelled
             booking.status = BookingStatus::Cancelled;
             booking.updated_at = now_iso();
-            save_booking(&db, &booking).await?;
+            save_booking(&db, &booking, &calendar.tenant_id).await?;
 
             // Build fields_data from booking for responders
             let mut fields_data = match &booking.fields_data {
@@ -458,8 +539,20 @@ pub async fn handle_booking(
                 serde_json::Value::String("denied".to_string()),
             );
 
+            // Load tenant credentials for denial responders
+            let creds = {
+                let encryption_key = env
+                    .secret("ENCRYPTION_KEY")
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let kv = env.kv("CALENDARS_KV")?;
+                get_tenant_credentials(&kv, &calendar.tenant_id, &encryption_key)
+                    .await
+                    .unwrap_or_default()
+            };
+
             // Trigger denial responders
-            trigger_denial_responders(&env, &link, &fields_data).await;
+            trigger_denial_responders(&env, &creds, &link, &fields_data).await;
 
             // Return denial success HTML
             let html = denial_success_html(&calendar, &booking, &css_options, false);
@@ -470,24 +563,55 @@ pub async fn handle_booking(
     }
 }
 
-/// Trigger customer responders (send confirmation emails/messages)
+/// Resolve WhatsApp credentials from a booking link's whatsapp_account_id,
+/// falling back to legacy TenantCredentials.
+async fn resolve_whatsapp_credentials(
+    env: &Env,
+    link: &BookingLink,
+    creds: &TenantCredentials,
+) -> Option<(String, String)> {
+    if let Some(ref wa_id) = link.whatsapp_account_id {
+        let kv = env.kv("CALENDARS_KV").ok()?;
+        let encryption_key = env
+            .secret("ENCRYPTION_KEY")
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        if let Ok(Some(wa_creds)) =
+            crate::storage::get_whatsapp_credentials(&kv, wa_id, &encryption_key).await
+        {
+            return Some((wa_creds.access_token, wa_creds.phone_number_id));
+        }
+    }
+    // Fallback to legacy tenant credentials
+    match (
+        &creds.whatsapp_access_token,
+        &creds.whatsapp_phone_number_id,
+    ) {
+        (Some(t), Some(p)) => Some((t.clone(), p.clone())),
+        _ => None,
+    }
+}
+
+/// Trigger customer responders (send confirmation messages via WhatsApp)
 async fn trigger_customer_responders(
     env: &Env,
+    creds: &TenantCredentials,
     link: &BookingLink,
     fields_data: &serde_json::Map<String, serde_json::Value>,
 ) {
+    let (wa_token, wa_phone) = match resolve_whatsapp_credentials(env, link, creds).await {
+        Some((t, p)) => (t, p),
+        None => return,
+    };
+
     for responder in &link.responders {
         if !responder.enabled {
             continue;
         }
 
-        let target = if matches!(responder.channel, ResponderChannel::MetaWhatsapp) {
-            continue; // WhatsApp only for incoming messages
-        } else {
-            match fields_data.get(&responder.target_field) {
-                Some(serde_json::Value::String(t)) => t.clone(),
-                _ => continue,
-            }
+        let target = match fields_data.get(&responder.target_field) {
+            Some(serde_json::Value::String(t)) => t.clone(),
+            _ => continue,
         };
 
         let body = if responder.use_ai {
@@ -502,67 +626,34 @@ async fn trigger_customer_responders(
             interpolate_template(&responder.body, fields_data)
         };
 
-        let result = match responder.channel {
-            ResponderChannel::TwilioSms => {
-                if let Ok(from) = env.secret("TWILIO_FROM_SMS") {
-                    send_twilio_message(env, &target, &from.to_string(), &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::TwilioEmail => {
-                if let Ok(from) = env.secret("TWILIO_FROM_EMAIL") {
-                    let subject = interpolate_template(&responder.subject, fields_data);
-                    send_twilio_email(env, &target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::ResendEmail => {
-                if let Ok(from) = env.secret("RESEND_FROM") {
-                    let subject = interpolate_template(&responder.subject, fields_data);
-                    send_resend_email(env, &target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            _ => continue,
-        };
-
-        if let Err(e) = result {
+        if let Err(e) = send_whatsapp_message(&wa_token, &wa_phone, &target, &body).await {
             console_log!("Booking responder error for {}: {:?}", responder.name, e);
         }
     }
 }
 
-/// Trigger denial responders (notify customer that booking was denied)
+/// Trigger denial responders (notify customer that booking was denied via WhatsApp)
 async fn trigger_denial_responders(
     env: &Env,
+    creds: &TenantCredentials,
     link: &BookingLink,
     fields_data: &serde_json::Map<String, serde_json::Value>,
 ) {
-    // Use the same responders but with a denial message
+    let (wa_token, wa_phone) = match resolve_whatsapp_credentials(env, link, creds).await {
+        Some((t, p)) => (t, p),
+        None => return,
+    };
+
     for responder in &link.responders {
         if !responder.enabled {
             continue;
         }
 
-        let target = if matches!(responder.channel, ResponderChannel::MetaWhatsapp) {
-            continue;
-        } else {
-            match fields_data.get(&responder.target_field) {
-                Some(serde_json::Value::String(t)) => t.clone(),
-                _ => {
-                    // For email responders, try the email field directly
-                    match fields_data.get("email") {
-                        Some(serde_json::Value::String(t)) => t.clone(),
-                        _ => continue,
-                    }
-                }
-            }
+        let target = match fields_data.get(&responder.target_field) {
+            Some(serde_json::Value::String(t)) => t.clone(),
+            _ => continue,
         };
 
-        // Create a denial message based on the responder type
         let name = fields_data
             .get("name")
             .and_then(|v| v.as_str())
@@ -581,34 +672,7 @@ async fn trigger_denial_responders(
             name, date, format_time(time)
         );
 
-        let result = match responder.channel {
-            ResponderChannel::TwilioSms => {
-                if let Ok(from) = env.secret("TWILIO_FROM_SMS") {
-                    send_twilio_message(env, &target, &from.to_string(), &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::TwilioEmail => {
-                if let Ok(from) = env.secret("TWILIO_FROM_EMAIL") {
-                    let subject = format!("Booking Request Update for {}", link.name);
-                    send_twilio_email(env, &target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::ResendEmail => {
-                if let Ok(from) = env.secret("RESEND_FROM") {
-                    let subject = format!("Booking Request Update for {}", link.name);
-                    send_resend_email(env, &target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            _ => continue,
-        };
-
-        if let Err(e) = result {
+        if let Err(e) = send_whatsapp_message(&wa_token, &wa_phone, &target, &body).await {
             console_log!(
                 "Booking denial responder error for {}: {:?}",
                 responder.name,
@@ -618,9 +682,10 @@ async fn trigger_denial_responders(
     }
 }
 
-/// Send approval notification to admin responders
+/// Send approval notification to admin responders via WhatsApp
 async fn send_admin_approval_notification(
     env: &Env,
+    creds: &TenantCredentials,
     link: &BookingLink,
     calendar: &CalendarConfig,
     booking: &Booking,
@@ -633,6 +698,11 @@ async fn send_admin_approval_notification(
         );
         return;
     }
+
+    let (wa_token, wa_phone) = match resolve_whatsapp_credentials(env, link, creds).await {
+        Some((t, p)) => (t, p),
+        None => return,
+    };
 
     let token = booking.confirmation_token.as_deref().unwrap_or("");
     let approval_url = format!(
@@ -663,7 +733,7 @@ async fn send_admin_approval_notification(
             continue;
         }
 
-        // For admin responders, target_field contains the direct recipient address
+        // For admin responders, target_field contains the admin's phone number directly
         let target = &responder.target_field;
         if target.is_empty() {
             console_log!(
@@ -675,47 +745,7 @@ async fn send_admin_approval_notification(
 
         let body = interpolate_template(&responder.body, &admin_data);
 
-        let result = match responder.channel {
-            ResponderChannel::TwilioSms => {
-                if let Ok(from) = env.secret("TWILIO_FROM_SMS") {
-                    send_twilio_message(env, target, &from.to_string(), &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::TwilioWhatsapp => {
-                if let Ok(from) = env.secret("TWILIO_FROM_WHATSAPP") {
-                    send_twilio_message(
-                        env,
-                        &format!("whatsapp:{}", target),
-                        &from.to_string(),
-                        &body,
-                    )
-                    .await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::TwilioEmail => {
-                if let Ok(from) = env.secret("TWILIO_FROM_EMAIL") {
-                    let subject = interpolate_template(&responder.subject, &admin_data);
-                    send_twilio_email(env, target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            ResponderChannel::ResendEmail => {
-                if let Ok(from) = env.secret("RESEND_FROM") {
-                    let subject = interpolate_template(&responder.subject, &admin_data);
-                    send_resend_email(env, target, &from.to_string(), &subject, &body).await
-                } else {
-                    continue;
-                }
-            }
-            _ => continue,
-        };
-
-        if let Err(e) = result {
+        if let Err(e) = send_whatsapp_message(&wa_token, &wa_phone, target, &body).await {
             console_log!(
                 "Admin approval responder error for {}: {:?}",
                 responder.name,

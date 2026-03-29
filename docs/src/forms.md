@@ -1,85 +1,64 @@
-# Forms
+# Google Forms
 
-Create dynamic forms with custom fields, styling, and automated responses.
+Embed Google Forms on your website through Concierge. Use them for contact forms, intake questionnaires, feedback, or anything else — with the ability to view responses directly in the admin dashboard.
 
-## Creating a Form
+## Setting Up
 
-1. Go to the admin dashboard (`/admin`)
-2. Click **+ Create Form**
-3. Configure the form settings
+### 1. Create a Google Form
 
-## Form Settings
+Create your form at [Google Forms](https://docs.google.com/forms/). Design it however you like — all of Google Forms' field types, validation, and theming work normally.
 
-### Basic Settings
+### 2. Share With Your Service Account
 
-| Field | Description |
-|-------|-------------|
-| Form Name | Internal name (shown in admin) |
-| Slug | URL path (e.g., `contact` → `/f/contact`) |
-| Form Title | Displayed to users |
-| Submit Button Text | Button label |
-| Success Message | Shown after submission |
-| Allowed Origins | Domains that can embed this form |
-| Google Sheet URL | Optional: sync submissions to a spreadsheet |
+To view responses in the Concierge admin, share the form with your service account email address (the same one used for Google Calendar).
 
-### Field Types
+### 3. Add a Form Link
 
-| Type | HTML Input | Validation |
-|------|------------|------------|
-| Text | `<input type="text">` | None |
-| Email | `<input type="email">` | Email format |
-| Mobile | `<input type="tel">` | Phone format |
-| Long Text | `<textarea>` | None |
-| File | `<input type="file">` | Size limit |
+In the Concierge admin:
 
-### Field Configuration
+1. Go to your calendar editor > **Settings** tab
+2. Click **+ Add Form Link**
+3. Click **Edit** on the new form link
+4. Paste the Google Form URL
+5. Give it a name (e.g., "Contact Form")
+6. Save
 
-Each field has:
+### 4. Embed on Your Website
 
-- **Label** - Displayed above the input
-- **Field ID** - Used in templates and data (e.g., `name`, `email`)
-- **Type** - Input type (see above)
-- **Required** - Whether the field must be filled
+```html
+<iframe src="https://your-worker.workers.dev/form/{calendar_id}/{slug}"
+        style="border: none; width: 100%; min-height: 800px;"></iframe>
+```
 
-## Styling
+Or with HTMX:
 
-Forms can be styled using CSS variables. See [CSS Customization](./customization.md) for details.
-
-### Show/Hide Title
-
-Toggle "Show form title" in the Styling tab to hide the title when embedding.
-
-### Custom CSS
-
-Add custom CSS rules in the Styling tab:
-
-```css
-.contact-form {
-    max-width: 500px;
-}
-button {
-    text-transform: uppercase;
-}
+```html
+<div hx-get="https://your-worker.workers.dev/form/{calendar_id}/{slug}"
+     hx-trigger="load" hx-swap="innerHTML">
+    Loading form...
+</div>
 ```
 
 ## Viewing Responses
 
-1. Go to admin dashboard
-2. Click **Responses** next to the form
-3. View all submissions in a table
+Go to your form link editor and click **View Responses**. Concierge fetches responses directly from the Google Forms API and displays them in a table with all fields and timestamps.
 
-## Archiving Forms
+This requires the form to be shared with your service account email.
 
-Archive forms to make them read-only without deleting data:
+## Customizing Appearance
 
-1. Click **Archive** in the dashboard
-2. Form becomes read-only
-3. Click **Unarchive** to restore
+Google Forms has its own theming (header image, colors, font). These carry into the embedded version. Concierge wraps the form in its own page with CSS variable support, so you can match the surrounding page.
 
-## Deleting Forms
+Query parameters:
 
-> **Warning:** This permanently deletes the form and all submissions.
+| Parameter | Effect |
+|-----------|--------|
+| `notitle=true` | Hide the Concierge title above the form |
+| `css=...` | Inject inline CSS |
+| `css_url=...` | Load an external stylesheet |
 
-1. Open the form editor
-2. Scroll to Danger Zone
-3. Click **Delete Form**
+Note: The Google Form itself is in an iframe within the page, so your CSS cannot reach inside the form. Style the Google Form using Google Forms' built-in theme editor.
+
+## Multiple Forms
+
+You can add multiple form links to a single calendar — each gets its own slug and embed URL. Use this for different purposes (contact, intake, feedback, etc.).

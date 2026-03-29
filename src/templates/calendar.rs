@@ -1,5 +1,6 @@
-//! Calendar view and iCal feed templates
+//! Calendar view, form embed, and digest templates
 
+use crate::google_forms;
 use crate::helpers::*;
 use crate::types::*;
 
@@ -591,82 +592,108 @@ fn render_day_items(
 }
 
 // ============================================================================
-// iCal Feed
+// Google Form Embed
 // ============================================================================
 
-pub fn ical_feed(
+pub fn form_embed_html(
     calendar: &CalendarConfig,
-    events: &[CalendarEvent],
-    bookings: &[Booking],
+    link: &FormLink,
+    css: &CssOptions,
+    is_htmx: bool,
+    hide_title: bool,
 ) -> String {
-    let mut ical = String::from(
-        "BEGIN:VCALENDAR\r\n\
-         VERSION:2.0\r\n\
-         PRODID:-//Calendar Worker//EN\r\n\
-         CALSCALE:GREGORIAN\r\n\
-         METHOD:PUBLISH\r\n",
+    let embed_src = google_forms::embed_url(&link.google_form_url);
+
+    let title_html = if hide_title {
+        String::new()
+    } else {
+        format!(
+            "<h1 style=\"margin-bottom: 1rem;\">{}</h1>",
+            html_escape(&link.name)
+        )
+    };
+
+    let content = format!(
+        "{title_html}<iframe src=\"{src}\" style=\"width: 100%; min-height: 800px; border: none; border-radius: var(--cal-border-radius);\" allowfullscreen>Loading form...</iframe>",
+        title_html = title_html,
+        src = html_escape(&embed_src),
     );
 
-    ical.push_str(&format!("X-WR-CALNAME:{}\r\n", calendar.name));
-    ical.push_str(&format!("X-WR-TIMEZONE:{}\r\n", calendar.timezone));
-
-    for event in events {
-        ical.push_str("BEGIN:VEVENT\r\n");
-        ical.push_str(&format!("UID:{}\r\n", event.id));
-        ical.push_str(&format!("DTSTAMP:{}\r\n", ical_datetime(&event.created_at)));
-        ical.push_str(&format!("DTSTART:{}\r\n", ical_datetime(&event.start_time)));
-        ical.push_str(&format!("DTEND:{}\r\n", ical_datetime(&event.end_time)));
-        ical.push_str(&format!("SUMMARY:{}\r\n", ical_escape(&event.title)));
-        if let Some(desc) = &event.description {
-            ical.push_str(&format!("DESCRIPTION:{}\r\n", ical_escape(desc)));
-        }
-        ical.push_str("END:VEVENT\r\n");
-    }
-
-    for booking in bookings {
-        if booking.status != BookingStatus::Confirmed {
-            continue;
-        }
-        ical.push_str("BEGIN:VEVENT\r\n");
-        ical.push_str(&format!("UID:booking-{}\r\n", booking.id));
-        ical.push_str(&format!(
-            "DTSTAMP:{}\r\n",
-            ical_datetime(&booking.created_at)
-        ));
-        let start = format!("{}T{}:00", booking.slot_date, booking.slot_time);
-        let end_time = add_minutes(&booking.slot_time, booking.duration);
-        let end = format!("{}T{}:00", booking.slot_date, end_time);
-        ical.push_str(&format!("DTSTART:{}\r\n", ical_datetime(&start)));
-        ical.push_str(&format!("DTEND:{}\r\n", ical_datetime(&end)));
-        ical.push_str(&format!(
-            "SUMMARY:Booking: {}\r\n",
-            ical_escape(&booking.name)
-        ));
-        ical.push_str(&format!(
-            "DESCRIPTION:Email: {}\r\n",
-            ical_escape(&booking.email)
-        ));
-        ical.push_str("END:VEVENT\r\n");
-    }
-
-    ical.push_str("END:VCALENDAR\r\n");
-    ical
+    wrap_html(&content, &link.name, &calendar.style, css, is_htmx)
 }
 
-fn ical_datetime(dt: &str) -> String {
-    // Convert ISO to iCal format: 20240115T120000Z
-    dt.replace(['-', ':', '.'], "")
-        .chars()
-        .take(15)
-        .collect::<String>()
-        + "Z"
+/// Embed a GoogleFormResource (standalone form, not tied to a calendar)
+pub fn form_resource_embed_html(
+    form: &crate::types::GoogleFormResource,
+    css: &CssOptions,
+    is_htmx: bool,
+    hide_title: bool,
+) -> String {
+    let embed_src = google_forms::embed_url(&form.google_form_url);
+
+    let title_html = if hide_title {
+        String::new()
+    } else {
+        format!(
+            "<h1 style=\"margin-bottom: 1rem;\">{}</h1>",
+            html_escape(&form.name)
+        )
+    };
+
+    let content = format!(
+        "{title_html}<iframe src=\"{src}\" style=\"width: 100%; min-height: 800px; border: none; border-radius: var(--cal-border-radius);\" allowfullscreen>Loading form...</iframe>",
+        title_html = title_html,
+        src = html_escape(&embed_src),
+    );
+
+    let style = crate::types::CalendarStyle::default();
+    wrap_html(&content, &form.name, &style, css, is_htmx)
 }
 
-fn ical_escape(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace(',', "\\,")
-        .replace(';', "\\;")
-        .replace('\n', "\\n")
+// ============================================================================
+// Booking Digest
+// ============================================================================
+
+pub fn format_booking_digest(calendar: &CalendarConfig, bookings: &[Booking]) -> String {
+    let mut body = format!(
+        "New bookings for calendar: {}\n\nYou have {} new booking(s) since the last digest.\n\n",
+        calendar.name,
+        bookings.len()
+    );
+
+    for (i, booking) in bookings.iter().enumerate() {
+        let status = match booking.status {
+            BookingStatus::Pending => "Pending",
+            BookingStatus::Confirmed => "Confirmed",
+            BookingStatus::Cancelled => "Cancelled",
+            BookingStatus::Completed => "Completed",
+        };
+
+        body.push_str(&format!(
+            "--- Booking #{} ({}) ---\n",
+            i + 1,
+            booking.created_at
+        ));
+        body.push_str(&format!("Name: {}\n", booking.name));
+        body.push_str(&format!("Email: {}\n", booking.email));
+        if let Some(phone) = &booking.phone {
+            if !phone.is_empty() {
+                body.push_str(&format!("Phone: {}\n", phone));
+            }
+        }
+        body.push_str(&format!("Date: {}\n", booking.slot_date));
+        body.push_str(&format!("Time: {}\n", format_time(&booking.slot_time)));
+        body.push_str(&format!("Duration: {} minutes\n", booking.duration));
+        body.push_str(&format!("Status: {}\n", status));
+        if let Some(notes) = &booking.notes {
+            if !notes.is_empty() {
+                body.push_str(&format!("Notes: {}\n", notes));
+            }
+        }
+        body.push('\n');
+    }
+
+    body
 }
 
 // ============================================================================

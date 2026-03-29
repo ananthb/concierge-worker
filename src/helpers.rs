@@ -310,28 +310,6 @@ pub fn day_name(day: u32) -> &'static str {
     }
 }
 
-/// Add CORS headers to a response
-pub fn add_cors_headers(
-    mut response: Response,
-    origin: Option<&str>,
-    allowed_origins: &[String],
-) -> Response {
-    if let Some(origin) = origin {
-        if is_origin_allowed(origin, allowed_origins) {
-            let headers = response.headers_mut();
-            let _ = headers.set("Access-Control-Allow-Origin", origin);
-            let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            let _ = headers.set(
-                "Access-Control-Allow-Headers",
-                "Content-Type, HX-Request, HX-Target, HX-Current-URL, HX-Trigger",
-            );
-            let _ = headers.set("Access-Control-Allow-Credentials", "true");
-            let _ = headers.set("Vary", "Origin");
-        }
-    }
-    response
-}
-
 /// Interpolate template variables like {{field_name}} with values
 pub fn interpolate_template(
     template: &str,

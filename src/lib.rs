@@ -2,12 +2,12 @@ use worker::*;
 
 mod ai;
 mod crypto;
+mod google_calendar;
+mod google_forms;
 mod handlers;
 mod helpers;
 mod instagram;
-mod responders;
 mod scheduled;
-mod sheets;
 mod storage;
 mod templates;
 mod types;
@@ -47,26 +47,14 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return Response::ok("OK");
     }
 
-    // Root - redirect to admin
-    if path == "/" {
-        let headers = Headers::new();
-        headers.set("Location", "/admin")?;
-        return Ok(Response::empty()?.with_status(302).with_headers(headers));
+    // Auth routes (login, callback, logout)
+    if path.starts_with("/auth/") {
+        return handlers::handle_auth(req, env, path, method).await;
     }
 
-    // Admin routes (protected by Cloudflare Access)
+    // Admin routes (session-protected)
     if path.starts_with("/admin") {
         return handlers::handle_admin(req, env, path, method).await;
-    }
-
-    // WhatsApp webhook routes
-    if path.starts_with("/webhook/") {
-        return handlers::handle_webhook(req, env, path, method).await;
-    }
-
-    // Form routes (public)
-    if path.starts_with("/f/") {
-        return handlers::handle_form_routes(req, env, path, method).await;
     }
 
     // Booking routes (public)
@@ -74,14 +62,14 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_booking(req, env, path, method).await;
     }
 
+    // Google Form embed routes (public)
+    if path.starts_with("/form/") {
+        return handlers::handle_form(req, env, path, method).await;
+    }
+
     // Calendar view routes (public)
     if path.starts_with("/view/") {
         return handlers::handle_view(req, env, path, method).await;
-    }
-
-    // iCal feed routes (token protected)
-    if path.starts_with("/feed/") {
-        return handlers::handle_feed(req, env, path, method).await;
     }
 
     // Instagram OAuth routes
@@ -89,7 +77,14 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_instagram(req, env, path, method).await;
     }
 
-    Response::error("Not Found", 404)
+    // Webhook routes (WhatsApp incoming messages)
+    if path.starts_with("/webhook/") {
+        return handlers::handle_webhook(req, env, path, method).await;
+    }
+
+    // Everything else: serve static assets (landing page + docs)
+    // The ASSETS binding serves files from docs/book/
+    env.assets("ASSETS")?.fetch_request(req).await
 }
 
 #[event(scheduled)]

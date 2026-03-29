@@ -77,7 +77,6 @@ pub fn booking_form_html(
                 FieldType::Phone => "tel",
                 FieldType::Mobile => "tel",
                 FieldType::LongText => "textarea",
-                FieldType::File => "file",
             };
             let required = if field.required { "required" } else { "" };
             let placeholder = field.placeholder.as_deref().unwrap_or("");

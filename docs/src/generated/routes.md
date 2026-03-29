@@ -1,32 +1,21 @@
 # URL Routes Reference
 
-This page is auto-generated from the source code.
-
 ## Public Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/f/{slug}` | GET | Render public form |
-| `/f/{slug}/submit` | POST | Submit form |
+| `/form/{calendar_id}/{slug}` | GET | Embed Google Form |
 | `/book/{calendar_id}/{slug}` | GET | Render booking form |
 | `/book/{calendar_id}/{slug}/submit` | POST | Submit booking |
-| `/book/{calendar_id}/{slug}/approve/{booking_id}` | GET | Approve pending booking |
-| `/book/{calendar_id}/{slug}/cancel/{booking_id}` | GET | Cancel booking |
+| `/book/{calendar_id}/{slug}/approve/{booking_id}` | POST | Approve pending booking |
+| `/book/{calendar_id}/{slug}/deny/{booking_id}` | POST | Deny pending booking |
 | `/view/{calendar_id}/{slug}` | GET | Render calendar view |
-| `/feed/{calendar_id}/{slug}` | GET | iCal feed |
 
 ## Admin Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
 | `/admin` | GET | Admin dashboard |
-| `/admin/forms/new` | GET | New form editor |
-| `/admin/forms/{slug}` | GET | Edit form |
-| `/admin/forms/{slug}` | PUT | Update form |
-| `/admin/forms/{slug}` | DELETE | Delete form |
-| `/admin/forms/{slug}/responses` | GET | View form responses |
-| `/admin/forms/{slug}/archive` | POST | Archive form |
-| `/admin/forms/{slug}/unarchive` | POST | Unarchive form |
 | `/admin/calendars` | POST | Create calendar |
 | `/admin/calendars/{id}` | GET | Edit calendar |
 | `/admin/calendars/{id}` | PUT | Update calendar |
@@ -35,12 +24,13 @@ This page is auto-generated from the source code.
 | `/admin/calendars/{id}/unarchive` | POST | Unarchive calendar |
 | `/admin/calendars/{id}/bookings` | GET | View all bookings |
 | `/admin/calendars/{id}/slots` | GET | Configure time slots |
-| `/admin/calendars/{id}/events` | GET | Manage events |
 | `/admin/calendars/{id}/booking` | POST | Create booking link |
 | `/admin/calendars/{id}/booking/{link_id}` | GET | Edit booking link |
+| `/admin/calendars/{id}/form` | POST | Create form link |
+| `/admin/calendars/{id}/form/{link_id}` | GET | Edit form link |
+| `/admin/calendars/{id}/form/{link_id}/responses` | GET | View form responses |
 | `/admin/calendars/{id}/view` | POST | Create view link |
 | `/admin/calendars/{id}/view/{link_id}` | GET | Edit view link |
-| `/admin/calendars/{id}/feed` | POST | Create feed link |
 
 ## Instagram Routes
 

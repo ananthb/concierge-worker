@@ -1,6 +1,6 @@
 # HTMX Embedding
 
-Embed forms and calendars directly into your page using HTMX for a seamless experience.
+Embed booking forms and calendar views directly into your page using HTMX for a seamless experience.
 
 ## Why HTMX?
 
@@ -23,35 +23,20 @@ Add HTMX to your page:
 
 ### 2. Configure Allowed Origins
 
-Add your domain to the form/calendar's **Allowed Origins** setting:
+Add your domain to the calendar's **Allowed Origins** setting:
 
 ```
 https://example.com
 https://www.example.com
 ```
 
-## Forms
-
-### Basic Embed
+## Google Forms
 
 ```html
-<div hx-get="https://your-worker.workers.dev/f/contact"
+<div hx-get="https://your-worker.workers.dev/form/{calendar_id}/{slug}"
      hx-trigger="load"
      hx-swap="innerHTML">
     Loading form...
-</div>
-```
-
-### With Loading Indicator
-
-```html
-<div hx-get="https://your-worker.workers.dev/f/contact"
-     hx-trigger="load"
-     hx-swap="innerHTML"
-     hx-indicator="#form-loading">
-    <div id="form-loading" class="htmx-indicator">
-        Loading...
-    </div>
 </div>
 ```
 
@@ -92,45 +77,9 @@ Since HTMX content is part of your page, you have full CSS control.
 
 ```html
 <style>
-    /* Form variables */
-    :root {
-        --cf-primary-color: #007bff;
-        --cf-border-radius: 8px;
-    }
-
-    /* Calendar variables */
     :root {
         --cal-primary: #28a745;
         --cal-bg: transparent;
-    }
-</style>
-```
-
-### Target Form Elements
-
-```html
-<style>
-    .contact-form {
-        max-width: 500px;
-        margin: 0 auto;
-    }
-
-    .contact-form button {
-        text-transform: uppercase;
-    }
-
-    .form-group label {
-        font-weight: bold;
-    }
-</style>
-```
-
-### Hide Title via CSS
-
-```html
-<style>
-    .contact-form h1 {
-        display: none;
     }
 </style>
 ```
@@ -140,50 +89,11 @@ Since HTMX content is part of your page, you have full CSS control.
 Pass parameters to customize the embedded content:
 
 ```html
-<!-- Hide title -->
-<div hx-get=".../f/contact?hide_title=true" ...></div>
-
 <!-- Custom view -->
 <div hx-get=".../view/{id}/{slug}?view=month" ...></div>
 
-<!-- Inline CSS override -->
-<div hx-get=".../f/contact?css=button{background:green}" ...></div>
-```
-
-## Form Submission
-
-Forms use HTMX's `hx-post` for submission:
-
-1. User fills form
-2. Submit button triggers HTMX POST
-3. Success message replaces form
-4. After 3 seconds, form reloads automatically
-
-### Custom Success Handling
-
-Override the default behavior:
-
-```html
-<div hx-get="https://your-worker.workers.dev/f/contact"
-     hx-trigger="load"
-     hx-swap="innerHTML"
-     hx-on::after-settle="handleFormLoad(event)">
-</div>
-
-<script>
-function handleFormLoad(event) {
-    // Add custom event listeners to the loaded form
-    const form = event.target.querySelector('form');
-    if (form) {
-        form.addEventListener('htmx:afterRequest', function(e) {
-            if (e.detail.successful) {
-                // Custom success handling
-                console.log('Form submitted successfully');
-            }
-        });
-    }
-}
-</script>
+<!-- Hide title -->
+<div hx-get=".../book/{id}/{slug}?notitle=true" ...></div>
 ```
 
 ## Error Handling
@@ -191,59 +101,10 @@ function handleFormLoad(event) {
 Handle network errors gracefully:
 
 ```html
-<div hx-get="https://your-worker.workers.dev/f/contact"
+<div hx-get="https://your-worker.workers.dev/book/{id}/{slug}"
      hx-trigger="load"
      hx-swap="innerHTML"
-     hx-on::response-error="this.innerHTML = 'Failed to load form'">
+     hx-on::response-error="this.innerHTML = 'Failed to load'">
     Loading...
 </div>
-```
-
-## Complete Example
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <style>
-        .form-container {
-            max-width: 600px;
-            margin: 2rem auto;
-            padding: 1rem;
-        }
-
-        /* Override form styles */
-        :root {
-            --cf-primary-color: #6366f1;
-            --cf-border-radius: 12px;
-            --cf-bg-color: transparent;
-        }
-
-        .contact-form {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .htmx-indicator {
-            display: none;
-        }
-        .htmx-request .htmx-indicator {
-            display: block;
-        }
-    </style>
-</head>
-<body>
-    <div class="form-container">
-        <div hx-get="https://your-worker.workers.dev/f/contact"
-             hx-trigger="load"
-             hx-swap="innerHTML"
-             hx-indicator=".loading">
-            <div class="loading htmx-indicator">Loading form...</div>
-        </div>
-    </div>
-</body>
-</html>
 ```

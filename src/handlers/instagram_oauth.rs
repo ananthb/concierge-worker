@@ -10,6 +10,9 @@ use crate::storage::*;
 use crate::types::*;
 
 /// Handle Instagram OAuth routes (/instagram/*)
+///
+/// The OAuth flow now creates InstagramAccount resources instead of
+/// adding to CalendarConfig.instagram_sources.
 pub async fn handle_instagram(
     req: Request,
     env: Env,
@@ -40,19 +43,16 @@ pub async fn handle_instagram(
         .collect();
 
     match (method, path_parts.as_slice()) {
-        (Method::Get, ["auth", calendar_id]) => {
+        // Start OAuth flow — state now carries tenant_id
+        (Method::Get, ["auth", tenant_id]) => {
             if app_id.is_empty() || app_secret.is_empty() {
                 return Response::error("Instagram integration not configured", 500);
             }
 
-            if get_calendar(&kv, calendar_id).await?.is_none() {
-                return Response::error("Calendar not found", 404);
-            }
-
-            let state = format!("{}:{}", calendar_id, generate_token());
+            let state = format!("{}:{}", tenant_id, generate_token());
             let redirect_uri = format!("{}/instagram/callback", base_url);
 
-            kv.put(&format!("instagram_oauth_state:{}", state), calendar_id)?
+            kv.put(&format!("instagram_oauth_state:{}", state), *tenant_id)?
                 .expiration_ttl(600)
                 .execute()
                 .await?;
@@ -80,7 +80,7 @@ pub async fn handle_instagram(
                 .ok_or_else(|| Error::from("Missing state parameter"))?;
 
             let state_key = format!("instagram_oauth_state:{}", state);
-            let calendar_id = kv
+            let tenant_id = kv
                 .get(&state_key)
                 .text()
                 .await?
@@ -97,59 +97,50 @@ pub async fn handle_instagram(
             let client = instagram::InstagramClient::new(token.access_token.clone());
             let (user_id, username) = client.get_user_info().await?;
 
-            let source_id = generate_id();
-            let source = InstagramSource {
-                id: source_id.clone(),
-                instagram_user_id: user_id.clone(),
-                instagram_username: username.clone(),
-                enabled: true,
-                last_synced_at: None,
-                created_at: now_iso(),
-            };
-
-            let mut calendar = get_calendar(&kv, &calendar_id)
-                .await?
-                .ok_or_else(|| Error::from("Calendar not found"))?;
-
-            if calendar
-                .instagram_sources
+            // Check if this Instagram user is already connected for this tenant
+            let existing_accounts = list_instagram_accounts(&kv, &tenant_id).await?;
+            if existing_accounts
                 .iter()
-                .any(|s| s.instagram_user_id == user_id)
+                .any(|a| a.instagram_user_id == user_id)
             {
                 let headers = Headers::new();
                 headers.set(
                     "Location",
-                    &format!(
-                        "{}/admin/calendars/{}?error=instagram_already_connected",
-                        base_url, calendar_id
-                    ),
+                    &format!("{}/admin/instagram?error=already_connected", base_url),
                 )?;
                 return Ok(Response::empty()?.with_status(302).with_headers(headers));
             }
 
-            calendar.instagram_sources.push(source);
-            calendar.updated_at = now_iso();
-            save_calendar(&kv, &calendar).await?;
+            // Create InstagramAccount resource
+            let account_id = generate_id();
+            let account = InstagramAccount {
+                id: account_id.clone(),
+                tenant_id: tenant_id.clone(),
+                instagram_user_id: user_id,
+                instagram_username: username,
+                target_calendar_id: None,
+                classification_prompt: None,
+                enabled: true,
+                last_synced_at: None,
+                created_at: now_iso(),
+            };
+            save_instagram_account(&kv, &account).await?;
 
+            // Store encrypted token keyed by account ID
             let encrypted = crypto::encrypt_token(&token, &encryption_key).await?;
-            kv.put(
-                &format!("instagram_token:{}:{}", calendar_id, source_id),
-                encrypted,
-            )?
-            .execute()
-            .await?;
+            kv.put(&format!("instagram_token:{}", account_id), encrypted)?
+                .execute()
+                .await?;
 
             let headers = Headers::new();
             headers.set(
                 "Location",
-                &format!(
-                    "{}/admin/calendars/{}?success=instagram_connected",
-                    base_url, calendar_id
-                ),
+                &format!("{}/admin/instagram?success=connected", base_url),
             )?;
             Ok(Response::empty()?.with_status(302).with_headers(headers))
         }
 
+        // Legacy disconnect endpoint (calendar-based)
         (Method::Delete, ["disconnect", calendar_id, source_id]) => {
             let mut calendar = get_calendar(&kv, calendar_id)
                 .await?
