@@ -100,7 +100,7 @@ pub struct LeadFormStyle {
 impl Default for LeadFormStyle {
     fn default() -> Self {
         Self {
-            primary_color: String::from("#0070f3"),
+            primary_color: String::from("#F38020"),
             text_color: String::from("#333333"),
             background_color: String::from("#ffffff"),
             border_radius: String::from("8px"),
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn test_lead_form_style_default() {
         let style = LeadFormStyle::default();
-        assert_eq!(style.primary_color, "#0070f3");
+        assert_eq!(style.primary_color, "#F38020");
         assert_eq!(style.button_text, "Get in touch");
         assert!(style.custom_css.is_empty());
     }
