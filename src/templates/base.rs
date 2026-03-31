@@ -16,7 +16,7 @@ pub struct BaseStyle {
 impl Default for BaseStyle {
     fn default() -> Self {
         Self {
-            primary_color: String::from("#0070f3"),
+            primary_color: String::from("#F38020"),
             text_color: String::from("#333333"),
             background_color: String::from("#ffffff"),
             border_radius: String::from("4px"),
@@ -57,7 +57,7 @@ pub fn base_html(title: &str, content: &str, style: &BaseStyle) -> String {
             :root {{
                 --cal-bg: {hash}1a1a1a;
                 --cal-text: {hash}e0e0e0;
-                --cal-primary: {hash}3b9eff;
+                --cal-primary: {hash}F9A825;
                 --bg-card: {hash}2d2d2d;
                 --bg-muted: {hash}3a3a3a;
                 --border: {hash}444;
@@ -95,7 +95,7 @@ pub fn base_html(title: &str, content: &str, style: &BaseStyle) -> String {
         }}
         .btn:hover {{ opacity: 0.9; }}
         .btn-secondary {{
-            background: {hash}6c757d;
+            background: {hash}1A1A2E;
         }}
         .btn-danger {{
             background: {hash}dc3545;
@@ -179,7 +179,7 @@ pub fn base_html(title: &str, content: &str, style: &BaseStyle) -> String {
         .btn-copy {{
             padding: 0.25rem 0.5rem;
             font-size: 0.7rem;
-            background: {hash}6c757d;
+            background: {hash}1A1A2E;
             white-space: nowrap;
         }}
         .btn-copy.copied {{

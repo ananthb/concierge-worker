@@ -12,7 +12,7 @@ pub fn landing_page_html() -> String {
 <meta name="description" content="WhatsApp auto-replies, Instagram DM auto-replies, and embeddable lead capture forms. One platform, zero effort.">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-:root{{--p:#0070f3;--bg:#fff;--text:#111;--muted:#666;--card:#f8f9fa;--grad:linear-gradient(135deg,#0070f3,#00c6ff)}}
+:root{{--p:#F38020;--bg:#fff;--text:#111;--muted:#666;--card:#f8f9fa;--grad:linear-gradient(135deg,#F38020,#F9A825)}}
 @media(prefers-color-scheme:dark){{:root{{--bg:#0a0a0a;--text:#eee;--muted:#999;--card:#161616}}}}
 body{{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}}
 a{{color:var(--p);text-decoration:none}}a:hover{{text-decoration:underline}}
@@ -24,10 +24,10 @@ a{{color:var(--p);text-decoration:none}}a:hover{{text-decoration:underline}}
 .hero h1 span{{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
 .hero p{{font-size:1.25rem;color:var(--muted);max-width:560px;margin:0 auto 2rem}}
 .cta{{display:inline-block;padding:.875rem 2.5rem;background:var(--p);color:#fff;border-radius:8px;font-size:1.125rem;font-weight:600;transition:transform .15s,box-shadow .15s}}
-.cta:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,112,243,.35);text-decoration:none}}
+.cta:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(243,128,32,.35);text-decoration:none}}
 .cta-row{{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;align-items:center}}
-.cta-secondary{{display:inline-block;padding:.875rem 2rem;border:2px solid var(--p);color:var(--p);border-radius:8px;font-size:1.125rem;font-weight:600;transition:background .15s,color .15s}}
-.cta-secondary:hover{{background:var(--p);color:#fff;text-decoration:none}}
+.cta-secondary{{display:inline-block;padding:.875rem 2rem;border:2px solid #1A1A2E;color:#1A1A2E;border-radius:8px;font-size:1.125rem;font-weight:600;transition:background .15s,color .15s}}
+.cta-secondary:hover{{background:#1A1A2E;color:#fff;text-decoration:none}}
 
 .features{{max-width:960px;margin:0 auto;padding:4rem 1rem 6rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:2rem}}
 .feature{{background:var(--card);border-radius:12px;padding:2rem;text-align:center}}

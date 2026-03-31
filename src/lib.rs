@@ -14,14 +14,10 @@ mod whatsapp;
 
 pub use types::*;
 
-pub const LOGO_SVG: &str = r##"<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <rect x="10" y="10" width="180" height="180" rx="36" fill="#1A1A2E"/>
-  <rect x="28" y="28" width="144" height="108" rx="18" fill="#F38020"/>
-  <polygon points="54,136 38,164 90,136" fill="#F38020"/>
-  <rect x="38" y="114" width="124" height="7" rx="3.5" fill="white"/>
-  <rect x="58" y="104" width="84" height="11" rx="5.5" fill="white"/>
-  <path d="M62,104 C58,84 58,62 100,54 C142,62 142,84 138,104 Z" fill="white"/>
-  <rect x="88" y="49" width="24" height="8" rx="4" fill="white"/>
+pub const LOGO_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="56" height="42" rx="12" fill="#F38020"/>
+  <polygon points="10,44 4,58 24,44" fill="#F38020"/>
+  <path d="M39,15 C33,11 23,13 20,20 C17,27 20,35 27,38 C30,39 33,39 36,38" stroke="#fff" stroke-width="6.5" stroke-linecap="round" fill="none"/>
 </svg>"##;
 
 #[event(fetch)]
