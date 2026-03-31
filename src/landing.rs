@@ -7,6 +7,7 @@ pub fn landing_page_html() -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <title>Concierge — Messaging automation for small businesses</title>
 <meta name="description" content="WhatsApp auto-replies, Instagram DM auto-replies, and embeddable lead capture forms. One platform, zero effort.">
 <style>
