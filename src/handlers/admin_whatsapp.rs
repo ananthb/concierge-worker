@@ -17,10 +17,6 @@ pub async fn handle_whatsapp_admin(
     tenant_id: &str,
 ) -> Result<Response> {
     let kv = env.kv("CALENDARS_KV")?;
-    let encryption_key = env
-        .secret("ENCRYPTION_KEY")
-        .map(|s| s.to_string())
-        .unwrap_or_default();
 
     let path_parts: Vec<&str> = path
         .strip_prefix("/admin/whatsapp")
@@ -45,15 +41,15 @@ pub async fn handle_whatsapp_admin(
             let account = WhatsAppAccount {
                 id: generate_id(),
                 tenant_id: tenant_id.to_string(),
-                name: String::from("New WhatsApp Account"),
+                name: String::from("New WhatsApp Number"),
                 phone_number: String::new(),
+                phone_number_id: String::new(),
                 auto_reply: AutoReplyConfig::default(),
                 created_at: now.clone(),
                 updated_at: now,
             };
             save_whatsapp_account(&kv, &account).await?;
 
-            // Redirect to edit page
             let headers = Headers::new();
             headers.set(
                 "Location",
@@ -71,14 +67,7 @@ pub async fn handle_whatsapp_admin(
             if account.tenant_id != tenant_id {
                 return Response::error("Not found", 404);
             }
-            let has_credentials = get_whatsapp_credentials(&kv, id, &encryption_key)
-                .await?
-                .is_some();
-            Response::from_html(admin_whatsapp_edit_html(
-                &account,
-                has_credentials,
-                base_url,
-            ))
+            Response::from_html(admin_whatsapp_edit_html(&account, base_url))
         }
 
         // Update WhatsApp account
@@ -98,6 +87,9 @@ pub async fn handle_whatsapp_admin(
             if let Some(FormEntry::Field(phone)) = form.get("phone_number") {
                 account.phone_number = phone;
             }
+            if let Some(FormEntry::Field(phone_id)) = form.get("phone_number_id") {
+                account.phone_number_id = phone_id;
+            }
 
             // Auto-reply config
             account.auto_reply.enabled = form.get("auto_reply_enabled").is_some();
@@ -111,26 +103,9 @@ pub async fn handle_whatsapp_admin(
                 account.auto_reply.prompt = prompt;
             }
 
-            // Credentials (only update if provided)
-            if let Some(FormEntry::Field(token)) = form.get("access_token") {
-                if !token.is_empty() {
-                    let phone_number_id = match form.get("phone_number_id") {
-                        Some(FormEntry::Field(p)) => p,
-                        _ => String::new(),
-                    };
-                    if !phone_number_id.is_empty() {
-                        let creds = WhatsAppAccountCredentials {
-                            access_token: token,
-                            phone_number_id,
-                        };
-                        save_whatsapp_credentials(&kv, id, &creds, &encryption_key).await?;
-                    }
-                }
-            }
-
             account.updated_at = now_iso();
             save_whatsapp_account(&kv, &account).await?;
-            Response::from_html(calendar_success_html("WhatsApp account updated"))
+            Response::from_html(admin_success_html("WhatsApp account updated"))
         }
 
         // Delete WhatsApp account

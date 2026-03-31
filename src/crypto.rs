@@ -53,51 +53,6 @@ pub async fn decrypt_token(encrypted: &str, key: &str) -> Result<InstagramToken>
     Ok(token)
 }
 
-/// Encrypt an arbitrary string for storage
-pub async fn encrypt_string(plaintext: &str, key: &str) -> Result<String> {
-    let crypto = get_crypto()?;
-    let key_bytes = hex_decode(key)?;
-    let crypto_key = import_key(&crypto, &key_bytes).await?;
-
-    let iv = generate_iv()?;
-    let ciphertext = encrypt(&crypto, &crypto_key, &iv, plaintext.as_bytes()).await?;
-
-    let mut combined = iv.to_vec();
-    combined.extend_from_slice(&ciphertext);
-
-    Ok(hex_encode(&combined))
-}
-
-/// Decrypt an arbitrary string from storage
-pub async fn decrypt_string(encrypted: &str, key: &str) -> Result<String> {
-    let combined = hex_decode(encrypted)?;
-
-    if combined.len() < IV_LENGTH {
-        return Err(Error::from("Invalid encrypted data: too short"));
-    }
-
-    let iv = &combined[..IV_LENGTH];
-    let ciphertext = &combined[IV_LENGTH..];
-
-    let crypto = get_crypto()?;
-    let key_bytes = hex_decode(key)?;
-    let crypto_key = import_key(&crypto, &key_bytes).await?;
-
-    let plaintext = decrypt(&crypto, &crypto_key, iv, ciphertext).await?;
-
-    String::from_utf8(plaintext)
-        .map_err(|e| Error::from(format!("Invalid UTF-8 after decryption: {}", e)))
-}
-
-/// Compute SHA-256 hash of a string and return as hex
-pub fn sha256_hex(data: &str) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(data.as_bytes());
-    let result = hasher.finalize();
-    hex_encode(&result)
-}
-
 // ============================================================================
 // Internal crypto helpers using Web Crypto API
 // ============================================================================

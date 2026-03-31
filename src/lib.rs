@@ -2,8 +2,6 @@ use worker::*;
 
 mod ai;
 mod crypto;
-mod google_calendar;
-mod google_forms;
 mod handlers;
 mod helpers;
 mod instagram;
@@ -16,7 +14,6 @@ mod whatsapp;
 
 pub use types::*;
 
-// Combined logo for concierge - form + calendar elements
 pub const LOGO_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <rect x="8" y="8" width="48" height="48" rx="4" fill="#fff" stroke="#333" stroke-width="2"/>
   <rect x="8" y="8" width="48" height="12" rx="4" fill="#0070f3"/>
@@ -58,19 +55,9 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_admin(req, env, path, method).await;
     }
 
-    // Booking routes (public)
-    if path.starts_with("/book/") {
-        return handlers::handle_booking(req, env, path, method).await;
-    }
-
-    // Google Form embed routes (public)
-    if path.starts_with("/form/") {
-        return handlers::handle_form(req, env, path, method).await;
-    }
-
-    // Calendar view routes (public)
-    if path.starts_with("/view/") {
-        return handlers::handle_view(req, env, path, method).await;
+    // Lead capture form routes (public)
+    if path.starts_with("/lead/") {
+        return handlers::handle_lead_form(req, env, path, method).await;
     }
 
     // Instagram OAuth routes
@@ -78,7 +65,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_instagram(req, env, path, method).await;
     }
 
-    // Webhook routes (WhatsApp incoming messages)
+    // Webhook routes (WhatsApp + Instagram incoming messages)
     if path.starts_with("/webhook/") {
         return handlers::handle_webhook(req, env, path, method).await;
     }

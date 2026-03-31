@@ -8,7 +8,7 @@ use crate::storage::*;
 use crate::types::*;
 use crate::whatsapp::send_whatsapp_message;
 
-/// Handle /webhook/* routes
+/// Handle /webhook/whatsapp routes
 pub async fn handle_webhook(
     mut req: Request,
     env: Env,
@@ -47,6 +47,11 @@ pub async fn handle_webhook(
             Response::error("Forbidden", 403)
         }
 
+        // Instagram webhook verification (GET /webhook/instagram)
+        (Method::Get, ["instagram"]) => {
+            super::instagram_webhook::handle_instagram_verify(&req, &env)
+        }
+
         // Incoming WhatsApp messages (POST /webhook/whatsapp)
         (Method::Post, ["whatsapp"]) => {
             let body: WhatsAppWebhook = match req.json().await {
@@ -63,8 +68,8 @@ pub async fn handle_webhook(
 
             let kv = env.kv("CALENDARS_KV")?;
             let db = env.d1("DB")?;
-            let encryption_key = env
-                .secret("ENCRYPTION_KEY")
+            let platform_token = env
+                .secret("WHATSAPP_ACCESS_TOKEN")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
 
@@ -94,13 +99,6 @@ pub async fn handle_webhook(
                         None => continue,
                     };
 
-                    let wa_creds =
-                        match get_whatsapp_credentials(&kv, &account_id, &encryption_key).await? {
-                            Some(c) => c,
-                            None => continue,
-                        };
-
-                    // Build incoming messages
                     let contacts = &change.value.contacts;
                     for msg in &change.value.messages {
                         let sender_name = contacts
@@ -111,7 +109,7 @@ pub async fn handle_webhook(
 
                         let text = match &msg.text {
                             Some(t) => t.body.clone(),
-                            None => continue, // Skip non-text messages
+                            None => continue,
                         };
 
                         let incoming = IncomingMessage {
@@ -167,8 +165,8 @@ pub async fn handle_webhook(
 
                             if !reply.is_empty() {
                                 if let Err(e) = send_whatsapp_message(
-                                    &wa_creds.access_token,
-                                    &wa_creds.phone_number_id,
+                                    &platform_token,
+                                    &account.phone_number_id,
                                     &incoming.from,
                                     &reply,
                                 )
@@ -196,6 +194,11 @@ pub async fn handle_webhook(
             }
 
             Response::ok("OK")
+        }
+
+        // Incoming Instagram DMs (POST /webhook/instagram)
+        (Method::Post, ["instagram"]) => {
+            super::instagram_webhook::handle_instagram_dm(req, env).await
         }
 
         _ => Response::error("Not Found", 404),
