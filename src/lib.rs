@@ -14,14 +14,14 @@ mod whatsapp;
 
 pub use types::*;
 
-pub const LOGO_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="8" y="8" width="48" height="48" rx="4" fill="#fff" stroke="#333" stroke-width="2"/>
-  <rect x="8" y="8" width="48" height="12" rx="4" fill="#0070f3"/>
-  <line x1="14" y1="28" x2="50" y2="28" stroke="#ddd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="14" y1="36" x2="50" y2="36" stroke="#ddd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="14" y1="44" x2="40" y2="44" stroke="#ddd" stroke-width="2" stroke-linecap="round"/>
-  <rect x="42" y="40" width="10" height="10" rx="2" fill="#0070f3"/>
-  <path d="M44 45 L46 47 L50 43" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+pub const LOGO_SVG: &str = r##"<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect x="10" y="10" width="180" height="180" rx="36" fill="#1A1A2E"/>
+  <rect x="28" y="28" width="144" height="108" rx="18" fill="#F38020"/>
+  <polygon points="54,136 38,164 90,136" fill="#F38020"/>
+  <rect x="38" y="114" width="124" height="7" rx="3.5" fill="white"/>
+  <rect x="58" y="104" width="84" height="11" rx="5.5" fill="white"/>
+  <path d="M62,104 C58,84 58,62 100,54 C142,62 142,84 138,104 Z" fill="white"/>
+  <rect x="88" y="49" width="24" height="8" rx="4" fill="white"/>
 </svg>"##;
 
 #[event(fetch)]
