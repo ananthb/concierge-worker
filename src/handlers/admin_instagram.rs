@@ -4,6 +4,7 @@ use worker::*;
 
 use crate::storage::*;
 use crate::templates::*;
+use crate::types::*;
 
 /// Handle /admin/instagram routes
 pub async fn handle_instagram_admin(
@@ -30,8 +31,7 @@ pub async fn handle_instagram_admin(
         // List all Instagram accounts
         (Method::Get, []) => {
             let accounts = list_instagram_accounts(&kv, tenant_id).await?;
-            let calendars = list_calendars(&kv, tenant_id).await?;
-            Response::from_html(admin_instagram_list_html(&accounts, &calendars, base_url))
+            Response::from_html(admin_instagram_list_html(&accounts, base_url))
         }
 
         // Edit page for an Instagram account
@@ -43,8 +43,7 @@ pub async fn handle_instagram_admin(
             if account.tenant_id != tenant_id {
                 return Response::error("Not found", 404);
             }
-            let calendars = list_calendars(&kv, tenant_id).await?;
-            Response::from_html(admin_instagram_edit_html(&account, &calendars, base_url))
+            Response::from_html(admin_instagram_edit_html(&account, base_url))
         }
 
         // Update Instagram account
@@ -58,24 +57,22 @@ pub async fn handle_instagram_admin(
             }
 
             let form = req.form_data().await?;
-            if let Some(FormEntry::Field(cal_id)) = form.get("target_calendar_id") {
-                account.target_calendar_id = if cal_id.is_empty() {
-                    None
-                } else {
-                    Some(cal_id)
-                };
-            }
-            if let Some(FormEntry::Field(prompt)) = form.get("classification_prompt") {
-                account.classification_prompt = if prompt.is_empty() {
-                    None
-                } else {
-                    Some(prompt)
-                };
-            }
             account.enabled = form.get("enabled").is_some();
 
+            // Auto-reply config
+            account.auto_reply.enabled = form.get("auto_reply_enabled").is_some();
+            if let Some(FormEntry::Field(mode)) = form.get("auto_reply_mode") {
+                account.auto_reply.mode = match mode.as_str() {
+                    "ai" => AutoReplyMode::Ai,
+                    _ => AutoReplyMode::Static,
+                };
+            }
+            if let Some(FormEntry::Field(prompt)) = form.get("auto_reply_prompt") {
+                account.auto_reply.prompt = prompt;
+            }
+
             save_instagram_account(&kv, &account).await?;
-            Response::from_html(calendar_success_html("Instagram account updated"))
+            Response::from_html(admin_success_html("Instagram account updated"))
         }
 
         // Disconnect/delete Instagram account

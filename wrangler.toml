@@ -18,7 +18,7 @@ pattern = "concierge.calculon.tech"
 custom_domain = true
 
 # ============================================================================
-# D1 Database for forms, calendars, events, bookings
+# D1 Database for messages and submissions
 # ============================================================================
 [[d1_databases]]
 binding = "DB"
@@ -26,25 +26,14 @@ database_name = "concierge-worker"
 database_id = "332c2ee6-05c9-4293-9df3-51e61238b61a"
 
 # ============================================================================
-# KV Namespaces for configs
+# KV Namespace for configs
 # ============================================================================
-[[kv_namespaces]]
-binding = "FORMS_KV"
-id = "2949a3fb471c4fc6bef2990d53bf870a"
-
 [[kv_namespaces]]
 binding = "CALENDARS_KV"
 id = "2949a3fb471c4fc6bef2990d53bf870a"
 
 # ============================================================================
-# R2 Bucket for file uploads
-# ============================================================================
-[[r2_buckets]]
-binding = "UPLOADS"
-bucket_name = "concierge-worker-uploads"
-
-# ============================================================================
-# AI Binding for responders and event extraction
+# AI Binding for auto-reply generation
 # ============================================================================
 [ai]
 binding = "AI"
@@ -53,12 +42,10 @@ binding = "AI"
 ENVIRONMENT = "production"
 
 # ============================================================================
-# Cron triggers
-# - Hourly: Instagram sync, booking reminders
-# - Daily at 8AM UTC: Form digests
+# Cron triggers — daily at 6AM UTC for Instagram token refresh
 # ============================================================================
 [triggers]
-crons = ["0 * * * *", "0 8 * * *"]
+crons = ["0 6 * * *"]
 
 [observability.logs]
 enabled = true
@@ -68,15 +55,18 @@ invocation_logs = true
 # Required Secrets (set via wrangler secret put <NAME>)
 # ============================================================================
 #
-# Google Calendar & Forms:
-#   GOOGLE_SERVICE_ACCOUNT_EMAIL - Service account email
-#   GOOGLE_PRIVATE_KEY           - RSA private key (PEM)
-#
-# Meta WhatsApp Business API:
-#   WHATSAPP_ACCESS_TOKEN   - Meta Graph API access token
-#   WHATSAPP_PHONE_NUMBER_ID - WhatsApp Business phone number ID
-#
-# Instagram Basic Display API:
-#   INSTAGRAM_APP_ID        - Instagram app ID
-#   INSTAGRAM_APP_SECRET    - Instagram app secret
+# Encryption:
 #   ENCRYPTION_KEY          - 32-byte hex key for AES-256-GCM token encryption
+#
+# Google OAuth (login only):
+#   GOOGLE_OAUTH_CLIENT_ID     - Google OAuth client ID
+#   GOOGLE_OAUTH_CLIENT_SECRET - Google OAuth client secret
+#
+# WhatsApp Business (platform WABA token):
+#   WHATSAPP_ACCESS_TOKEN   - System user token for the shared WABA
+#   WHATSAPP_VERIFY_TOKEN   - Webhook verification token
+#
+# Facebook/Instagram:
+#   FACEBOOK_APP_ID         - Facebook app ID (for Facebook Login)
+#   FACEBOOK_APP_SECRET     - Facebook app secret
+#   INSTAGRAM_VERIFY_TOKEN  - Instagram DM webhook verification token
