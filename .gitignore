@@ -28,4 +28,4 @@ Thumbs.db
 .direnv
 
 # Documentation build
-docs/book/
+site/
