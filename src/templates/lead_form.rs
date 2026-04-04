@@ -22,8 +22,8 @@ pub fn lead_form_html(form: &LeadCaptureForm) -> String {
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 :root{{--lf-primary:{primary};--lf-text:{text};--lf-bg:{bg};--lf-radius:{radius}}}
-body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);color:var(--lf-text);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}}
-.lf-form{{max-width:400px;width:100%;text-align:center}}
+body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);color:var(--lf-text);display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:1rem}}
+.lf-form{{max-width:min(400px,calc(100% - 2rem));width:100%;text-align:center}}
 .lf-form h2{{font-size:1.25rem;margin-bottom:1rem}}
 .lf-input{{width:100%;padding:.75rem 1rem;border:1px solid {hash}ccc;border-radius:var(--lf-radius);font-size:1rem;margin-bottom:.75rem;background:var(--lf-bg);color:var(--lf-text)}}
 .lf-input:focus{{outline:none;border-color:var(--lf-primary)}}
@@ -33,6 +33,9 @@ body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);col
 .lf-success{{padding:2rem;text-align:center;color:var(--lf-text)}}
 .lf-success h2{{color:var(--lf-primary);margin-bottom:.5rem}}
 .lf-error{{color:{hash}dc3545;font-size:.9rem;margin-bottom:.75rem}}
+.sr-only{{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}}
+.lf-input:focus-visible{{outline:2px solid var(--lf-primary);outline-offset:2px}}
+.lf-btn:focus-visible{{outline:2px solid var(--lf-primary);outline-offset:2px}}
 {custom_css}
 </style>
 </head>
@@ -42,10 +45,11 @@ body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);col
   <form hx-post="/lead/{id}/{slug}" hx-target="closest .lf-form" hx-swap="innerHTML"
         hx-on::before-request="this.querySelector('button').disabled=true"
         hx-on::after-request="this.querySelector('button').disabled=false">
-    <input type="tel" name="phone" class="lf-input" placeholder="{placeholder}" required>
-    <button type="submit" class="lf-btn">{button}</button>
+    <label for="lf-phone" class="sr-only">Phone number</label>
+    <input type="tel" id="lf-phone" name="phone" class="lf-input" placeholder="{placeholder}" required aria-required="true">
+    <button type="submit" class="lf-btn" aria-label="Submit phone number">{button}</button>
   </form>
-  <p style="margin-top:1rem;font-size:.65rem;color:{hash}999;"><a href="https://github.com/ananthb/concierge-worker" style="color:{hash}999;">Powered by Concierge</a></p>
+  <p style="margin-top:1rem;font-size:.65rem;color:{hash}777;"><a href="https://github.com/ananthb/concierge-worker" style="color:{hash}777;">Powered by Concierge</a></p>
 </div>
 </body>
 </html>"##,
@@ -66,7 +70,7 @@ body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);col
 /// Success state after form submission
 pub fn lead_form_success_html(form: &LeadCaptureForm) -> String {
     format!(
-        r#"<div class="lf-success">
+        r#"<div class="lf-success" role="status">
   <h2>Sent!</h2>
   <p>{message}</p>
 </div>"#,
@@ -79,7 +83,7 @@ pub fn lead_form_error_html(form: &LeadCaptureForm, error: &str) -> String {
     let s = &form.style;
     format!(
         r#"<h2>{name}</h2>
-<div class="lf-error">{error}</div>
+<div class="lf-error" role="alert">{error}</div>
 <form hx-post="/lead/{id}/{slug}" hx-target="closest .lf-form" hx-swap="innerHTML"
       hx-on::before-request="this.querySelector('button').disabled=true"
       hx-on::after-request="this.querySelector('button').disabled=false">

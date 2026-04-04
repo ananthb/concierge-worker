@@ -151,11 +151,11 @@ pub fn admin_settings_html(
         <div class=\"card\">
             <h2>Linked Accounts</h2>
             <p style=\"margin-bottom: 1rem;\" class=\"text-muted\">Sign-in providers connected to your account.</p>
-            <div id=\"linked-providers\">
-                <table>
-                    <thead><tr><th>Provider</th><th>Details</th><th></th></tr></thead>
+            <div id=\"linked-providers\" role=\"region\" aria-label=\"Linked accounts\">
+                <div class=\"table-wrap\"><table>
+                    <thead><tr><th scope=\"col\">Provider</th><th scope=\"col\">Details</th><th></th></tr></thead>
                     <tbody>{google_row}{facebook_row}</tbody>
-                </table>
+                </table></div>
             </div>
         </div>
         <div class=\"card\">
@@ -273,10 +273,10 @@ pub fn admin_dashboard_html(
                 <h2>WhatsApp Accounts</h2>
                 <a href=\"{base_url}/admin/whatsapp\" class=\"btn btn-sm\">Manage</a>
             </div>
-            <table>
-                <thead><tr><th>Name</th><th>Phone</th><th>Auto-Reply</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Name</th><th scope=\"col\">Phone</th><th scope=\"col\">Auto-Reply</th><th></th></tr></thead>
                 <tbody>{wa_rows}{wa_empty}</tbody>
-            </table>
+            </table></div>
         </div>
 
         <div class=\"card\">
@@ -284,10 +284,10 @@ pub fn admin_dashboard_html(
                 <h2>Instagram Accounts</h2>
                 <a href=\"{base_url}/admin/instagram\" class=\"btn btn-sm\">Manage</a>
             </div>
-            <table>
-                <thead><tr><th>Username</th><th>Status</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Username</th><th scope=\"col\">Status</th><th></th></tr></thead>
                 <tbody>{ig_rows}{ig_empty}</tbody>
-            </table>
+            </table></div>
         </div>
 
         <div class=\"card\">
@@ -295,10 +295,10 @@ pub fn admin_dashboard_html(
                 <h2>Lead Forms</h2>
                 <a href=\"{base_url}/admin/lead-forms\" class=\"btn btn-sm\">Manage</a>
             </div>
-            <table>
-                <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Name</th><th scope=\"col\">Slug</th><th scope=\"col\">Status</th><th></th></tr></thead>
                 <tbody>{lf_rows}{lf_empty}</tbody>
-            </table>
+            </table></div>
         </div>",
         base_url = base_url,
         wa_rows = wa_rows,
@@ -354,10 +354,10 @@ pub fn admin_whatsapp_list_html(accounts: &[WhatsAppAccount], base_url: &str) ->
         </div>
         <div id=\"toast\"></div>
         <div class=\"card\">
-            <table>
-                <thead><tr><th>Name</th><th>Phone</th><th>Auto-Reply</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Name</th><th scope=\"col\">Phone</th><th scope=\"col\">Auto-Reply</th><th></th></tr></thead>
                 <tbody>{rows}{empty}</tbody>
-            </table>
+            </table></div>
         </div>",
         base_url = base_url,
         rows = rows,
@@ -492,31 +492,31 @@ pub fn admin_whatsapp_edit_html(account: &WhatsAppAccount, base_url: &str) -> St
         <div class=\"card\">
             <form hx-put=\"{base_url}/admin/whatsapp/{id}\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\">
                 <div class=\"form-group\">
-                    <label>Name</label>
-                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                    <label for=\"wa-name\">Name</label>
+                    <input type=\"text\" id=\"wa-name\" name=\"name\" value=\"{name}\" required>
                 </div>
                 <div class=\"form-group\">
-                    <label>Phone Number</label>
-                    <input type=\"text\" name=\"phone_number\" value=\"{phone}\" placeholder=\"+1234567890\" required>
+                    <label for=\"wa-phone\">Phone Number</label>
+                    <input type=\"text\" id=\"wa-phone\" name=\"phone_number\" value=\"{phone}\" placeholder=\"+1234567890\" required>
                 </div>
                 <div class=\"form-group\">
-                    <label>Phone Number ID</label>
-                    <input type=\"text\" name=\"phone_number_id\" value=\"{phone_id}\" placeholder=\"Meta phone number ID\" required style=\"font-family: monospace;\">
+                    <label for=\"wa-phone-id\">Phone Number ID</label>
+                    <input type=\"text\" id=\"wa-phone-id\" name=\"phone_number_id\" value=\"{phone_id}\" placeholder=\"Meta phone number ID\" required style=\"font-family: monospace;\">
                 </div>
                 <h3 style=\"margin: 1rem 0 0.5rem;\">Auto-Reply</h3>
                 <div class=\"form-group\">
                     <label><input type=\"checkbox\" name=\"auto_reply_enabled\" value=\"true\"{enabled_checked}> Enabled</label>
                 </div>
                 <div class=\"form-group\">
-                    <label>Mode</label>
-                    <select name=\"auto_reply_mode\">
+                    <label for=\"wa-mode\">Mode</label>
+                    <select id=\"wa-mode\" name=\"auto_reply_mode\">
                         <option value=\"Static\"{mode_static_sel}>Static</option>
                         <option value=\"Ai\"{mode_ai_sel}>AI</option>
                     </select>
                 </div>
                 <div class=\"form-group\">
-                    <label>Prompt / Message</label>
-                    <textarea name=\"auto_reply_prompt\" rows=\"3\">{prompt}</textarea>
+                    <label for=\"wa-prompt\">Prompt / Message</label>
+                    <textarea id=\"wa-prompt\" name=\"auto_reply_prompt\" rows=\"3\">{prompt}</textarea>
                 </div>
                 <div style=\"display: flex; justify-content: flex-end; gap: 0.5rem;\">
                     <button type=\"submit\" class=\"btn\">Save</button>
@@ -585,10 +585,10 @@ pub fn admin_instagram_list_html(
         </div>
         <div id=\"toast\"></div>
         <div class=\"card\">
-            <table>
-                <thead><tr><th>Username</th><th>Status</th><th>Auto-Reply</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Username</th><th scope=\"col\">Status</th><th scope=\"col\">Auto-Reply</th><th></th></tr></thead>
                 <tbody>{rows}{empty}</tbody>
-            </table>
+            </table></div>
         </div>",
         base_url = base_url,
         tenant_id = html_escape(tenant_id),
@@ -704,10 +704,10 @@ pub fn admin_lead_forms_list_html(forms: &[LeadCaptureForm], base_url: &str) -> 
         </div>
         <div id=\"toast\"></div>
         <div class=\"card\">
-            <table>
-                <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
+            <div class=\"table-wrap\"><table>
+                <thead><tr><th scope=\"col\">Name</th><th scope=\"col\">Slug</th><th scope=\"col\">Status</th><th></th></tr></thead>
                 <tbody>{rows}{empty}</tbody>
-            </table>
+            </table></div>
         </div>",
         base_url = base_url,
         rows = rows,
@@ -792,15 +792,15 @@ pub fn admin_lead_form_edit_html(
                 <h3 style=\"margin: 1rem 0 0.5rem;\">Style</h3>
                 <div class=\"form-group\">
                     <label>Primary Color</label>
-                    <input type=\"text\" name=\"style_primary_color\" value=\"{s_primary}\">
+                    <input type=\"color\" name=\"style_primary_color\" value=\"{s_primary}\">
                 </div>
                 <div class=\"form-group\">
                     <label>Text Color</label>
-                    <input type=\"text\" name=\"style_text_color\" value=\"{s_text}\">
+                    <input type=\"color\" name=\"style_text_color\" value=\"{s_text}\">
                 </div>
                 <div class=\"form-group\">
                     <label>Background Color</label>
-                    <input type=\"text\" name=\"style_background_color\" value=\"{s_bg}\">
+                    <input type=\"color\" name=\"style_background_color\" value=\"{s_bg}\">
                 </div>
                 <div class=\"form-group\">
                     <label>Border Radius</label>
@@ -872,10 +872,16 @@ pub fn admin_lead_form_edit_html(
 }
 
 pub fn admin_success_html(message: &str) -> String {
-    format!("<div class=\"success\">{}</div>", html_escape(message))
+    format!(
+        "<div class=\"success\" role=\"status\">{}</div>",
+        html_escape(message)
+    )
 }
 
 #[allow(dead_code)]
 pub fn admin_error_html(message: &str) -> String {
-    format!("<div class=\"error\">{}</div>", html_escape(message))
+    format!(
+        "<div class=\"error\" role=\"alert\">{}</div>",
+        html_escape(message)
+    )
 }

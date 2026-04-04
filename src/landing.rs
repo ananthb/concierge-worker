@@ -17,50 +17,71 @@ pub fn landing_page_html() -> String {
 <title>Concierge — Messaging automation for small businesses</title>
 <meta name="description" content="WhatsApp auto-replies, Instagram DM auto-replies, and embeddable lead capture forms. One platform, zero effort.">
 <style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-:root{{--p:#F38020;--bg:#fff;--text:#111;--muted:#666;--card:#f8f9fa;--grad:linear-gradient(135deg,#F38020,#F9A825)}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#0a0a0a;--text:#eee;--muted:#999;--card:#161616}}}}
-body{{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}}
-a{{color:var(--p);text-decoration:none}}a:hover{{text-decoration:underline}}
+*,*::before,*::after{{margin:0;padding:0;box-sizing:border-box}}
+:root{{--p:#F38020;--link:#C55A11;--navy:#1A1A2E;--bg:#fff;--text:#111;--muted:#555;--card:#f5f6f8;--grad:linear-gradient(135deg,#F38020,#F9A825);--shadow:0 2px 8px rgba(0,0,0,.06)}}
+@media(prefers-color-scheme:dark){{:root{{--bg:#0a0a0a;--text:#eee;--muted:#bbb;--card:#161616;--navy:#e0e0e0;--shadow:0 2px 8px rgba(0,0,0,.2)}}}}
+body{{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}}
+a{{color:var(--link);text-decoration:none}}a:hover{{text-decoration:underline}}
+a:focus-visible{{outline:2px solid var(--link);outline-offset:2px;border-radius:2px}}
+.skip-link{{position:absolute;top:-100%;left:1rem;padding:.5rem 1rem;background:var(--p);color:#fff;border-radius:6px;z-index:1000;font-weight:600;text-decoration:none}}.skip-link:focus{{top:.5rem}}
 
-.hero{{min-height:90vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem 1rem;position:relative}}
-.hero::before{{content:'';position:absolute;inset:0;background:var(--grad);opacity:.04;pointer-events:none}}
+.hero{{min-height:90vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:3rem 1rem;position:relative}}
+.hero::before{{content:'';position:absolute;inset:0;background:var(--grad);opacity:.08;pointer-events:none}}
 .hero-inner{{max-width:720px;position:relative}}
 .hero h1{{font-size:clamp(2.5rem,6vw,4rem);font-weight:800;letter-spacing:-.03em;margin-bottom:1rem}}
 .hero h1 span{{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
-.hero p{{font-size:1.25rem;color:var(--muted);max-width:560px;margin:0 auto 2rem}}
-.cta{{display:inline-block;padding:.875rem 2.5rem;background:var(--p);color:#fff;border-radius:8px;font-size:1.125rem;font-weight:600;transition:transform .15s,box-shadow .15s}}
-.cta:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(243,128,32,.35);text-decoration:none}}
+.hero p{{font-size:1.2rem;color:var(--muted);max-width:560px;margin:0 auto 2.5rem}}
+.cta{{display:inline-block;padding:.875rem 2.5rem;background:var(--p);color:#fff;border-radius:8px;font-size:1.125rem;font-weight:600;transition:transform .15s,box-shadow .15s;min-height:48px}}
+.cta:hover{{transform:translateY(-2px);box-shadow:0 8px 24px rgba(243,128,32,.3);text-decoration:none}}
+.cta:active{{transform:translateY(0)}}
+.cta:focus-visible{{outline:2px solid var(--link);outline-offset:2px}}
 .cta-row{{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;align-items:center}}
-.cta-secondary{{display:inline-block;padding:.875rem 2rem;border:2px solid #1A1A2E;color:#1A1A2E;border-radius:8px;font-size:1.125rem;font-weight:600;transition:background .15s,color .15s}}
-.cta-secondary:hover{{background:#1A1A2E;color:#fff;text-decoration:none}}
+.cta-secondary{{display:inline-block;padding:.875rem 2rem;border:2px solid var(--navy);color:var(--navy);border-radius:8px;font-size:1.125rem;font-weight:600;transition:background .15s,color .15s;min-height:48px}}
+.cta-secondary:hover{{background:var(--navy);color:#fff;text-decoration:none}}
+.cta-secondary:focus-visible{{outline:2px solid var(--navy);outline-offset:2px}}
 
-.features{{max-width:960px;margin:0 auto;padding:4rem 1rem 6rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:2rem}}
-.feature{{background:var(--card);border-radius:12px;padding:2rem;text-align:center}}
+.features{{max-width:960px;margin:0 auto;padding:4rem 1rem 5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem}}
+.feature{{background:var(--card);border-radius:12px;padding:2rem;text-align:center;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}}
+.feature:hover{{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.1)}}
 .feature-icon{{font-size:2.5rem;margin-bottom:.75rem;display:block}}
-.feature h3{{font-size:1.125rem;margin-bottom:.5rem}}
-.feature p{{font-size:.95rem;color:var(--muted)}}
+.feature h3{{font-size:1.1rem;margin-bottom:.5rem;font-weight:700}}
+.feature p{{font-size:.95rem;color:var(--muted);line-height:1.5}}
 
-.how{{max-width:720px;margin:0 auto;padding:0 1rem 6rem;text-align:center}}
-.how h2{{font-size:2rem;font-weight:700;margin-bottom:2rem}}
-.steps{{display:grid;gap:1.5rem;text-align:left;counter-reset:step}}
-.step{{display:flex;gap:1rem;align-items:flex-start}}
-.step-num{{background:var(--grad);color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;flex-shrink:0;counter-increment:step}}
+.how{{max-width:720px;margin:0 auto;padding:0 1rem 5rem;text-align:center}}
+.how h2{{font-size:1.75rem;font-weight:700;margin-bottom:2rem}}
+.steps{{display:grid;gap:1.25rem;text-align:left;counter-reset:step}}
+.step{{display:flex;gap:1rem;align-items:flex-start;padding:1rem;background:var(--card);border-radius:10px;box-shadow:var(--shadow)}}
+.step-num{{background:var(--grad);color:#fff;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;counter-increment:step;box-shadow:0 2px 6px rgba(243,128,32,.25)}}
 .step-num::before{{content:counter(step)}}
-.step-body h4{{font-size:1rem;margin-bottom:.25rem}}
-.step-body p{{font-size:.9rem;color:var(--muted)}}
+.step-body h4{{font-size:1rem;margin-bottom:.2rem;font-weight:600}}
+.step-body p{{font-size:.9rem;color:var(--muted);line-height:1.5}}
 
-.bottom-cta{{text-align:center;padding:4rem 1rem 6rem;background:var(--card)}}
-.bottom-cta h2{{font-size:1.75rem;font-weight:700;margin-bottom:.75rem}}
-.bottom-cta p{{color:var(--muted);margin-bottom:2rem;font-size:1.05rem}}
+.bottom-cta{{text-align:center;padding:4rem 1rem 5rem;background:var(--navy);color:#fff}}
+.bottom-cta h2{{font-size:1.75rem;font-weight:700;margin-bottom:.75rem;color:#fff}}
+.bottom-cta p{{color:rgba(255,255,255,.75);margin-bottom:2rem;font-size:1.05rem}}
+.bottom-cta .cta:focus-visible{{outline-color:#fff}}
 
-footer{{text-align:center;padding:2rem 1rem;color:var(--muted);font-size:.85rem}}
-footer a{{color:var(--muted)}}footer a:hover{{color:var(--p)}}
+footer{{text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:.8rem}}
+footer a{{color:var(--muted)}}footer a:hover{{color:var(--link)}}
+footer a:focus-visible{{outline:2px solid var(--link);outline-offset:2px;border-radius:2px}}
+footer p{{margin-top:.3rem;font-size:.7rem}}
+
+@media(max-width:640px){{
+.hero{{min-height:70vh;padding:2rem 1rem}}
+.hero p{{font-size:1.05rem;margin-bottom:2rem}}
+.cta-row{{flex-direction:column;align-items:stretch;max-width:300px;margin:0 auto}}
+.cta,.cta-secondary{{text-align:center}}
+.features{{padding:2.5rem 1rem 3rem}}
+.how{{padding:0 1rem 3rem}}
+.bottom-cta{{padding:3rem 1rem}}
+}}
 </style>
 </head>
 <body>
+<a href="#main" class="skip-link">Skip to main content</a>
 
-<section class="hero">
+<main id="main">
+<section class="hero" aria-label="Introduction">
 <div class="hero-inner">
   <h1><span>Concierge</span></h1>
   <p>Automate WhatsApp replies, Instagram DMs, and lead capture — all from one place. Built for small businesses that move fast.</p>
@@ -71,7 +92,7 @@ footer a{{color:var(--muted)}}footer a:hover{{color:var(--p)}}
 </div>
 </section>
 
-<section class="features">
+<section class="features" aria-label="Features">
 <div class="feature">
   <span class="feature-icon" aria-hidden="true">{whatsapp}</span>
   <h3>WhatsApp Auto&#8209;Reply</h3>
@@ -89,25 +110,25 @@ footer a{{color:var(--muted)}}footer a:hover{{color:var(--p)}}
 </div>
 </section>
 
-<section class="how">
+<section class="how" aria-label="How it works">
 <h2>Up and running in 3 steps</h2>
 <div class="steps">
   <div class="step">
-    <div class="step-num"></div>
+    <div class="step-num" aria-hidden="true"></div>
     <div class="step-body">
-      <h4>Sign in with Google</h4>
+      <h4>Sign in with Google or Facebook</h4>
       <p>One click. No passwords to remember, no credit card required.</p>
     </div>
   </div>
   <div class="step">
-    <div class="step-num"></div>
+    <div class="step-num" aria-hidden="true"></div>
     <div class="step-body">
       <h4>Connect your channels</h4>
       <p>Add your WhatsApp number and connect Instagram via Facebook Login.</p>
     </div>
   </div>
   <div class="step">
-    <div class="step-num"></div>
+    <div class="step-num" aria-hidden="true"></div>
     <div class="step-body">
       <h4>Configure auto-replies</h4>
       <p>Set a static message or write an AI prompt. Create lead forms and embed them anywhere.</p>
@@ -116,18 +137,19 @@ footer a{{color:var(--muted)}}footer a:hover{{color:var(--p)}}
 </div>
 </section>
 
-<section class="bottom-cta">
+<section class="bottom-cta" aria-label="Call to action">
 <h2>Stop doing it manually</h2>
 <p>Your customers expect instant responses. Concierge delivers them while you focus on your business.</p>
 <a href="/auth/login" class="cta">Start automating — it's free</a>
 </section>
+</main>
 
 <footer>
 <a href="https://github.com/ananthb/concierge-worker">Source Code</a> &middot;
 <a href="https://ananthb.github.io/concierge-worker/">Docs</a> &middot;
 <a href="/terms">Terms</a> &middot;
 <a href="/privacy">Privacy</a>
-<p style="margin-top:0.5rem;font-size:0.75rem;">AGPL-3.0 &mdash; <a href="https://github.com/ananthb/concierge-worker">source code available on GitHub</a></p>
+<p>AGPL-3.0 &mdash; <a href="https://github.com/ananthb/concierge-worker">source on GitHub</a></p>
 </footer>
 
 </body>
