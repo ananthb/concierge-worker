@@ -145,7 +145,6 @@ footer p{{margin-top:.3rem;font-size:.7rem}}
 </main>
 
 <footer>
-<a href="https://github.com/ananthb/concierge-worker">Source Code</a> &middot;
 <a href="https://ananthb.github.io/concierge-worker/">Docs</a> &middot;
 <a href="/terms">Terms</a> &middot;
 <a href="/privacy">Privacy</a>
