@@ -21,16 +21,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v2
-        with:
-          mdbook-version: 'latest'
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Configure Garnix cache
+        run: |
+          nix config set extra-substituters "https://cache.garnix.io"
+          nix config set extra-trusted-public-keys "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
 
       - name: Build documentation
-        run: mdbook build docs
+        run: nix develop --command mdbook build docs
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
