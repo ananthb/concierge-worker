@@ -1,3 +1,26 @@
+//! # Concierge
+//!
+//! Messaging automation for small businesses — WhatsApp auto-replies,
+//! Instagram DM auto-replies, and embeddable lead capture forms.
+//!
+//! This is a Cloudflare Worker built with Rust + WebAssembly. It handles:
+//!
+//! - **WhatsApp webhooks** — incoming messages trigger auto-replies (static or AI)
+//! - **Instagram DM webhooks** — same auto-reply pattern via Facebook Pages API
+//! - **Lead capture forms** — embeddable phone number forms that send WhatsApp messages
+//! - **Admin dashboard** — HTMX-powered UI for managing accounts and forms
+//! - **OAuth** — Google and Facebook sign-in with multi-provider account linking
+//!
+//! ## Architecture
+//!
+//! - `types` — Core data structures (Tenant, WhatsAppAccount, InstagramAccount, LeadCaptureForm)
+//! - `storage` — Cloudflare KV and D1 operations
+//! - `ai` — Cloudflare Workers AI integration for auto-reply generation
+//! - `whatsapp` — Meta Graph API client for sending WhatsApp messages
+//! - `instagram` — Facebook Login OAuth and Instagram DM sending
+//! - `crypto` — AES-256-GCM encryption and HMAC-SHA256 verification
+//! - `helpers` — ID generation, HTML escaping, CORS, template interpolation
+
 use worker::*;
 
 mod ai;

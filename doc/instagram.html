@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram DM Auto-Reply — Concierge</title>
+<link rel="icon" type="image/svg+xml" href="https://concierge.calculon.tech/logo.svg">
+<meta name="theme-color" content="#F38020">
+<style>
+:root { --bg: #fff; --fg: #1a1a1a; --muted: #555; --accent: #C55A11; --code-bg: #f5f6f8; --border: #e0e0e0; --max-w: 740px; --orange: #F38020; --navy: #1A1A2E; }
+@media (prefers-color-scheme: dark) { :root { --bg: #121212; --fg: #e0e0e0; --muted: #aaa; --accent: #F9A825; --code-bg: #2a2a2a; --border: #3a3a3a; } }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+.container { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem; }
+h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.3rem; }
+p { margin: 0.5rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.3rem 0; }
+code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: ui-monospace, monospace; }
+pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 0.75rem 0; }
+pre code { background: none; padding: 0; }
+table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { font-weight: 600; font-size: 0.9rem; }
+strong { font-weight: 600; }
+nav.site-nav { display: flex; gap: 0.75rem; margin: 1rem 0 2rem; flex-wrap: wrap; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+nav.site-nav a { padding: 0.3rem 0.6rem; background: var(--code-bg); border-radius: 4px; font-weight: 500; font-size: 0.85rem; }
+nav.site-nav a.current { background: var(--orange); color: #fff; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<nav class="site-nav" aria-label="Documentation">
+  <a href="./">Overview</a>
+  <a href="how-it-works.html">How It Works</a>
+  <a href="setup.html">Setup</a>
+  <a href="configuration.html">Config</a>
+  <a href="whatsapp.html">WhatsApp</a>
+  <a href="instagram.html" class="current">Instagram</a>
+  <a href="lead-forms.html">Lead Forms</a>
+  <a href="embedding.html">Embedding</a>
+  <a href="deployment.html">Deployment</a>
+  <a href="facebook-app-setup.html">Facebook App</a>
+  <a href="api/concierge_worker/">API Docs</a>
+</nav>
+
+<h1>Instagram DM Auto-Reply</h1>
+
+<h2>Connecting Instagram</h2>
+
+<ol>
+  <li>Go to <strong>Admin → Instagram Accounts → Connect Account</strong></li>
+  <li>Sign in with Facebook (the account that manages your Instagram business page)</li>
+  <li>Concierge discovers your Facebook Pages and finds the linked Instagram business account</li>
+  <li>The page token is encrypted and stored for sending DM replies</li>
+</ol>
+
+<h2>Configuring Auto-Reply</h2>
+
+<ul>
+  <li><strong>Enabled</strong> — Toggle the account on/off</li>
+  <li><strong>Auto-Reply Enabled</strong> — Toggle auto-reply specifically</li>
+  <li><strong>Mode</strong> — Static or AI (same as WhatsApp)</li>
+  <li><strong>Prompt/Message</strong> — The reply text or AI system prompt</li>
+</ul>
+
+<h2>How It Works</h2>
+
+<ol>
+  <li>Meta delivers incoming DMs to <code>POST /webhook/instagram</code></li>
+  <li>Concierge verifies the webhook signature</li>
+  <li>Looks up the Instagram account by the recipient page ID</li>
+  <li>Generates a reply (static or AI)</li>
+  <li>Sends via the Instagram Pages Messaging API</li>
+  <li>Logs both messages to D1</li>
+</ol>
+
+<h2>Requirements</h2>
+
+<p>Your Meta app needs these permissions (requires App Review):</p>
+
+<ul>
+  <li><code>instagram_basic</code></li>
+  <li><code>instagram_manage_messages</code></li>
+  <li><code>pages_manage_metadata</code></li>
+  <li><code>pages_messaging</code></li>
+</ul>
+
+<h2>Token Refresh</h2>
+
+<p>Page tokens are long-lived but can expire. A daily cron job checks all tokens and refreshes those within 7 days of expiry.</p>
+
+<footer>
+  <a href="https://github.com/ananthb/concierge-worker">Source Code</a> &middot;
+  <a href="api/concierge_worker/">API Reference</a>
+  <p>AGPL-3.0 &mdash; <a href="https://github.com/ananthb/concierge-worker">source on GitHub</a></p>
+</footer>
+
+</div>
+</body>
+</html>
