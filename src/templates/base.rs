@@ -263,7 +263,6 @@ pub fn base_html(title: &str, content: &str, style: &BaseStyle) -> String {
         {content}
     </div>
     <nav aria-label="Footer" style="text-align: center; padding: 1.5rem 1rem; color: var(--text-muted); font-size: 0.8rem;">
-        <a href="https://github.com/ananthb/concierge-worker" style="color: var(--text-muted);">Source Code</a> &middot;
         <a href="https://ananthb.github.io/concierge-worker/" style="color: var(--text-muted);">Docs</a> &middot;
         <a href="/terms" style="color: var(--text-muted);">Terms</a> &middot;
         <a href="/privacy" style="color: var(--text-muted);">Privacy</a>
