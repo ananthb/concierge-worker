@@ -123,10 +123,11 @@ footer a{{color:var(--muted)}}footer a:hover{{color:var(--p)}}
 </section>
 
 <footer>
-<a href="https://ananthb.github.io/concierge-worker/">Documentation</a> &middot;
-<a href="https://github.com/ananthb/concierge-worker">GitHub</a> &middot;
+<a href="https://github.com/ananthb/concierge-worker">Source Code</a> &middot;
+<a href="https://ananthb.github.io/concierge-worker/">Docs</a> &middot;
 <a href="/terms">Terms</a> &middot;
 <a href="/privacy">Privacy</a>
+<p style="margin-top:0.5rem;font-size:0.75rem;">AGPL-3.0 &mdash; <a href="https://github.com/ananthb/concierge-worker">source code available on GitHub</a></p>
 </footer>
 
 </body>
@@ -178,7 +179,7 @@ pub fn terms_of_service_html() -> String {
 <h2>8. Contact</h2>
 <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge-worker">github.com/ananthb/concierge-worker</a>.</p>
 
-<footer><a href="/">Home</a> · <a href="/privacy">Privacy Policy</a></footer>
+<footer><a href="/">Home</a> · <a href="/privacy">Privacy</a> · <a href="https://github.com/ananthb/concierge-worker">Source Code</a> (AGPL-3.0)</footer>
 </body>
 </html>"#,
         style = LEGAL_STYLE,
@@ -231,7 +232,7 @@ pub fn privacy_policy_html() -> String {
 <h2>Contact</h2>
 <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge-worker">github.com/ananthb/concierge-worker</a>.</p>
 
-<footer><a href="/">Home</a> · <a href="/terms">Terms of Service</a></footer>
+<footer><a href="/">Home</a> · <a href="/terms">Terms</a> · <a href="https://github.com/ananthb/concierge-worker">Source Code</a> (AGPL-3.0)</footer>
 </body>
 </html>"#,
         style = LEGAL_STYLE,

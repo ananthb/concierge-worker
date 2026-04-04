@@ -45,6 +45,7 @@ body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);col
     <input type="tel" name="phone" class="lf-input" placeholder="{placeholder}" required>
     <button type="submit" class="lf-btn">{button}</button>
   </form>
+  <p style="margin-top:1rem;font-size:.65rem;color:{hash}999;"><a href="https://github.com/ananthb/concierge-worker" style="color:{hash}999;">Powered by Concierge</a></p>
 </div>
 </body>
 </html>"##,
