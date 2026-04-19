@@ -20,11 +20,11 @@ pub async fn handle_instagram(
     let kv = env.kv("CALENDARS_KV")?;
 
     let app_id = env
-        .secret("FACEBOOK_APP_ID")
+        .secret("META_APP_ID")
         .map(|s| s.to_string())
         .unwrap_or_default();
     let app_secret = env
-        .secret("FACEBOOK_APP_SECRET")
+        .secret("META_APP_SECRET")
         .map(|s| s.to_string())
         .unwrap_or_default();
     let encryption_key = env

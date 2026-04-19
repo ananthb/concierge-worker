@@ -12,7 +12,7 @@ pub async fn handle_data_deletion(mut req: Request, env: Env, method: Method) ->
     }
 
     let app_secret = env
-        .secret("FACEBOOK_APP_SECRET")
+        .secret("META_APP_SECRET")
         .map(|s| s.to_string())
         .unwrap_or_default();
 

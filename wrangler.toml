@@ -30,13 +30,19 @@ database_id = "332c2ee6-05c9-4293-9df3-51e61238b61a"
 # ============================================================================
 [[kv_namespaces]]
 binding = "CALENDARS_KV"
-id = "2949a3fb471c4fc6bef2990d53bf870a"
+id = "2c2f474d22e04d1f8a4d12b37810390b"
 
 # ============================================================================
 # AI Binding for auto-reply generation
 # ============================================================================
 [ai]
 binding = "AI"
+
+# ============================================================================
+# Email Routing — send_email binding for outbound forwarding
+# ============================================================================
+[[send_email]]
+name = "EMAIL"
 
 [vars]
 ENVIRONMENT = "production"
@@ -68,7 +74,12 @@ invocation_logs = true
 #   WHATSAPP_ACCESS_TOKEN   - System user token for the shared WABA
 #   WHATSAPP_VERIFY_TOKEN   - Webhook verification token
 #
-# Facebook/Instagram:
-#   FACEBOOK_APP_ID         - Facebook app ID (for Facebook Login)
-#   FACEBOOK_APP_SECRET     - Facebook app secret
+# Meta (Facebook/Instagram/WhatsApp login + APIs):
+#   META_APP_ID             - Meta app ID (shared for Facebook Login, Instagram, WhatsApp)
+#   META_APP_SECRET         - Meta app secret
 #   INSTAGRAM_VERIFY_TOKEN  - Instagram DM webhook verification token
+#
+# Discord:
+#   DISCORD_PUBLIC_KEY      - Discord application public key (Ed25519 verification)
+#   DISCORD_APPLICATION_ID  - Discord application ID
+#   DISCORD_BOT_TOKEN       - Discord bot token

@@ -55,15 +55,15 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             .secret("GOOGLE_OAUTH_CLIENT_ID")
             .map(|s| s.to_string())
             .unwrap_or_default();
-        let facebook_app_id = env
-            .secret("FACEBOOK_APP_ID")
+        let meta_app_id = env
+            .secret("META_APP_ID")
             .map(|s| s.to_string())
             .unwrap_or_default();
         return Response::from_html(admin_settings_html(
             &tenant,
             &base_url,
             &google_client_id,
-            &facebook_app_id,
+            &meta_app_id,
         ));
     }
 
@@ -102,8 +102,31 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         .await;
     }
 
+    if path.starts_with("/admin/email") {
+        return super::admin_email::handle_email_admin(
+            req, env, path, method, &base_url, &tenant_id,
+        )
+        .await;
+    }
+
+    if path.starts_with("/admin/wizard") {
+        return super::onboarding::handle_wizard(
+            req, env, path, method, &base_url, &tenant_id,
+        )
+        .await;
+    }
+
     if path == "/admin" || path == "/admin/" {
         let calendars_kv = env.kv("CALENDARS_KV")?;
+
+        // Redirect to onboarding if not completed
+        let onboarding = crate::storage::get_onboarding(&calendars_kv, &tenant_id).await?;
+        if !onboarding.completed {
+            let headers = Headers::new();
+            headers.set("Location", &format!("{}/admin/wizard", base_url))?;
+            return Ok(Response::empty()?.with_status(302).with_headers(headers));
+        }
+
         let whatsapp_accounts = list_whatsapp_accounts(&calendars_kv, &tenant_id).await?;
         let instagram_accounts = list_instagram_accounts(&calendars_kv, &tenant_id).await?;
         let lead_forms = list_lead_forms(&calendars_kv, &tenant_id).await?;

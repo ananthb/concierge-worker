@@ -61,3 +61,49 @@ CREATE INDEX IF NOT EXISTS idx_instagram_messages_account
     ON instagram_messages(instagram_account_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_instagram_messages_tenant
     ON instagram_messages(tenant_id, created_at);
+
+-- Email message log
+CREATE TABLE IF NOT EXISTS email_messages (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    rule_id TEXT,
+    direction TEXT NOT NULL,
+    from_email TEXT NOT NULL,
+    to_email TEXT NOT NULL,
+    subject TEXT DEFAULT '',
+    action_taken TEXT NOT NULL,
+    error_msg TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_email_msg_tenant ON email_messages(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_msg_domain ON email_messages(domain, created_at);
+
+-- Email metrics counters
+CREATE TABLE IF NOT EXISTS email_metrics (
+    domain TEXT NOT NULL,
+    rule_id TEXT,
+    date TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    tenant_id TEXT NOT NULL,
+    UNIQUE(domain, rule_id, date, action_type)
+);
+
+-- Unified message log (all channels)
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    subject TEXT,
+    tenant_id TEXT NOT NULL,
+    channel_account_id TEXT NOT NULL DEFAULT '',
+    action_taken TEXT,
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_messages_tenant ON messages(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel, tenant_id, created_at);
