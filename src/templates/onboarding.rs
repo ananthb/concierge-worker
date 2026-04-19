@@ -58,9 +58,8 @@ fn wizard_shell(step: &str, base_url: &str, content: &str) -> String {
         r#"<div class="wizard">
   <header class="top">
     {brand}
-    <div class="rail-wrap">{rail}</div>
+    <div class="rail-wrap">{rail}<div class="rail-counter mono muted">{step_num}/{total}</div></div>
     <div class="top-right">
-      <span class="mono muted">step {step_num}/{total}</span>
       <a href="/auth/login" class="btn ghost sm">Sign in</a>
     </div>
   </header>
