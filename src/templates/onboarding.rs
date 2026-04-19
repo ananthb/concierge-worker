@@ -520,15 +520,15 @@ pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
         .collect();
 
     let content = format!(
-        r##"<div style="max-width:720px;margin:0 auto;padding:54px 32px 64px">
-  <div style="text-align:center;margin-bottom:32px">
-    {logo}
-    <div class="serif" style="font-size:28px;margin-top:8px">Concierge</div>
-  </div>
-  <h1 class="display-md" style="text-align:center">Simple pricing. Pay per reply.</h1>
-  <p class="lead" style="text-align:center;margin:0 auto 32px">Every account gets 100 free replies each month. After that, buy a pack. Bigger packs cost less per reply.</p>
+        r##"<header style="display:flex;align-items:center;gap:28px;padding:18px 28px;border-bottom:1px solid var(--hair);background:var(--paper)">
+  {brand}
+  <div style="margin-left:auto"><a href="/" class="btn ghost sm">&larr; Home</a></div>
+</header>
+<article class="legal">
+  <h1>Simple pricing. Pay per reply.</h1>
+  <p class="muted">Every account gets 100 free replies each month. After that, buy a pack. Bigger packs cost less per reply.</p>
 
-  <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px">
+  <div class="card" style="padding:0;overflow:hidden;margin:24px 0">
     <div class="rt-head" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div>Pack</div><div>Replies</div><div>Price</div><div>Per reply</div>
     </div>
@@ -538,16 +538,12 @@ pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
     {pack_rows}
   </div>
 
-  <div class="card" style="padding:18px;margin-bottom:24px">
+  <div class="card" style="padding:18px">
     <div class="eyebrow" style="margin-bottom:8px">What counts as a reply?</div>
     <p class="muted" style="margin:0">Every auto-reply sent by the concierge on WhatsApp, Instagram, or email uses one reply credit. Inbound messages, email forwarding, and Discord relay are free.</p>
   </div>
-
-  <div style="text-align:center">
-    <a href="/" class="btn ghost">&larr; Back to home</a>
-  </div>
-</div>"##,
-        logo = LOGO_INLINE,
+</article>"##,
+        brand = brand_mark(),
     );
 
     base_html_with_meta(
