@@ -7,12 +7,12 @@ use super::base::{base_html, brand_mark, LOGO_INLINE};
 use super::HASH;
 
 const STEPS: &[(&str, &str)] = &[
-    ("welcome", "Hello"),
-    ("connect", "Channels"),
-    ("admin", "Admin"),
-    ("persona", "Voice"),
-    ("replies", "Canned"),
-    ("test", "Test"),
+    ("welcome", "Hey"),
+    ("connect", "Plug in"),
+    ("admin", "Ping me"),
+    ("persona", "Your voice"),
+    ("replies", "Quick replies"),
+    ("test", "Go live"),
 ];
 
 fn rail_html(current: &str) -> String {
