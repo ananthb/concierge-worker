@@ -34,6 +34,8 @@ name = "EMAIL"
 ENVIRONMENT = "production"
 CF_ACCESS_TEAM = ""             # Your Cloudflare Access team name (e.g. "myteam")
 CF_ACCESS_AUD = ""              # Application Audience (AUD) tag from Access application
+AI_MODEL = ""                    # Workers AI model for replies (default: llama-4-scout-17b-16e-instruct)
+AI_FAST_MODEL = ""               # Workers AI model for injection scanning (default: llama-3.1-8b-instruct-fast)
 WHATSAPP_WABA_ID = ""           # Your WhatsApp Business Account ID
 WHATSAPP_SIGNUP_CONFIG_ID = ""  # Meta Embedded Signup config ID
 

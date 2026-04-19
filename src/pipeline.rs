@@ -66,14 +66,27 @@ async fn handle_auto_reply(
     let reply = match config.mode {
         AutoReplyMode::Static => config.prompt.clone(),
         AutoReplyMode::Ai => {
+            // Truncate to limit prompt injection surface
+            let safe_body: String = msg.body.chars().take(1000).collect();
+
+            // Scan for prompt injection before generating AI response
+            if ai::is_prompt_injection(env, &safe_body).await {
+                console_log!(
+                    "Prompt injection detected from {} in tenant {}, skipping AI reply",
+                    msg.sender,
+                    msg.tenant_id
+                );
+                if let Err(e) = billing::restore_credit(&db, &msg.tenant_id).await {
+                    console_log!("Failed to restore credit: {:?}", e);
+                }
+                return Ok(());
+            }
+
             let mut context = serde_json::Map::new();
             if let Some(ref name) = msg.sender_name {
-                // Truncate sender name to prevent prompt injection via long input
                 let safe_name: String = name.chars().take(100).collect();
                 context.insert("sender_name".into(), serde_json::Value::String(safe_name));
             }
-            // Truncate message body to limit prompt injection surface
-            let safe_body: String = msg.body.chars().take(1000).collect();
             context.insert("message".into(), serde_json::Value::String(safe_body));
             match ai::generate_response(env, &config.prompt, &context).await {
                 Ok(r) => r,
