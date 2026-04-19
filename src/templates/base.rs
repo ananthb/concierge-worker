@@ -240,7 +240,7 @@ code {
 
 /* Welcome form */
 .welcome { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:60px; align-items:center; }
-@media(max-width:900px){.welcome{grid-template-columns:1fr;gap:32px}.postcard{display:none}}
+@media(max-width:900px){.welcome{grid-template-columns:1fr;gap:32px}.postcard-card{transform:none}}
 .welcome-form { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
 .welcome-form .input { max-width:240px; }
 .display { font-family:var(--f-display); font-size:clamp(44px,6vw,82px); line-height:1.02; letter-spacing:-0.02em; margin:0 0 16px; }
