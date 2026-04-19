@@ -139,7 +139,8 @@ pub fn admin_settings_html(
     } else {
         let fb_redirect_uri = format!("{}/auth/facebook/callback", base_url);
         let link_url = format!(
-            "https://www.facebook.com/v21.0/dialog/oauth?client_id={}&redirect_uri={}&scope=email&response_type=code",
+            "https://www.facebook.com/{}/dialog/oauth?client_id={}&redirect_uri={}&scope=email&response_type=code",
+            crate::META_API_VERSION,
             urlencoding::encode(meta_app_id),
             urlencoding::encode(&fb_redirect_uri),
         );
@@ -190,6 +191,7 @@ pub fn admin_dashboard_html(
     whatsapp_accounts: &[WhatsAppAccount],
     instagram_accounts: &[InstagramAccount],
     lead_forms: &[LeadCaptureForm],
+    billing: &TenantBilling,
     base_url: &str,
 ) -> String {
     use super::base::app_shell;
@@ -263,7 +265,7 @@ pub fn admin_dashboard_html(
           <h3 class="display-sm" style="margin:4px 0 0">Your concierge is on duty.</h3>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
         <div class="card" style="padding:16px;text-align:center">
           <div class="stat-n serif">{wa_count}</div>
           <div class="mono muted" style="font-size:11px">WhatsApp</div>
@@ -275,6 +277,10 @@ pub fn admin_dashboard_html(
         <div class="card" style="padding:16px;text-align:center">
           <div class="stat-n serif">{lf_count}</div>
           <div class="mono muted" style="font-size:11px">Lead Forms</div>
+        </div>
+        <div class="card" style="padding:16px;text-align:center{credit_warn_style}">
+          <div class="stat-n serif">{credits}</div>
+          <div class="mono muted" style="font-size:11px">Reply Credits</div>
         </div>
       </div>
     </div>
@@ -298,9 +304,15 @@ pub fn admin_dashboard_html(
         wa_count = whatsapp_accounts.len(),
         ig_count = instagram_accounts.len(),
         lf_count = lead_forms.len(),
+        credits = billing.replies_remaining,
+        credit_warn_style = if billing.replies_remaining <= 10 {
+            ";border-color:var(--warn);background:var(--accent-soft)"
+        } else {
+            ""
+        },
     );
 
-    let page = app_shell(&content, "Inbox", base_url);
+    let page = app_shell(&content, "Overview", base_url);
     base_html("Dashboard - Concierge", &page)
 }
 
@@ -384,7 +396,7 @@ pub fn admin_whatsapp_signup_html(
                     appId: '{app_id}',
                     autoLogAppEvents: true,
                     xfbml: true,
-                    version: 'v21.0'
+                    version: '{api_version}'
                 }});
             }};
 
@@ -452,6 +464,7 @@ pub fn admin_whatsapp_signup_html(
         app_id = html_escape(app_id),
         config_id = html_escape(config_id),
         state = html_escape(state),
+        api_version = crate::META_API_VERSION,
     );
 
     base_html("Connect WhatsApp - Concierge", &content)

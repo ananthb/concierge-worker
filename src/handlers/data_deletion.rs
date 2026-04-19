@@ -29,7 +29,7 @@ pub async fn handle_data_deletion(mut req: Request, env: Env, method: Method) ->
 
     // Verify signature
     if !app_secret.is_empty() {
-        let computed = crate::crypto::hmac_sha256_hex(app_secret.as_bytes(), parts[1].as_bytes());
+        let computed = crate::crypto::hmac_sha256_hex(app_secret.as_bytes(), parts[1].as_bytes())?;
         let sig = base64url_to_hex(parts[0])?;
         if computed != sig {
             return Response::error("Invalid signature", 403);

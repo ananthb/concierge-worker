@@ -8,7 +8,8 @@ pub async fn send_whatsapp_message(
     text: &str,
 ) -> Result<()> {
     let url = format!(
-        "https://graph.facebook.com/v21.0/{}/messages",
+        "https://graph.facebook.com/{}/{}/messages",
+        crate::META_API_VERSION,
         phone_number_id
     );
 
@@ -36,7 +37,10 @@ pub async fn send_whatsapp_message(
     let response = Fetch::Request(request).send().await?;
 
     if !response.status_code().to_string().starts_with('2') {
-        console_log!("WhatsApp API error: status {}", response.status_code());
+        return Err(Error::from(format!(
+            "WhatsApp API error: status {}",
+            response.status_code()
+        )));
     }
 
     Ok(())

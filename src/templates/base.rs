@@ -292,6 +292,9 @@ code {
   padding:18px 28px; background:linear-gradient(90deg,var(--accent-soft),transparent 60%);
   border-bottom:1px solid var(--hair); }
 
+/* HTMX loading state */
+.htmx-request .btn { opacity: 0.6; pointer-events: none; }
+
 /* Scrollbars */
 ::-webkit-scrollbar { width:10px; height:10px; }
 ::-webkit-scrollbar-thumb { background:var(--hair-2); border-radius:999px; }
@@ -364,9 +367,10 @@ function copyUrl(btn, url) {{
 /// Wrap content in the app shell (top nav + main area).
 pub fn app_shell(content: &str, active_nav: &str, base_url: &str) -> String {
     let nav_items = [
-        ("Inbox", "/admin"),
+        ("Overview", "/admin"),
         ("Channels", "/admin/whatsapp"),
         ("Email Routing", "/admin/email"),
+        ("Billing", "/admin/billing"),
         ("Settings", "/admin/settings"),
     ];
 

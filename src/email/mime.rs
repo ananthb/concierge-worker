@@ -55,6 +55,14 @@ fn build_email(params: &EmailParams<'_>) -> Vec<u8> {
     let message_id = format!("<{}@{}>", uuid::Uuid::new_v4(), proxy_domain);
 
     out.push_str(&format!("Message-ID: {message_id}\r\n"));
+    #[cfg(not(test))]
+    out.push_str(&format!(
+        "Date: {}\r\n",
+        js_sys::Date::new_0()
+            .to_utc_string()
+            .as_string()
+            .unwrap_or_default()
+    ));
     out.push_str(&format!("From: {from}\r\n"));
     out.push_str(&format!("To: {to}\r\n"));
     out.push_str(&format!("Subject: {subject}\r\n"));

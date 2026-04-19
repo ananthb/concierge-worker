@@ -6,7 +6,7 @@ pub fn generate_id() -> String {
 }
 
 /// Generate a URL-friendly slug
-pub fn generate_slug() -> String {
+pub fn generate_slug() -> Result<String> {
     let adjectives = [
         "swift", "bright", "calm", "bold", "warm", "cool", "soft", "keen", "quick", "light",
         "fresh", "clear", "smart", "sharp", "neat", "fine",
@@ -19,7 +19,8 @@ pub fn generate_slug() -> String {
     let adj_idx = (js_sys::Math::random() * adjectives.len() as f64) as usize;
     let noun_idx = (js_sys::Math::random() * nouns.len() as f64) as usize;
     let mut rng_bytes = [0u8; 3];
-    getrandom::getrandom(&mut rng_bytes).expect("getrandom failed");
+    getrandom::getrandom(&mut rng_bytes)
+        .map_err(|e| Error::from(format!("getrandom failed: {}", e)))?;
     let suffix: String = rng_bytes
         .iter()
         .map(|b| {
@@ -28,14 +29,18 @@ pub fn generate_slug() -> String {
         })
         .collect();
 
-    format!("{}-{}-{}", adjectives[adj_idx], nouns[noun_idx], suffix)
+    Ok(format!(
+        "{}-{}-{}",
+        adjectives[adj_idx], nouns[noun_idx], suffix
+    ))
 }
 
 /// Generate a secure token
-pub fn generate_token() -> String {
+pub fn generate_token() -> Result<String> {
     let mut bytes = [0u8; 32];
-    getrandom::getrandom(&mut bytes).expect("getrandom failed");
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    getrandom::getrandom(&mut bytes)
+        .map_err(|e| Error::from(format!("getrandom failed: {}", e)))?;
+    Ok(bytes.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 /// Get current ISO timestamp

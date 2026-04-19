@@ -135,11 +135,13 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         let whatsapp_accounts = list_whatsapp_accounts(&calendars_kv, &tenant_id).await?;
         let instagram_accounts = list_instagram_accounts(&calendars_kv, &tenant_id).await?;
         let lead_forms = list_lead_forms(&calendars_kv, &tenant_id).await?;
+        let billing = crate::storage::get_tenant_billing(&calendars_kv, &tenant_id).await?;
 
         let mut resp = Response::from_html(admin_dashboard_html(
             &whatsapp_accounts,
             &instagram_accounts,
             &lead_forms,
+            &billing,
             &base_url,
         ))?;
         resp.headers_mut().set("Cache-Control", "no-store")?;

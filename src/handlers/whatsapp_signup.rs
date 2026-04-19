@@ -138,9 +138,10 @@ fn redirect_error(base: &str, error: &str) -> Result<Response> {
 
 /// Exchange the JS SDK code for an access token
 async fn exchange_code(code: &str, app_id: &str, app_secret: &str) -> Result<String> {
-    let url = format!(
-        "https://graph.facebook.com/v21.0/oauth/access_token?client_id={}&client_secret={}&code={}",
-        app_id, app_secret, code
+    let url =
+        format!(
+        "https://graph.facebook.com/{}/oauth/access_token?client_id={}&client_secret={}&code={}",
+        crate::META_API_VERSION, app_id, app_secret, code
     );
 
     let mut init = RequestInit::new();
@@ -167,8 +168,10 @@ async fn get_phone_number_details(
     platform_token: &str,
 ) -> Result<Option<(String, String)>> {
     let url = format!(
-        "https://graph.facebook.com/v21.0/{}?fields=display_phone_number,id&access_token={}",
-        phone_number_id, platform_token
+        "https://graph.facebook.com/{}/{}?fields=display_phone_number,id&access_token={}",
+        crate::META_API_VERSION,
+        phone_number_id,
+        platform_token
     );
 
     let mut init = RequestInit::new();
@@ -207,8 +210,8 @@ async fn discover_new_phone(
     platform_token: &str,
 ) -> Result<Option<(String, String)>> {
     let url = format!(
-        "https://graph.facebook.com/v21.0/{}/phone_numbers?fields=display_phone_number,id&access_token={}",
-        waba_id, platform_token
+        "https://graph.facebook.com/{}/{}/phone_numbers?fields=display_phone_number,id&access_token={}",
+        crate::META_API_VERSION, waba_id, platform_token
     );
 
     let mut init = RequestInit::new();

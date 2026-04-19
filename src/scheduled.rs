@@ -27,6 +27,15 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
         return Ok(());
     }
 
+    let app_id = env
+        .secret("META_APP_ID")
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    let app_secret = env
+        .secret("META_APP_SECRET")
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
     // List all tenants by scanning kv prefix
     let tenant_list = kv
         .list()
@@ -75,7 +84,7 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
             }
 
             if instagram::token_needs_refresh(&token) {
-                match instagram::refresh_token(&token.access_token).await {
+                match instagram::refresh_token(&token.access_token, &app_id, &app_secret).await {
                     Ok(new_token) => {
                         let encrypted = crypto::encrypt_token(&new_token, &encryption_key).await?;
                         kv.put(&token_key, encrypted)?.execute().await?;

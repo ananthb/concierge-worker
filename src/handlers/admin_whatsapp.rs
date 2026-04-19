@@ -47,7 +47,7 @@ pub async fn handle_whatsapp_admin(
                 .unwrap_or_default();
 
             // Generate CSRF state nonce
-            let state = generate_token();
+            let state = generate_token()?;
             kv.put(&format!("wa_signup_state:{}", state), tenant_id)?
                 .expiration_ttl(600)
                 .execute()
