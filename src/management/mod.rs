@@ -44,7 +44,7 @@ pub async fn handle_management(
 
     match (method, sub) {
         (Method::Get, "" | "/") => {
-            let tenant_count = count_tenants(&kv).await;
+            let tenant_count = crate::storage::count_tenants(&db).await.unwrap_or(0);
             Response::from_html(tmpl::dashboard_html(&email, tenant_count, &base_url))
         }
 
@@ -213,12 +213,4 @@ fn get_subtle() -> Result<web_sys::SubtleCrypto> {
         .dyn_into()
         .map_err(|_| Error::from("Not a Crypto object"))?;
     Ok(crypto.subtle())
-}
-
-/// Count tenants by scanning KV prefix. Returns approximate count.
-async fn count_tenants(kv: &kv::KvStore) -> usize {
-    match kv.list().prefix("tenant:".to_string()).execute().await {
-        Ok(list) => list.keys.iter().filter(|k| !k.name.contains(':')).count(),
-        Err(_) => 0,
-    }
 }

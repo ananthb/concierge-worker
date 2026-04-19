@@ -30,7 +30,8 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
     }
 
     if path == "/admin/settings" && method == Method::Get {
-        let tenant = get_tenant(&kv, &tenant_id)
+        let db = env.d1("DB")?;
+        let tenant = get_tenant(&db, &tenant_id)
             .await?
             .unwrap_or_else(|| crate::types::Tenant {
                 id: tenant_id.clone(),

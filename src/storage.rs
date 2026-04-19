@@ -7,69 +7,127 @@ use crate::types::{
 };
 
 // ============================================================================
-// Tenant KV Operations
+// Tenant D1 Operations
 // ============================================================================
 
-pub async fn get_tenant(kv: &kv::KvStore, id: &str) -> Result<Option<Tenant>> {
-    kv.get(&format!("tenant:{}", id))
-        .json::<Tenant>()
-        .await
-        .map_err(|e| Error::from(e.to_string()))
+fn row_to_tenant(row: &serde_json::Value) -> Tenant {
+    Tenant {
+        id: row
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        email: row
+            .get("email")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        name: row
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        facebook_id: row
+            .get("facebook_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        plan: row
+            .get("plan")
+            .and_then(|v| v.as_str())
+            .unwrap_or("free")
+            .to_string(),
+        created_at: row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        updated_at: row
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    }
 }
 
-pub async fn get_tenant_by_email(kv: &kv::KvStore, email: &str) -> Result<Option<Tenant>> {
-    let tenant_id = kv
-        .get(&format!("tenant_email:{}", email.to_lowercase()))
-        .text()
-        .await
-        .map_err(|e| Error::from(e.to_string()))?;
+pub async fn get_tenant(db: &D1Database, id: &str) -> Result<Option<Tenant>> {
+    let row = db
+        .prepare("SELECT * FROM tenants WHERE id = ?")
+        .bind(&[id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(row.as_ref().map(row_to_tenant))
+}
 
-    match tenant_id {
-        Some(id) => get_tenant(kv, &id).await,
-        None => Ok(None),
-    }
+pub async fn get_tenant_by_email(db: &D1Database, email: &str) -> Result<Option<Tenant>> {
+    let row = db
+        .prepare("SELECT * FROM tenants WHERE email = ? COLLATE NOCASE")
+        .bind(&[email.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(row.as_ref().map(row_to_tenant))
 }
 
 pub async fn get_tenant_by_facebook_id(
-    kv: &kv::KvStore,
+    db: &D1Database,
     facebook_id: &str,
 ) -> Result<Option<Tenant>> {
-    let tenant_id = kv
-        .get(&format!("tenant_facebook:{}", facebook_id))
-        .text()
-        .await
-        .map_err(|e| Error::from(e.to_string()))?;
-
-    match tenant_id {
-        Some(id) => get_tenant(kv, &id).await,
-        None => Ok(None),
-    }
+    let row = db
+        .prepare("SELECT * FROM tenants WHERE facebook_id = ?")
+        .bind(&[facebook_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(row.as_ref().map(row_to_tenant))
 }
 
-pub async fn save_tenant(kv: &kv::KvStore, tenant: &Tenant) -> Result<()> {
-    kv.put(&format!("tenant:{}", tenant.id), tenant)?
-        .execute()
-        .await?;
-    if !tenant.email.is_empty() {
-        kv.put(
-            &format!("tenant_email:{}", tenant.email.to_lowercase()),
-            &tenant.id,
-        )?
-        .execute()
-        .await?;
-    }
-    if let Some(ref fb_id) = tenant.facebook_id {
-        kv.put(&format!("tenant_facebook:{}", fb_id), &tenant.id)?
-            .execute()
-            .await?;
-    }
+pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
+    let name_val: JsValue = match &tenant.name {
+        Some(n) => n.as_str().into(),
+        None => JsValue::NULL,
+    };
+    let fb_val: JsValue = match &tenant.facebook_id {
+        Some(fb) => fb.as_str().into(),
+        None => JsValue::NULL,
+    };
+    db.prepare(
+        "INSERT INTO tenants (id, email, name, facebook_id, plan, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           email = excluded.email,
+           name = excluded.name,
+           facebook_id = excluded.facebook_id,
+           plan = excluded.plan,
+           updated_at = excluded.updated_at",
+    )
+    .bind(&[
+        tenant.id.as_str().into(),
+        tenant.email.as_str().into(),
+        name_val,
+        fb_val,
+        tenant.plan.as_str().into(),
+        tenant.created_at.as_str().into(),
+        tenant.updated_at.as_str().into(),
+    ])?
+    .run()
+    .await?;
     Ok(())
 }
 
-pub async fn delete_tenant_facebook_index(kv: &kv::KvStore, facebook_id: &str) -> Result<()> {
-    kv.delete(&format!("tenant_facebook:{}", facebook_id))
+pub async fn list_tenants(db: &D1Database) -> Result<Vec<Tenant>> {
+    let results = db
+        .prepare("SELECT * FROM tenants ORDER BY created_at DESC")
+        .all()
         .await?;
-    Ok(())
+    let rows: Vec<serde_json::Value> = results.results()?;
+    Ok(rows.iter().map(row_to_tenant).collect())
+}
+
+pub async fn count_tenants(db: &D1Database) -> Result<usize> {
+    let row = db
+        .prepare("SELECT COUNT(*) as cnt FROM tenants")
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(row
+        .and_then(|r| r.get("cnt").and_then(|v| v.as_u64()))
+        .unwrap_or(0) as usize)
 }
 
 // ============================================================================
@@ -376,7 +434,7 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         delete_lead_form(kv, tenant_id, &form.id).await?;
     }
 
-    // Delete ALL D1 data for this tenant
+    // Delete D1 data: messages + billing (but preserve payments and audit_log for compliance)
     for table in &[
         "whatsapp_messages",
         "lead_form_submissions",
@@ -384,8 +442,7 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         "email_messages",
         "email_metrics",
         "messages",
-        "payments",
-        "audit_log",
+        "tenant_billing",
     ] {
         let query = format!("DELETE FROM {} WHERE tenant_id = ?", table);
         let stmt = db.prepare(&query);
@@ -394,14 +451,17 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         }
     }
 
-    // Delete D1 billing data
-    let _ = db
-        .prepare("DELETE FROM tenant_billing WHERE tenant_id = ?")
+    // Nullify tenant_id in payments (preserve records for compliance)
+    if let Err(e) = db
+        .prepare("UPDATE payments SET tenant_id = NULL WHERE tenant_id = ?")
         .bind(&[tenant_id.into()])?
         .run()
-        .await;
+        .await
+    {
+        console_log!("Failed to nullify tenant in payments: {:?}", e);
+    }
 
-    // Delete email domains and rules
+    // Delete email domains and rules (KV)
     if let Ok(domains) = get_email_domains(kv, tenant_id).await {
         for domain in &domains {
             let _ = delete_email_domain_index(kv, &domain.domain).await;
@@ -410,30 +470,25 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         let _ = save_email_domains(kv, tenant_id, &[]).await;
     }
 
-    // Delete discord config
+    // Delete discord config (KV)
     if let Ok(Some(config)) = get_discord_config_by_tenant(kv, tenant_id).await {
         kv.delete(&format!("discord_guild:{}", config.guild_id))
             .await?;
         kv.delete(&format!("discord_config:{}", tenant_id)).await?;
     }
 
-    // Delete onboarding state
+    // Delete onboarding state and credentials (KV)
     kv.delete(&format!("onboarding:{}", tenant_id)).await?;
-
-    // Delete tenant credentials and tenant record
     kv.delete(&format!("tenant:{}:credentials", tenant_id))
         .await?;
+    // Delete CSRF token (KV)
+    kv.delete(&format!("csrf:{}", tenant_id)).await?;
 
-    if let Some(tenant) = get_tenant(kv, tenant_id).await? {
-        if !tenant.email.is_empty() {
-            kv.delete(&format!("tenant_email:{}", tenant.email.to_lowercase()))
-                .await?;
-        }
-        if let Some(ref fb_id) = tenant.facebook_id {
-            kv.delete(&format!("tenant_facebook:{}", fb_id)).await?;
-        }
-    }
-    kv.delete(&format!("tenant:{}", tenant_id)).await?;
+    // Delete tenant record (D1)
+    db.prepare("DELETE FROM tenants WHERE id = ?")
+        .bind(&[tenant_id.into()])?
+        .run()
+        .await?;
 
     Ok(())
 }
