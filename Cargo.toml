@@ -21,6 +21,7 @@ urlencoding = "2"
 sha2 = "0.10"
 hmac = "0.12"
 mail-parser = "0.9"
+base64 = "0.22"
 
 [profile.release]
 opt-level = "s"

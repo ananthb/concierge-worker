@@ -3,7 +3,9 @@
 mod admin;
 pub mod admin_email;
 pub mod base;
+pub mod billing;
 mod lead_form;
+pub mod management;
 pub mod onboarding;
 
 pub use admin::*;

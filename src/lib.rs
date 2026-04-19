@@ -25,6 +25,7 @@ use wasm_bindgen::prelude::*;
 use worker::*;
 
 mod ai;
+mod billing;
 mod channel;
 mod crypto;
 mod discord;
@@ -33,6 +34,7 @@ mod handlers;
 mod helpers;
 mod instagram;
 mod legal;
+mod management;
 mod pipeline;
 mod scheduled;
 mod storage;
@@ -188,6 +190,13 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return Ok(Response::ok(legal::privacy_policy_html())?.with_headers(headers));
     }
 
+    // Pricing page
+    if path == "/pricing" {
+        let db = env.d1("DB")?;
+        let packs = storage::get_active_credit_packs(&db).await.unwrap_or_default();
+        return Response::from_html(templates::onboarding::pricing_html(&packs));
+    }
+
     // Data deletion callback (Facebook requirement)
     if path == "/data-deletion" {
         return handlers::handle_data_deletion(req, env, method).await;
@@ -201,6 +210,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     // WhatsApp Embedded Signup callback
     if path.starts_with("/whatsapp/signup/") {
         return handlers::handle_whatsapp_signup(req, env, path, method).await;
+    }
+
+    // Management panel (Cloudflare Access protected)
+    if path.starts_with("/manage") {
+        return management::handle_management(req, env, path, method).await;
     }
 
     // Admin routes (session-protected)
@@ -221,6 +235,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     // Discord interaction endpoint
     if path == "/discord/interactions" && method == Method::Post {
         return discord::interactions::handle_interaction(req, env).await;
+    }
+
+    // Razorpay payment webhook
+    if path == "/webhook/razorpay" && method == Method::Post {
+        return billing::webhook::handle_razorpay_webhook(req, env).await;
     }
 
     // Webhook routes (WhatsApp + Instagram incoming messages)

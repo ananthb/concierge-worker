@@ -46,6 +46,7 @@ name = "EMAIL"
 
 [vars]
 ENVIRONMENT = "production"
+MANAGEMENT_EMAILS = ""          # Comma-separated emails for /manage/* access (Cloudflare Access)
 WHATSAPP_WABA_ID = ""           # Your shared WABA ID
 WHATSAPP_SIGNUP_CONFIG_ID = ""  # Meta Embedded Signup config ID (from App Dashboard)
 

@@ -87,15 +87,18 @@ pub fn welcome_html(base_url: &str) -> String {
     let content = format!(
         r#"<section class="page welcome">
   <div class="welcome-left">
-    <div class="eyebrow">// a new concierge is being hired</div>
+    <div class="eyebrow">// automated customer engagement</div>
     <h1 class="display">Hello. I'll be answering<br><em>every DM, WhatsApp &amp; email</em><br>so you don't have to.</h1>
-    <p class="lead">Four little setup steps. About six minutes. After that, I promise to stop talking about myself in the third person.</p>
+    <p class="lead">Connect your channels, set a tone, and your concierge handles the rest. Auto-replies across WhatsApp, Instagram, and email. 100 replies free every month.</p>
     <form class="welcome-form" hx-post="{base_url}/admin/wizard/goto" hx-target="body" hx-swap="innerHTML">
       <input type="hidden" name="to" value="connect">
       <input class="input" name="biz" placeholder="Business name" required>
       <button class="btn primary lg" type="submit">Start setup &rarr;</button>
     </form>
-    <div class="mono fineprint">&#x25E6; connect what you have &nbsp; &#x25E6; leave the rest blank &nbsp; &#x25E6; <a href="https://concierge.calculon.tech/pricing" style="color:var(--accent)">transparent pricing</a></div>
+    <div class="mono fineprint">
+      &#x25E6; <a href="/pricing" style="color:var(--accent)">transparent pricing</a>
+      &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">source code</a>
+    </div>
   </div>
   <aside class="postcard" aria-hidden="true">
     <div class="postcard-card">
@@ -446,4 +449,67 @@ pub fn test_html(base_url: &str) -> String {
     );
 
     wizard_shell("test", base_url, &content)
+}
+
+/// Public pricing page at /pricing
+pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
+    let pack_rows: String = packs
+        .iter()
+        .map(|p| {
+            let per_inr = p.price_inr as f64 / p.replies as f64 / 100.0;
+            let per_usd = p.price_usd as f64 / p.replies as f64 / 100.0;
+            format!(
+                r##"<div class="rt-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+  <div><strong>{name}</strong></div>
+  <div>{replies}</div>
+  <div>&#x20B9;{inr} / ${usd}</div>
+  <div>&#x20B9;{per_inr:.2} / ${per_usd:.4}</div>
+</div>"##,
+                name = html_escape(&p.name),
+                replies = p.replies,
+                inr = p.price_inr / 100,
+                usd = p.price_usd / 100,
+                per_inr = per_inr,
+                per_usd = per_usd,
+            )
+        })
+        .collect();
+
+    let content = format!(
+        r##"<div style="max-width:720px;margin:0 auto;padding:54px 32px 64px">
+  <div style="text-align:center;margin-bottom:32px">
+    {logo}
+    <div class="serif" style="font-size:28px;margin-top:8px">Concierge</div>
+  </div>
+  <h1 class="display-md" style="text-align:center">Simple pricing. Pay per reply.</h1>
+  <p class="lead" style="text-align:center;margin:0 auto 32px">Every account gets 100 free replies each month. After that, buy a pack. Bigger packs cost less per reply.</p>
+
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px">
+    <div class="rt-head" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <div>Pack</div><div>Replies</div><div>Price</div><div>Per reply</div>
+    </div>
+    <div class="rt-row" style="grid-template-columns:1fr 1fr 1fr 1fr;background:var(--cream-2)">
+      <div><strong>Free</strong></div><div>100 / month</div><div>$0</div><div>$0</div>
+    </div>
+    {pack_rows}
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:24px">
+    <div class="eyebrow" style="margin-bottom:8px">What counts as a reply?</div>
+    <p class="muted" style="margin:0">Every auto-reply sent by the concierge on WhatsApp, Instagram, or email uses one reply credit. Inbound messages, email forwarding, and Discord relay are free.</p>
+  </div>
+
+  <div style="text-align:center">
+    <a href="/auth/login" class="btn primary lg">Get started &rarr;</a>
+    <div class="mono fineprint" style="margin-top:12px">
+      <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">Source code</a> &middot;
+      <a href="/terms" style="color:var(--muted)">Terms</a> &middot;
+      <a href="/privacy" style="color:var(--muted)">Privacy</a>
+    </div>
+  </div>
+</div>"##,
+        logo = LOGO_INLINE,
+    );
+
+    base_html("Pricing - Concierge", &content)
 }
