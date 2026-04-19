@@ -136,17 +136,18 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 .map_err(|e| Error::from(format!("Failed to parse user info: {}", e)))?;
 
             let kv = env.kv("KV")?;
+            let db = env.d1("DB")?;
 
             // Check if this is a link request (user already signed in)
             if let Some(tenant_id) = resolve_tenant_id(&req, &kv).await {
                 // Link Google to existing account
-                if let Some(mut tenant) = get_tenant(&kv, &tenant_id).await? {
+                if let Some(mut tenant) = get_tenant(&db, &tenant_id).await? {
                     tenant.email = user.email;
                     if tenant.name.is_none() {
                         tenant.name = user.name;
                     }
                     tenant.updated_at = now_iso();
-                    save_tenant(&kv, &tenant).await?;
+                    save_tenant(&db, &tenant).await?;
                 }
                 let headers = Headers::new();
                 headers.set("Location", "/admin/settings?success=google_linked")?;
@@ -154,7 +155,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
             }
 
             // Find or create tenant
-            let tenant = match get_tenant_by_email(&kv, &user.email).await? {
+            let tenant = match get_tenant_by_email(&db, &user.email).await? {
                 Some(t) => t,
                 None => {
                     let now = now_iso();
@@ -167,7 +168,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                         created_at: now.clone(),
                         updated_at: now,
                     };
-                    save_tenant(&kv, &tenant).await?;
+                    save_tenant(&db, &tenant).await?;
                     tenant
                 }
             };
@@ -257,16 +258,17 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 .to_string();
 
             let kv = env.kv("KV")?;
+            let db = env.d1("DB")?;
 
             // Check if this is a link request (user already signed in)
             if let Some(tenant_id) = resolve_tenant_id(&req, &kv).await {
-                if let Some(mut tenant) = get_tenant(&kv, &tenant_id).await? {
+                if let Some(mut tenant) = get_tenant(&db, &tenant_id).await? {
                     tenant.facebook_id = Some(fb_id);
                     if tenant.name.is_none() {
                         tenant.name = fb_name;
                     }
                     tenant.updated_at = now_iso();
-                    save_tenant(&kv, &tenant).await?;
+                    save_tenant(&db, &tenant).await?;
                 }
                 let headers = Headers::new();
                 headers.set("Location", "/admin/settings?success=facebook_linked")?;
@@ -274,14 +276,14 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
             }
 
             // Find tenant by facebook_id, then by email, then create
-            let tenant = if let Some(t) = get_tenant_by_facebook_id(&kv, &fb_id).await? {
+            let tenant = if let Some(t) = get_tenant_by_facebook_id(&db, &fb_id).await? {
                 t
             } else if !fb_email.is_empty() {
-                if let Some(mut t) = get_tenant_by_email(&kv, &fb_email).await? {
+                if let Some(mut t) = get_tenant_by_email(&db, &fb_email).await? {
                     // Link Facebook to existing Google account
                     t.facebook_id = Some(fb_id);
                     t.updated_at = now_iso();
-                    save_tenant(&kv, &t).await?;
+                    save_tenant(&db, &t).await?;
                     t
                 } else {
                     let now = now_iso();
@@ -294,7 +296,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                         created_at: now.clone(),
                         updated_at: now,
                     };
-                    save_tenant(&kv, &tenant).await?;
+                    save_tenant(&db, &tenant).await?;
                     tenant
                 }
             } else {
@@ -311,11 +313,12 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
         // Unlink a provider
         (Method::Delete, "/auth/unlink/google") => {
             let kv = env.kv("KV")?;
+            let db = env.d1("DB")?;
             let tenant_id = match resolve_tenant_id(&req, &kv).await {
                 Some(id) => id,
                 None => return Response::error("Unauthorized", 401),
             };
-            let mut tenant = match get_tenant(&kv, &tenant_id).await? {
+            let mut tenant = match get_tenant(&db, &tenant_id).await? {
                 Some(t) => t,
                 None => return Response::error("Not found", 404),
             };
@@ -327,22 +330,21 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 );
             }
 
-            // Remove email index and clear email
-            kv.delete(&format!("tenant_email:{}", tenant.email.to_lowercase()))
-                .await?;
+            // Clear email (D1 unique index handles the rest)
             tenant.email = String::new();
             tenant.updated_at = now_iso();
-            save_tenant(&kv, &tenant).await?;
+            save_tenant(&db, &tenant).await?;
             Response::from_html("<div class=\"success\">Google account unlinked.</div>")
         }
 
         (Method::Delete, "/auth/unlink/facebook") => {
             let kv = env.kv("KV")?;
+            let db = env.d1("DB")?;
             let tenant_id = match resolve_tenant_id(&req, &kv).await {
                 Some(id) => id,
                 None => return Response::error("Unauthorized", 401),
             };
-            let mut tenant = match get_tenant(&kv, &tenant_id).await? {
+            let mut tenant = match get_tenant(&db, &tenant_id).await? {
                 Some(t) => t,
                 None => return Response::error("Not found", 404),
             };
@@ -354,12 +356,9 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 );
             }
 
-            if let Some(ref fb_id) = tenant.facebook_id {
-                delete_tenant_facebook_index(&kv, fb_id).await?;
-            }
             tenant.facebook_id = None;
             tenant.updated_at = now_iso();
-            save_tenant(&kv, &tenant).await?;
+            save_tenant(&db, &tenant).await?;
             Response::from_html("<div class=\"success\">Facebook account unlinked.</div>")
         }
 

@@ -3,13 +3,14 @@ CREATE TABLE IF NOT EXISTS tenants (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT,
-    password_hash TEXT,
+    facebook_id TEXT,
     plan TEXT DEFAULT 'free',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_email ON tenants(email);
+CREATE INDEX IF NOT EXISTS idx_tenants_facebook ON tenants(facebook_id);
 
 -- WhatsApp message logging
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
@@ -126,7 +127,7 @@ INSERT OR IGNORE INTO credit_packs (name, replies, price_inr, price_usd, sort_or
 -- Payment history
 CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL,
+    tenant_id TEXT,
     razorpay_payment_id TEXT,
     razorpay_subscription_id TEXT,
     amount INTEGER NOT NULL,

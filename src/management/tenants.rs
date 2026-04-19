@@ -1,8 +1,7 @@
-//! Tenant management — list, view, suspend, delete tenants.
+//! Tenant management: list, view, update, delete tenants.
 
 use worker::*;
 
-use crate::helpers::generate_id;
 use crate::management::audit;
 use crate::storage::*;
 use crate::templates::management as tmpl;
@@ -10,7 +9,7 @@ use crate::types::*;
 
 pub async fn handle_tenants(
     mut req: Request,
-    env: &Env,
+    _env: &Env,
     kv: &kv::KvStore,
     db: &D1Database,
     sub: &str,
@@ -29,13 +28,13 @@ pub async fn handle_tenants(
     match (method, parts.as_slice()) {
         // List all tenants
         (Method::Get, []) => {
-            let tenants = list_all_tenants(kv).await?;
+            let tenants = list_tenants(db).await?;
             Response::from_html(tmpl::tenants_list_html(&tenants, base_url))
         }
 
         // View single tenant
         (Method::Get, [id]) => {
-            let tenant = match get_tenant(kv, id).await? {
+            let tenant = match get_tenant(db, id).await? {
                 Some(t) => t,
                 None => return Response::error("Tenant not found", 404),
             };
@@ -47,10 +46,10 @@ pub async fn handle_tenants(
             ))
         }
 
-        // Update tenant (plan, suspend)
+        // Update tenant (plan)
         (Method::Put, [id]) => {
             let form: serde_json::Value = req.json().await?;
-            let mut tenant = match get_tenant(kv, id).await? {
+            let mut tenant = match get_tenant(db, id).await? {
                 Some(t) => t,
                 None => return Response::error("Tenant not found", 404),
             };
@@ -59,7 +58,7 @@ pub async fn handle_tenants(
                 tenant.plan = plan.to_string();
             }
             tenant.updated_at = crate::helpers::now_iso();
-            save_tenant(kv, &tenant).await?;
+            save_tenant(db, &tenant).await?;
 
             audit::log_action(
                 db,
@@ -84,26 +83,4 @@ pub async fn handle_tenants(
 
         _ => Response::error("Not Found", 404),
     }
-}
-
-/// List all tenants by scanning KV prefix.
-async fn list_all_tenants(kv: &kv::KvStore) -> Result<Vec<Tenant>> {
-    let list = kv
-        .list()
-        .prefix("tenant:".to_string())
-        .execute()
-        .await
-        .map_err(|e| Error::from(e.to_string()))?;
-
-    let mut tenants = Vec::new();
-    for key in &list.keys {
-        // Skip reverse indexes like tenant_email: and sub-keys like tenant:id:whatsapp:
-        if key.name.starts_with("tenant:") && key.name.matches(':').count() == 1 {
-            if let Some(tenant) = get_tenant(kv, &key.name[7..]).await? {
-                tenants.push(tenant);
-            }
-        }
-    }
-    tenants.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    Ok(tenants)
 }

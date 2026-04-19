@@ -60,7 +60,7 @@ pub async fn handle_data_deletion(mut req: Request, env: Env, method: Method) ->
     let db = env.d1("DB")?;
 
     // Find and delete tenant by facebook_id
-    if let Some(tenant) = get_tenant_by_facebook_id(&kv, fb_user_id).await? {
+    if let Some(tenant) = get_tenant_by_facebook_id(&db, fb_user_id).await? {
         delete_tenant_data(&kv, &db, &tenant.id).await?;
     }
 
