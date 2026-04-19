@@ -21,11 +21,20 @@ jobs:
             extra-trusted-public-keys = cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g=
 
       - name: Write production config
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          CF_ACCESS_TEAM: ${{ secrets.CF_ACCESS_TEAM }}
+          CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
+          WHATSAPP_WABA_ID: ${{ secrets.WHATSAPP_WABA_ID }}
+          WHATSAPP_SIGNUP_CONFIG_ID: ${{ secrets.WHATSAPP_SIGNUP_CONFIG_ID }}
         run: |
-          cat > wrangler.production.toml << 'TOML'
+          cat > wrangler.production.toml <<EOF
           name = "concierge-worker"
           main = "build/worker/shim.mjs"
           compatibility_date = "2024-01-01"
+          account_id = "${CLOUDFLARE_ACCOUNT_ID}"
 
           [build]
           command = "worker-build --release"
@@ -37,11 +46,11 @@ jobs:
           [[d1_databases]]
           binding = "DB"
           database_name = "concierge-worker"
-          database_id = "${{ secrets.D1_DATABASE_ID }}"
+          database_id = "${D1_DATABASE_ID}"
 
           [[kv_namespaces]]
           binding = "KV"
-          id = "${{ secrets.KV_NAMESPACE_ID }}"
+          id = "${KV_NAMESPACE_ID}"
 
           [ai]
           binding = "AI"
@@ -51,10 +60,10 @@ jobs:
 
           [vars]
           ENVIRONMENT = "production"
-          CF_ACCESS_TEAM = "${{ secrets.CF_ACCESS_TEAM }}"
-          CF_ACCESS_AUD = "${{ secrets.CF_ACCESS_AUD }}"
-          WHATSAPP_WABA_ID = "${{ secrets.WHATSAPP_WABA_ID }}"
-          WHATSAPP_SIGNUP_CONFIG_ID = "${{ secrets.WHATSAPP_SIGNUP_CONFIG_ID }}"
+          CF_ACCESS_TEAM = "${CF_ACCESS_TEAM}"
+          CF_ACCESS_AUD = "${CF_ACCESS_AUD}"
+          WHATSAPP_WABA_ID = "${WHATSAPP_WABA_ID}"
+          WHATSAPP_SIGNUP_CONFIG_ID = "${WHATSAPP_SIGNUP_CONFIG_ID}"
 
           [triggers]
           crons = ["0 6 * * *"]
@@ -62,7 +71,9 @@ jobs:
           [observability.logs]
           enabled = true
           invocation_logs = true
-          TOML
+          EOF
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' wrangler.production.toml
 
       - name: Build and Deploy
         run: nix develop --command wrangler deploy -c wrangler.production.toml
