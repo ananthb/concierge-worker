@@ -60,8 +60,10 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 if !biz.is_empty() {
                     resp.headers_mut().append(
                         "Set-Cookie",
-                        &format!("onboarding_biz={}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=3600",
-                            urlencoding::encode(&biz)),
+                        &format!(
+                            "onboarding_biz={}; Path=/; Secure; SameSite=Strict; Max-Age=3600",
+                            urlencoding::encode(&biz)
+                        ),
                     )?;
                 }
             }
@@ -173,7 +175,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 }
             };
 
-            create_session_and_redirect(&kv, &tenant.id, "google").await
+            create_session_and_redirect(&req, &kv, &tenant.id, "google").await
         }
 
         // Facebook OAuth callback
@@ -307,7 +309,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 );
             };
 
-            create_session_and_redirect(&kv, &tenant.id, "facebook").await
+            create_session_and_redirect(&req, &kv, &tenant.id, "facebook").await
         }
 
         // Unlink a provider
@@ -384,6 +386,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
 }
 
 async fn create_session_and_redirect(
+    req: &Request,
     kv: &kv::KvStore,
     tenant_id: &str,
     provider: &str,
@@ -405,18 +408,30 @@ async fn create_session_and_redirect(
     headers.append(
         "Set-Cookie",
         &format!(
-            "last_provider={}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000",
-            provider
-        ),
-    )?;
-    // CSRF cookie — NOT HttpOnly so HTMX JS can read it
-    headers.append(
-        "Set-Cookie",
-        &format!(
             "csrf={}; Path=/; Secure; SameSite=Strict; Max-Age={}",
             csrf_token, SESSION_TTL_SECONDS
         ),
     )?;
+    // Remember last provider (not HttpOnly so homepage JS can detect returning user)
+    headers.append(
+        "Set-Cookie",
+        &format!(
+            "last_provider={}; Path=/; Secure; SameSite=Strict; Max-Age=31536000",
+            provider
+        ),
+    )?;
+    // Persist biz name if it was set during onboarding start (upgrade to long-lived)
+    if let Some(biz) = get_cookie(req, "onboarding_biz") {
+        if !biz.is_empty() {
+            headers.append(
+                "Set-Cookie",
+                &format!(
+                    "onboarding_biz={}; Path=/; Secure; SameSite=Strict; Max-Age=31536000",
+                    biz
+                ),
+            )?;
+        }
+    }
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
