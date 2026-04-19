@@ -107,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_channel_account ON messages(channel_acco
 -- Credit packs (managed by management panel)
 CREATE TABLE IF NOT EXISTS credit_packs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
     replies INTEGER NOT NULL,
     price_inr INTEGER NOT NULL DEFAULT 0,
     price_usd INTEGER NOT NULL DEFAULT 0,
