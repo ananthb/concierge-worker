@@ -1,6 +1,7 @@
 //! Handler modules for the concierge worker
 
 mod admin;
+mod admin_email;
 mod admin_instagram;
 mod admin_lead_forms;
 mod admin_whatsapp;
@@ -9,6 +10,7 @@ mod data_deletion;
 mod instagram_oauth;
 mod instagram_webhook;
 mod lead_form;
+pub mod onboarding;
 mod webhook;
 mod whatsapp_signup;
 

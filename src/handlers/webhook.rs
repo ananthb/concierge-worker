@@ -1,14 +1,13 @@
-//! Webhook handlers for incoming WhatsApp messages
+//! Webhook handlers for incoming WhatsApp and Instagram messages
 
 use worker::*;
 
-use crate::ai;
-use crate::helpers::*;
+use crate::channel;
+use crate::pipeline;
 use crate::storage::*;
 use crate::types::*;
-use crate::whatsapp::send_whatsapp_message;
 
-/// Handle /webhook/whatsapp routes
+/// Handle /webhook/* routes
 pub async fn handle_webhook(
     mut req: Request,
     env: Env,
@@ -63,7 +62,7 @@ pub async fn handle_webhook(
             let body_text = req.text().await?;
 
             let app_secret = env
-                .secret("FACEBOOK_APP_SECRET")
+                .secret("META_APP_SECRET")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
 
@@ -91,11 +90,6 @@ pub async fn handle_webhook(
             }
 
             let kv = env.kv("CALENDARS_KV")?;
-            let db = env.d1("DB")?;
-            let platform_token = env
-                .secret("WHATSAPP_ACCESS_TOKEN")
-                .map(|s| s.to_string())
-                .unwrap_or_default();
 
             for entry in &body.entry {
                 for change in &entry.changes {
@@ -105,17 +99,10 @@ pub async fn handle_webhook(
 
                     let phone_number_id = &change.value.metadata.phone_number_id;
 
-                    // Look up WhatsApp account by phone_number_id
                     let account_id =
                         match get_whatsapp_account_by_phone(&kv, phone_number_id).await? {
                             Some(id) => id,
-                            None => {
-                                console_log!(
-                                    "No WhatsApp account found for phone_number_id: {}",
-                                    phone_number_id
-                                );
-                                continue;
-                            }
+                            None => continue,
                         };
 
                     let account = match get_whatsapp_account(&kv, &account_id).await? {
@@ -123,101 +110,13 @@ pub async fn handle_webhook(
                         None => continue,
                     };
 
-                    let contacts = &change.value.contacts;
-                    for msg in &change.value.messages {
-                        let sender_name = contacts
-                            .iter()
-                            .find(|c| c.wa_id == msg.from)
-                            .map(|c| c.profile.name.clone())
-                            .unwrap_or_default();
+                    // Parse into unified messages via channel adapter
+                    let messages = channel::whatsapp::parse_inbound(change, &account);
 
-                        let text = match &msg.text {
-                            Some(t) => t.body.clone(),
-                            None => continue,
-                        };
-
-                        let incoming = IncomingMessage {
-                            from: msg.from.clone(),
-                            sender_name,
-                            text: text.clone(),
-                            message_id: msg.id.clone(),
-                            timestamp: msg.timestamp.clone(),
-                        };
-
-                        // Log inbound message
-                        if let Err(e) = save_whatsapp_message(
-                            &db,
-                            &generate_id(),
-                            &account_id,
-                            "inbound",
-                            &incoming.from,
-                            phone_number_id,
-                            &incoming.text,
-                            &account.tenant_id,
-                        )
-                        .await
-                        {
-                            console_log!("Failed to save message: {:?}", e);
-                        }
-
-                        // Handle auto-reply
-                        if account.auto_reply.enabled {
-                            let reply = match account.auto_reply.mode {
-                                AutoReplyMode::Static => account.auto_reply.prompt.clone(),
-                                AutoReplyMode::Ai => {
-                                    let mut context = serde_json::Map::new();
-                                    context.insert(
-                                        "sender_name".to_string(),
-                                        serde_json::Value::String(incoming.sender_name.clone()),
-                                    );
-                                    context.insert(
-                                        "message".to_string(),
-                                        serde_json::Value::String(incoming.text.clone()),
-                                    );
-                                    match ai::generate_response(
-                                        &env,
-                                        &account.auto_reply.prompt,
-                                        &context,
-                                    )
-                                    .await
-                                    {
-                                        Ok(r) => r,
-                                        Err(e) => {
-                                            console_log!("AI auto-reply error: {:?}", e);
-                                            continue;
-                                        }
-                                    }
-                                }
-                            };
-
-                            if !reply.is_empty() {
-                                if let Err(e) = send_whatsapp_message(
-                                    &platform_token,
-                                    &account.phone_number_id,
-                                    &incoming.from,
-                                    &reply,
-                                )
-                                .await
-                                {
-                                    console_log!("Auto-reply send error: {:?}", e);
-                                }
-
-                                // Log outbound message
-                                if let Err(e) = save_whatsapp_message(
-                                    &db,
-                                    &generate_id(),
-                                    &account_id,
-                                    "outbound",
-                                    phone_number_id,
-                                    &incoming.from,
-                                    &reply,
-                                    &account.tenant_id,
-                                )
-                                .await
-                                {
-                                    console_log!("Failed to save message: {:?}", e);
-                                }
-                            }
+                    // Process each through the unified pipeline
+                    for msg in &messages {
+                        if let Err(e) = pipeline::process_inbound(msg, &env).await {
+                            console_log!("Pipeline error (WhatsApp): {:?}", e);
                         }
                     }
                 }

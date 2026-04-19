@@ -38,7 +38,7 @@ pub async fn handle_whatsapp_admin(
         // Embedded Signup page
         (Method::Get, ["new"]) => {
             let app_id = env
-                .secret("FACEBOOK_APP_ID")
+                .secret("META_APP_ID")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
             let config_id = env

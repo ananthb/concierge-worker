@@ -20,6 +20,7 @@ web-sys = { version = "0.3", features = ["Crypto", "SubtleCrypto", "CryptoKey"] 
 urlencoding = "2"
 sha2 = "0.10"
 hmac = "0.12"
+mail-parser = "0.9"
 
 [profile.release]
 opt-level = "s"

@@ -1,3 +1,4 @@
+use wasm_bindgen::JsValue;
 use worker::*;
 
 use crate::types::{InstagramAccount, LeadCaptureForm, Tenant, WhatsAppAccount};
@@ -473,4 +474,457 @@ pub async fn save_instagram_message(
     .run()
     .await?;
     Ok(())
+}
+
+// ============================================================================
+// Email Routing Storage
+// ============================================================================
+
+use crate::types::{EmailDomain, EmailReverseAlias, RoutingRule};
+
+/// Get all domains for a tenant.
+pub async fn get_email_domains(kv: &kv::KvStore, tenant_id: &str) -> Result<Vec<EmailDomain>> {
+    let key = format!("email_domains:{tenant_id}");
+    match kv
+        .get(&key)
+        .json::<Vec<EmailDomain>>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))?
+    {
+        Some(domains) => Ok(domains),
+        None => Ok(vec![]),
+    }
+}
+
+/// Save all domains for a tenant.
+pub async fn save_email_domains(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    domains: &[EmailDomain],
+) -> Result<()> {
+    let key = format!("email_domains:{tenant_id}");
+    kv.put(&key, serde_json::to_string(domains)?)?
+        .execute()
+        .await?;
+    Ok(())
+}
+
+/// Set the domain→tenant reverse index.
+pub async fn set_email_domain_index(
+    kv: &kv::KvStore,
+    domain: &str,
+    tenant_id: &str,
+) -> Result<()> {
+    let key = format!("email_domain:{domain}");
+    kv.put(&key, tenant_id)?.execute().await?;
+    Ok(())
+}
+
+/// Look up tenant_id by domain.
+pub async fn get_tenant_by_domain(kv: &kv::KvStore, domain: &str) -> Result<Option<String>> {
+    let key = format!("email_domain:{domain}");
+    kv.get(&key)
+        .text()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+/// Delete the domain→tenant reverse index.
+pub async fn delete_email_domain_index(kv: &kv::KvStore, domain: &str) -> Result<()> {
+    let key = format!("email_domain:{domain}");
+    kv.delete(&key).await?;
+    Ok(())
+}
+
+/// Get routing rules for a domain.
+pub async fn get_email_rules(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    domain: &str,
+) -> Result<Vec<RoutingRule>> {
+    let key = format!("email_rules:{tenant_id}:{domain}");
+    match kv
+        .get(&key)
+        .json::<Vec<RoutingRule>>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))?
+    {
+        Some(rules) => Ok(rules),
+        None => Ok(vec![]),
+    }
+}
+
+/// Save routing rules for a domain (sorted by priority ascending).
+pub async fn save_email_rules(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    domain: &str,
+    rules: &[RoutingRule],
+) -> Result<()> {
+    let key = format!("email_rules:{tenant_id}:{domain}");
+    kv.put(&key, serde_json::to_string(rules)?)?
+        .execute()
+        .await?;
+    Ok(())
+}
+
+/// Get a reverse alias mapping.
+pub async fn get_email_reverse_alias(
+    kv: &kv::KvStore,
+    reverse_address: &str,
+) -> Result<Option<EmailReverseAlias>> {
+    let key = format!("email_reverse:{reverse_address}");
+    kv.get(&key)
+        .json::<EmailReverseAlias>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+/// Save a reverse alias mapping.
+pub async fn save_email_reverse_alias(
+    kv: &kv::KvStore,
+    reverse_address: &str,
+    alias: &EmailReverseAlias,
+) -> Result<()> {
+    let key = format!("email_reverse:{reverse_address}");
+    kv.put(&key, serde_json::to_string(alias)?)?
+        .execute()
+        .await?;
+    Ok(())
+}
+
+/// Get discord bot token for a tenant.
+pub async fn get_discord_bot_token(kv: &kv::KvStore, tenant_id: &str) -> Result<Option<String>> {
+    let key = format!("discord_bot_token:{tenant_id}");
+    kv.get(&key)
+        .text()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+/// Save discord bot token for a tenant.
+pub async fn save_discord_bot_token(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    token: &str,
+) -> Result<()> {
+    let key = format!("discord_bot_token:{tenant_id}");
+    kv.put(&key, token)?.execute().await?;
+    Ok(())
+}
+
+/// Log an email message to D1.
+pub struct EmailLogEntry<'a> {
+    pub id: &'a str,
+    pub tenant_id: &'a str,
+    pub domain: &'a str,
+    pub rule_id: Option<&'a str>,
+    pub direction: &'a str,
+    pub from_email: &'a str,
+    pub to_email: &'a str,
+    pub subject: &'a str,
+    pub action_taken: &'a str,
+    pub error_msg: Option<&'a str>,
+}
+
+pub async fn save_email_message(db: &D1Database, entry: &EmailLogEntry<'_>) -> Result<()> {
+    let stmt = db.prepare(
+        "INSERT INTO email_messages (id, tenant_id, domain, rule_id, direction, from_email, to_email, subject, action_taken, error_msg)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    stmt.bind(&[
+        entry.id.into(),
+        entry.tenant_id.into(),
+        entry.domain.into(),
+        entry
+            .rule_id
+            .map(JsValue::from)
+            .unwrap_or(JsValue::null()),
+        entry.direction.into(),
+        entry.from_email.into(),
+        entry.to_email.into(),
+        entry.subject.into(),
+        entry.action_taken.into(),
+        entry
+            .error_msg
+            .map(JsValue::from)
+            .unwrap_or(JsValue::null()),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Increment email metrics counter.
+pub async fn increment_email_metric(
+    db: &D1Database,
+    domain: &str,
+    rule_id: Option<&str>,
+    action_type: &str,
+    tenant_id: &str,
+) -> Result<()> {
+    let date = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+    let date = &date[..10]; // YYYY-MM-DD
+
+    let stmt = db.prepare(
+        "INSERT INTO email_metrics (domain, rule_id, date, action_type, count, tenant_id)
+         VALUES (?, ?, ?, ?, 1, ?)
+         ON CONFLICT(domain, rule_id, date, action_type)
+         DO UPDATE SET count = count + 1",
+    );
+    stmt.bind(&[
+        domain.into(),
+        rule_id.map(JsValue::from).unwrap_or(JsValue::null()),
+        date.into(),
+        action_type.into(),
+        tenant_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Get recent email log entries for a tenant.
+pub async fn get_email_log(
+    db: &D1Database,
+    tenant_id: &str,
+    limit: u32,
+) -> Result<Vec<serde_json::Value>> {
+    let stmt = db.prepare(
+        "SELECT * FROM email_messages WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
+    );
+    let result = stmt
+        .bind(&[tenant_id.into(), JsValue::from(limit as f64)])?
+        .all()
+        .await?;
+    result.results::<serde_json::Value>()
+}
+
+/// Get email metrics for a domain on a given date.
+pub async fn get_email_metrics(
+    db: &D1Database,
+    tenant_id: &str,
+    domain: Option<&str>,
+) -> Result<Vec<serde_json::Value>> {
+    let query = if let Some(d) = domain {
+        let stmt = db.prepare(
+            "SELECT action_type, SUM(count) as total FROM email_metrics WHERE tenant_id = ? AND domain = ? AND date >= date('now', '-7 days') GROUP BY action_type",
+        );
+        stmt.bind(&[tenant_id.into(), d.into()])?.all().await?
+    } else {
+        let stmt = db.prepare(
+            "SELECT action_type, SUM(count) as total FROM email_metrics WHERE tenant_id = ? AND date >= date('now', '-7 days') GROUP BY action_type",
+        );
+        stmt.bind(&[tenant_id.into()])?.all().await?
+    };
+    query.results::<serde_json::Value>()
+}
+
+// ============================================================================
+// Unified Message Storage
+// ============================================================================
+
+use crate::types::{Channel, ConversationContext, DiscordConfig, InboundMessage, OnboardingState};
+
+/// Save a unified message to D1.
+pub async fn save_message(
+    db: &D1Database,
+    id: &str,
+    channel: &Channel,
+    direction: &str,
+    sender: &str,
+    recipient: &str,
+    body: &str,
+    subject: Option<&str>,
+    tenant_id: &str,
+    channel_account_id: &str,
+    action_taken: Option<&str>,
+    metadata: Option<&serde_json::Value>,
+) -> Result<()> {
+    let meta_str = metadata
+        .map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".into()))
+        .unwrap_or_else(|| "{}".into());
+
+    let stmt = db.prepare(
+        "INSERT INTO messages (id, channel, direction, sender, recipient, body, subject, tenant_id, channel_account_id, action_taken, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    stmt.bind(&[
+        id.into(),
+        channel.as_str().into(),
+        direction.into(),
+        sender.into(),
+        recipient.into(),
+        body.into(),
+        subject.map(JsValue::from).unwrap_or(JsValue::null()),
+        tenant_id.into(),
+        channel_account_id.into(),
+        action_taken
+            .map(JsValue::from)
+            .unwrap_or(JsValue::null()),
+        meta_str.as_str().into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Save a message from an InboundMessage struct.
+pub async fn save_inbound_message(
+    db: &D1Database,
+    msg: &InboundMessage,
+    action_taken: Option<&str>,
+) -> Result<()> {
+    save_message(
+        db,
+        &msg.id,
+        &msg.channel,
+        "inbound",
+        &msg.sender,
+        &msg.recipient,
+        &msg.body,
+        msg.subject.as_deref(),
+        &msg.tenant_id,
+        &msg.channel_account_id,
+        action_taken,
+        Some(&msg.raw_metadata),
+    )
+    .await
+}
+
+/// Get recent unified messages for a tenant.
+pub async fn get_messages(
+    db: &D1Database,
+    tenant_id: &str,
+    channel: Option<&Channel>,
+    limit: u32,
+) -> Result<Vec<serde_json::Value>> {
+    if let Some(ch) = channel {
+        let stmt = db.prepare(
+            "SELECT * FROM messages WHERE tenant_id = ? AND channel = ? ORDER BY created_at DESC LIMIT ?",
+        );
+        let result = stmt
+            .bind(&[
+                tenant_id.into(),
+                ch.as_str().into(),
+                JsValue::from(limit as f64),
+            ])?
+            .all()
+            .await?;
+        result.results::<serde_json::Value>()
+    } else {
+        let stmt = db.prepare(
+            "SELECT * FROM messages WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
+        );
+        let result = stmt
+            .bind(&[tenant_id.into(), JsValue::from(limit as f64)])?
+            .all()
+            .await?;
+        result.results::<serde_json::Value>()
+    }
+}
+
+// ============================================================================
+// Conversation Context (KV)
+// ============================================================================
+
+const CONVERSATION_TTL: u64 = 7 * 24 * 60 * 60; // 7 days
+
+pub async fn save_conversation_context(
+    kv: &kv::KvStore,
+    ctx: &ConversationContext,
+) -> Result<()> {
+    let key = format!("conv:{}", ctx.id);
+    let json =
+        serde_json::to_string(ctx).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    kv.put(&key, json)?
+        .expiration_ttl(CONVERSATION_TTL)
+        .execute()
+        .await?;
+    Ok(())
+}
+
+pub async fn get_conversation_context(
+    kv: &kv::KvStore,
+    id: &str,
+) -> Result<Option<ConversationContext>> {
+    let key = format!("conv:{id}");
+    kv.get(&key)
+        .json::<ConversationContext>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+pub async fn delete_conversation_context(kv: &kv::KvStore, id: &str) -> Result<()> {
+    let key = format!("conv:{id}");
+    kv.delete(&key).await?;
+    Ok(())
+}
+
+// ============================================================================
+// Discord Config (KV)
+// ============================================================================
+
+pub async fn get_discord_config_by_guild(
+    kv: &kv::KvStore,
+    guild_id: &str,
+) -> Result<Option<DiscordConfig>> {
+    let key = format!("discord_guild:{guild_id}");
+    kv.get(&key)
+        .json::<DiscordConfig>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+pub async fn save_discord_config(kv: &kv::KvStore, config: &DiscordConfig) -> Result<()> {
+    let key = format!("discord_guild:{}", config.guild_id);
+    let json =
+        serde_json::to_string(config).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    kv.put(&key, json)?.execute().await?;
+
+    // Also store reverse mapping
+    let rev_key = format!("discord_config:{}", config.tenant_id);
+    let rev_json =
+        serde_json::to_string(config).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    kv.put(&rev_key, rev_json)?.execute().await?;
+    Ok(())
+}
+
+// ============================================================================
+// Onboarding State (KV)
+// ============================================================================
+
+pub async fn get_onboarding(kv: &kv::KvStore, tenant_id: &str) -> Result<OnboardingState> {
+    let key = format!("onboarding:{tenant_id}");
+    kv.get(&key)
+        .json::<OnboardingState>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+        .map(|opt| opt.unwrap_or_default())
+}
+
+pub async fn save_onboarding(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    state: &OnboardingState,
+) -> Result<()> {
+    let key = format!("onboarding:{tenant_id}");
+    let json =
+        serde_json::to_string(state).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    kv.put(&key, json)?.execute().await?;
+    Ok(())
+}
+
+pub async fn get_discord_config_by_tenant(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+) -> Result<Option<DiscordConfig>> {
+    let key = format!("discord_config:{tenant_id}");
+    kv.get(&key)
+        .json::<DiscordConfig>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
 }

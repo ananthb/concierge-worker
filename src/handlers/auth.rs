@@ -36,12 +36,13 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 .secret("GOOGLE_OAUTH_CLIENT_ID")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
-            let facebook_app_id = env
-                .secret("FACEBOOK_APP_ID")
+            let meta_app_id = env
+                .secret("META_APP_ID")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
 
-            let html = auth_login_html(&base_url, &google_client_id, &facebook_app_id);
+            let last_provider = get_cookie(&req, "last_provider");
+            let html = auth_login_html(&base_url, &google_client_id, &meta_app_id, last_provider.as_deref());
             Response::from_html(html)
         }
 
@@ -148,7 +149,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 }
             };
 
-            create_session_and_redirect(&kv, &tenant.id).await
+            create_session_and_redirect(&kv, &tenant.id, "google").await
         }
 
         // Facebook OAuth callback
@@ -167,8 +168,8 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 }
             };
 
-            let app_id = env.secret("FACEBOOK_APP_ID")?.to_string();
-            let app_secret = env.secret("FACEBOOK_APP_SECRET")?.to_string();
+            let app_id = env.secret("META_APP_ID")?.to_string();
+            let app_secret = env.secret("META_APP_SECRET")?.to_string();
             let redirect_uri = format!("{}/auth/facebook/callback", base_url);
 
             // Exchange code for access token
@@ -285,7 +286,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 tenant
             };
 
-            create_session_and_redirect(&kv, &tenant.id).await
+            create_session_and_redirect(&kv, &tenant.id, "facebook").await
         }
 
         // Unlink a provider
@@ -364,7 +365,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
     }
 }
 
-async fn create_session_and_redirect(kv: &kv::KvStore, tenant_id: &str) -> Result<Response> {
+async fn create_session_and_redirect(kv: &kv::KvStore, tenant_id: &str, provider: &str) -> Result<Response> {
     let session_token = generate_token();
     save_session(kv, &session_token, tenant_id, SESSION_TTL_SECONDS).await?;
 
@@ -377,22 +378,35 @@ async fn create_session_and_redirect(kv: &kv::KvStore, tenant_id: &str) -> Resul
             session_token, SESSION_TTL_SECONDS
         ),
     )?;
+    headers.append(
+        "Set-Cookie",
+        &format!(
+            "last_provider={}; Path=/; SameSite=Lax; Max-Age=31536000",
+            provider
+        ),
+    )?;
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
 
-/// Extract session cookie from request
-pub fn get_session_cookie(req: &Request) -> Option<String> {
+/// Extract a named cookie from request.
+pub fn get_cookie(req: &Request, name: &str) -> Option<String> {
     let cookie_header = req.headers().get("Cookie").ok()??;
+    let prefix = format!("{name}=");
     for part in cookie_header.split(';') {
         let part = part.trim();
-        if let Some(value) = part.strip_prefix("session=") {
+        if let Some(value) = part.strip_prefix(&prefix) {
             if !value.is_empty() {
                 return Some(value.to_string());
             }
         }
     }
     None
+}
+
+/// Extract session cookie from request.
+pub fn get_session_cookie(req: &Request) -> Option<String> {
+    get_cookie(req, "session")
 }
 
 /// Resolve tenant_id from session cookie, returns None if not authenticated

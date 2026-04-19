@@ -21,14 +21,19 @@
 //! - `crypto` — AES-256-GCM encryption and HMAC-SHA256 verification
 //! - `helpers` — ID generation, HTML escaping, CORS, template interpolation
 
+use wasm_bindgen::prelude::*;
 use worker::*;
 
 mod ai;
+mod channel;
 mod crypto;
+mod discord;
+mod email;
 mod handlers;
 mod helpers;
 mod instagram;
-mod landing;
+mod legal;
+mod pipeline;
 mod scheduled;
 mod storage;
 mod templates;
@@ -36,6 +41,88 @@ mod types;
 mod whatsapp;
 
 pub use types::*;
+
+// --- Email event handler via wasm_bindgen ---
+
+#[wasm_bindgen]
+extern "C" {
+    pub type IncomingEmailMessage;
+
+    #[wasm_bindgen(method, getter)]
+    fn from(this: &IncomingEmailMessage) -> String;
+
+    #[wasm_bindgen(method, getter)]
+    fn to(this: &IncomingEmailMessage) -> String;
+
+    #[wasm_bindgen(method, getter)]
+    fn raw(this: &IncomingEmailMessage) -> js_sys::Promise;
+
+    #[wasm_bindgen(method, js_name = "setReject")]
+    fn set_reject(this: &IncomingEmailMessage, reason: &str);
+
+    pub type SendEmailBinding;
+
+    #[wasm_bindgen(method)]
+    fn send(this: &SendEmailBinding, message: &JsValue) -> js_sys::Promise;
+}
+
+#[wasm_bindgen]
+pub async fn email_handler(
+    message: IncomingEmailMessage,
+    env: JsValue,
+    _ctx: JsValue,
+) -> std::result::Result<(), JsValue> {
+    console_error_panic_hook::set_once();
+
+    let from = message.from();
+    let to = message.to();
+
+    // Read the raw email bytes
+    let raw_promise = message.raw();
+    let raw_value = wasm_bindgen_futures::JsFuture::from(raw_promise).await?;
+    let uint8 = js_sys::Uint8Array::new(&raw_value);
+    let mut raw_bytes = vec![0u8; uint8.length() as usize];
+    uint8.copy_to(&mut raw_bytes);
+
+    let worker_env: Env = env.into();
+
+    let result = email::handler::handle_email(&from, &to, &raw_bytes, &worker_env)
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Email handler error: {e}")))?;
+
+    match result {
+        email::handler::EmailResult::Send {
+            from: send_from,
+            to: send_to,
+            raw,
+        } => {
+            let email_binding =
+                js_sys::Reflect::get(&worker_env.into(), &"EMAIL".into())
+                    .map_err(|_| JsValue::from_str("Missing EMAIL binding"))?;
+            let send_email: SendEmailBinding = email_binding.unchecked_into();
+
+            let obj = js_sys::Object::new();
+            js_sys::Reflect::set(&obj, &"from".into(), &send_from.into())
+                .map_err(|_| JsValue::from_str("Failed to set from"))?;
+            js_sys::Reflect::set(&obj, &"to".into(), &send_to.into())
+                .map_err(|_| JsValue::from_str("Failed to set to"))?;
+            let uint8 = js_sys::Uint8Array::from(raw.as_slice());
+            js_sys::Reflect::set(&obj, &"raw".into(), &uint8.into())
+                .map_err(|_| JsValue::from_str("Failed to set raw"))?;
+
+            let send_promise = send_email.send(&obj.into());
+            wasm_bindgen_futures::JsFuture::from(send_promise).await?;
+        }
+        email::handler::EmailResult::Reject(reason) => {
+            message.set_reject(&reason);
+        }
+        email::handler::EmailResult::Drop => {
+            // Do nothing — silently consume
+        }
+    }
+
+    Ok(())
+}
 
 // Static assets embedded at compile time
 const LOGO_SVG: &str = include_str!("../assets/logo.svg");
@@ -90,7 +177,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         let headers = Headers::new();
         headers.set("Content-Type", "text/html; charset=utf-8")?;
         headers.set("Cache-Control", "public, max-age=3600")?;
-        return Ok(Response::ok(landing::terms_of_service_html())?.with_headers(headers));
+        return Ok(Response::ok(legal::terms_of_service_html())?.with_headers(headers));
     }
 
     // Privacy Policy
@@ -98,7 +185,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         let headers = Headers::new();
         headers.set("Content-Type", "text/html; charset=utf-8")?;
         headers.set("Cache-Control", "public, max-age=3600")?;
-        return Ok(Response::ok(landing::privacy_policy_html())?.with_headers(headers));
+        return Ok(Response::ok(legal::privacy_policy_html())?.with_headers(headers));
     }
 
     // Data deletion callback (Facebook requirement)
@@ -131,17 +218,19 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return handlers::handle_instagram(req, env, path, method).await;
     }
 
+    // Discord interaction endpoint
+    if path == "/discord/interactions" && method == Method::Post {
+        return discord::interactions::handle_interaction(req, env).await;
+    }
+
     // Webhook routes (WhatsApp + Instagram incoming messages)
     if path.starts_with("/webhook/") {
         return handlers::handle_webhook(req, env, path, method).await;
     }
 
-    // Landing page
+    // Landing → straight to onboarding step 1
     if path == "/" || path == "/index.html" {
-        let headers = Headers::new();
-        headers.set("Content-Type", "text/html; charset=utf-8")?;
-        headers.set("Cache-Control", "public, max-age=3600")?;
-        return Ok(Response::ok(landing::landing_page_html())?.with_headers(headers));
+        return Response::from_html(templates::onboarding::welcome_html(""));
     }
 
     Response::error("Not Found", 404)

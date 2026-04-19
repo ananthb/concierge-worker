@@ -245,6 +245,260 @@ pub struct InstagramDm {
     pub text: Option<String>,
 }
 
+// ============================================================================
+// Email Routing Types
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EmailDomain {
+    pub domain: String,
+    pub tenant_id: String,
+    pub default_action: EmailAction,
+    pub created_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RoutingRule {
+    pub id: String,
+    pub domain: String,
+    pub name: String,
+    pub priority: i32,
+    pub enabled: bool,
+    pub criteria: MatchCriteria,
+    pub action: EmailAction,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct MatchCriteria {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_pattern: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_pattern: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_pattern: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_attachment: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_pattern: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum EmailAction {
+    Drop,
+    Spam {
+        #[serde(default)]
+        message: Option<String>,
+    },
+    ForwardEmail {
+        destination: String,
+    },
+    ForwardDiscord {
+        channel_id: String,
+    },
+    AiReply {
+        #[serde(default)]
+        system_prompt: Option<String>,
+        #[serde(default)]
+        approval_channel_id: Option<String>,
+        #[serde(default)]
+        approval_email: Option<String>,
+    },
+}
+
+impl Default for EmailAction {
+    fn default() -> Self {
+        Self::Drop
+    }
+}
+
+/// Reverse alias mapping for reply routing.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EmailReverseAlias {
+    pub alias: String,
+    pub original_sender: String,
+    pub tenant_id: String,
+    pub domain: String,
+}
+
+// ============================================================================
+// Unified Messaging Types
+// ============================================================================
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Channel {
+    WhatsApp,
+    Instagram,
+    Email,
+    Discord,
+}
+
+impl Channel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Channel::WhatsApp => "whatsapp",
+            Channel::Instagram => "instagram",
+            Channel::Email => "email",
+            Channel::Discord => "discord",
+        }
+    }
+}
+
+/// Unified inbound message from any channel.
+#[derive(Clone, Debug)]
+pub struct InboundMessage {
+    pub id: String,
+    pub channel: Channel,
+    pub sender: String,
+    pub sender_name: Option<String>,
+    pub recipient: String,
+    pub body: String,
+    pub subject: Option<String>,
+    pub has_attachment: bool,
+    pub tenant_id: String,
+    pub channel_account_id: String,
+    pub raw_metadata: serde_json::Value,
+}
+
+/// Conversation context for cross-channel Discord relay.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ConversationContext {
+    pub id: String,
+    pub discord_message_id: String,
+    pub discord_channel_id: String,
+    pub origin_channel: Channel,
+    pub origin_sender: String,
+    pub origin_recipient: String,
+    pub tenant_id: String,
+    pub channel_account_id: String,
+    pub reply_metadata: serde_json::Value,
+    #[serde(default)]
+    pub ai_draft: Option<String>,
+    pub created_at: String,
+}
+
+// ============================================================================
+// Discord Interaction Types
+// ============================================================================
+
+#[derive(Deserialize, Debug)]
+pub struct DiscordInteraction {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub interaction_type: u8,
+    #[serde(default)]
+    pub data: Option<InteractionData>,
+    #[serde(default)]
+    pub message: Option<serde_json::Value>,
+    #[serde(default)]
+    pub member: Option<serde_json::Value>,
+    pub token: String,
+    #[serde(default)]
+    pub guild_id: Option<String>,
+    #[serde(default)]
+    pub channel_id: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InteractionData {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub custom_id: Option<String>,
+    #[serde(default)]
+    pub options: Option<Vec<CommandOption>>,
+    #[serde(default)]
+    pub components: Option<Vec<ActionRow>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CommandOption {
+    pub name: String,
+    #[serde(default)]
+    pub value: Option<serde_json::Value>,
+    #[serde(default)]
+    pub options: Vec<CommandOption>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ActionRow {
+    #[serde(default)]
+    pub components: Vec<ModalComponent>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ModalComponent {
+    #[serde(default)]
+    pub custom_id: Option<String>,
+    #[serde(default)]
+    pub value: Option<String>,
+}
+
+/// Onboarding state for the setup wizard.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct OnboardingState {
+    pub step: String,
+    pub biz_name: String,
+    pub admin_channel: String, // "discord" | "email"
+    pub persona: PersonaConfig,
+    pub canned_replies: Vec<CannedReply>,
+    pub completed: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct PersonaConfig {
+    #[serde(default)]
+    pub biz_type: String,
+    #[serde(default)]
+    pub city: String,
+    #[serde(default)]
+    pub tone: String,
+    #[serde(default)]
+    pub never: String,
+}
+
+impl PersonaConfig {
+    pub fn to_system_prompt(&self) -> String {
+        let mut parts = vec!["You are a helpful messaging assistant for a small business.".to_string()];
+        if !self.biz_type.is_empty() {
+            let loc = if self.city.is_empty() {
+                String::new()
+            } else {
+                format!(" in {}", self.city)
+            };
+            parts.push(format!("The business is a {}{}.", self.biz_type, loc));
+        }
+        if !self.tone.is_empty() {
+            parts.push(format!("Tone: {}. Match this tone in every reply.", self.tone));
+        }
+        if !self.never.is_empty() {
+            parts.push(format!(
+                "Never {}. If asked, politely defer to a human.",
+                self.never
+            ));
+        }
+        parts.push("Keep replies short (1-3 sentences). If unsure, hand off to the owner.".to_string());
+        parts.join("\n")
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CannedReply {
+    pub trigger: String,
+    pub reply: String,
+}
+
+/// Discord guild → tenant mapping config.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DiscordConfig {
+    pub guild_id: String,
+    pub tenant_id: String,
+    pub default_channel_id: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,6 +558,76 @@ mod tests {
             webhook.entry[0].changes[0].value.messages[0].from,
             "user123"
         );
+    }
+
+    #[test]
+    fn test_channel_serialization() {
+        assert_eq!(
+            serde_json::to_string(&Channel::WhatsApp).unwrap(),
+            "\"whats_app\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Channel::Email).unwrap(),
+            "\"email\""
+        );
+        let ch: Channel = serde_json::from_str("\"instagram\"").unwrap();
+        assert_eq!(ch, Channel::Instagram);
+    }
+
+    #[test]
+    fn test_email_action_serialization() {
+        let action = EmailAction::ForwardDiscord {
+            channel_id: "123".to_string(),
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("\"type\":\"forward_discord\""));
+        assert!(json.contains("\"channel_id\":\"123\""));
+
+        let parsed: EmailAction = serde_json::from_str(&json).unwrap();
+        match parsed {
+            EmailAction::ForwardDiscord { channel_id } => assert_eq!(channel_id, "123"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_conversation_context_roundtrip() {
+        let ctx = ConversationContext {
+            id: "ctx-1".into(),
+            discord_message_id: "msg-1".into(),
+            discord_channel_id: "ch-1".into(),
+            origin_channel: Channel::Email,
+            origin_sender: "alice@example.com".into(),
+            origin_recipient: "support@proxy.com".into(),
+            tenant_id: "tenant-1".into(),
+            channel_account_id: "example.com".into(),
+            reply_metadata: serde_json::json!({"domain": "example.com"}),
+            ai_draft: Some("Draft reply text".into()),
+            created_at: "2026-01-01T00:00:00Z".into(),
+        };
+        let json = serde_json::to_string(&ctx).unwrap();
+        let parsed: ConversationContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.origin_channel, Channel::Email);
+        assert_eq!(parsed.ai_draft.as_deref(), Some("Draft reply text"));
+    }
+
+    #[test]
+    fn test_discord_interaction_deserialization() {
+        let json = r#"{
+            "id": "int-1",
+            "type": 2,
+            "token": "tok",
+            "guild_id": "guild-1",
+            "channel_id": "ch-1",
+            "data": {
+                "name": "status",
+                "options": []
+            }
+        }"#;
+        let interaction: DiscordInteraction = serde_json::from_str(json).unwrap();
+        assert_eq!(interaction.interaction_type, 2);
+        assert_eq!(interaction.data.as_ref().unwrap().name.as_deref(), Some("status"));
+        assert_eq!(interaction.guild_id.as_deref(), Some("guild-1"));
     }
 
     #[test]
