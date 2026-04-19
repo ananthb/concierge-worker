@@ -27,7 +27,7 @@ pub fn auth_login_html(
     let (primary_btn, secondary_btn) = match last_provider {
         Some("facebook") => (
             format!(
-                r#"<a href="{fb_url}" class="btn primary lg" style="width:100%;justify-content:center">{fb_svg} Continue with Facebook</a>"#,
+                r#"<a href="{fb_url}" class="btn primary lg" style="width:100%;justify-content:center">{fb_svg} Continue with Facebook</a><div class="mono muted" style="font-size:11px;margin-top:4px">Last used</div>"#,
             ),
             format!(
                 r#"<a href="{google_url}" class="btn ghost" style="width:100%;justify-content:center">{google_svg} Sign in with Google</a>"#,
@@ -36,7 +36,7 @@ pub fn auth_login_html(
         ),
         Some("google") => (
             format!(
-                r#"<a href="{google_url}" class="btn primary lg" style="width:100%;justify-content:center">{google_svg} Continue with Google</a>"#,
+                r#"<a href="{google_url}" class="btn primary lg" style="width:100%;justify-content:center">{google_svg} Continue with Google</a><div class="mono muted" style="font-size:11px;margin-top:4px">Last used</div>"#,
                 google_url = html_escape(&google_url),
             ),
             format!(
@@ -198,9 +198,9 @@ pub fn admin_dashboard_html(
     use super::base::LOGO_INLINE;
 
     // Sidebar: connected channels
-    let ig_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>"#;
-    let wa_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 20l1.3-4.1A8 8 0 1 1 8.2 18.8L4 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#;
-    let mail_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 6.5l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#;
+    let ig_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-label="Instagram"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>"#;
+    let wa_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-label="WhatsApp"><path d="M4 20l1.3-4.1A8 8 0 1 1 8.2 18.8L4 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#;
+    let mail_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-label="Email"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 6.5l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#;
 
     let channel_rows: String = whatsapp_accounts
         .iter()

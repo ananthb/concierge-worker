@@ -81,7 +81,7 @@ pub fn welcome_html(base_url: &str) -> String {
         r#"<section class="page welcome">
   <div class="welcome-left">
     <div class="eyebrow">// automated customer engagement</div>
-    <h1 class="display">Hello. I'll be answering<br><em>every DM, WhatsApp &amp; email</em><br>so you don't have to.</h1>
+    <h1 class="display">Hello. I'll be answering<br>every <em>DM, WhatsApp &amp; email</em><br>so you don't have to.</h1>
     <p class="lead">Connect your channels, set a tone, and your concierge handles the rest. Auto-replies across WhatsApp, Instagram, and email. 100 replies free every month.</p>
     <form class="welcome-form" action="/auth/login" method="get">
       <input class="input" name="biz" placeholder="Business name" required>
@@ -341,8 +341,8 @@ pub fn persona_html(persona: &PersonaConfig, base_url: &str) -> String {
     <pre class="mono" style="margin:0;white-space:pre-wrap;font-size:12px;color:var(--cream);line-height:1.6">{prompt}</pre>
   </div>
   <div class="between" style="margin-top:32px">
-    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
-    <button class="btn primary"{disabled} hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML">Continue &rarr;</button>
+    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML" hx-include="[name=biz_type],[name=city],[name=tone],[name=never]">&larr; Back</button>
+    <button class="btn primary"{disabled} hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML" hx-include="[name=biz_type],[name=city],[name=tone],[name=never]">Continue &rarr;</button>
   </div>
 </section>"#,
         base_url = base_url,

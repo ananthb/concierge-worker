@@ -38,6 +38,7 @@ a { color:var(--accent); }
   transition:transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease; }
 .btn:hover { transform:translateY(-1px); }
 .btn:active { transform:translateY(0); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
 .btn.primary:hover { background:var(--accent-2); border-color:var(--accent-2); }
 .btn.ghost { background:transparent; color:var(--ink); border-color:var(--hair-2); }
@@ -67,7 +68,8 @@ a { color:var(--accent); }
 .gap-4{gap:4px} .gap-6{gap:6px} .gap-8{gap:8px} .gap-12{gap:12px}
 .gap-16{gap:16px} .gap-20{gap:20px} .gap-24{gap:24px}
 .muted { color:var(--muted); }
-.success { background:#E8F0DE; color:#3E5A26; padding:1rem; border-radius:var(--r-sm); margin-bottom:1rem; }
+.success { background:#E8F0DE; color:#3E5A26; padding:1rem; border-radius:var(--r-sm); margin-bottom:1rem; animation: fadeOut 3s ease 2s forwards; }
+@keyframes fadeOut { to { opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; } }
 .error { background:#FCE8D5; color:#8A4B14; padding:1rem; border-radius:var(--r-sm); margin-bottom:1rem; }
 .toggle { position:relative; display:inline-block; width:34px; height:20px; }
 .toggle input { opacity:0; width:0; height:0; }
@@ -238,7 +240,7 @@ code {
 
 /* Welcome form */
 .welcome { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:60px; align-items:center; }
-@media(max-width:900px){.welcome{grid-template-columns:1fr}}
+@media(max-width:900px){.welcome{grid-template-columns:1fr}.postcard{display:none}}
 .welcome-form { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
 .welcome-form .input { max-width:240px; }
 .display { font-family:var(--f-display); font-size:clamp(44px,6vw,82px); line-height:1.02; letter-spacing:-0.02em; margin:0 0 16px; }
@@ -354,6 +356,10 @@ function copyUrl(btn, url) {{
         }}, 2000);
     }});
 }}
+document.addEventListener("htmx:responseError", function() {{
+  var t = document.getElementById("toast");
+  if (t) {{ t.innerHTML = '<div class="error">Something went wrong. Please try again.</div>'; }}
+}});
 </script>
 </body>
 </html>"##,
