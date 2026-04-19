@@ -82,14 +82,24 @@ pub fn welcome_html(base_url: &str) -> String {
     <div class="eyebrow">// automated customer engagement</div>
     <h1 class="display">Hello. I'll be answering <br>every <em>DM, WhatsApp &amp; email</em> <br>so you don't have to.</h1>
     <p class="lead">Connect your channels, set a tone, and your concierge handles the rest. Auto-replies across WhatsApp, Instagram, and email. 100 replies free every month.</p>
-    <form class="welcome-form" action="/auth/login" method="get">
-      <input class="input" name="biz" placeholder="Business name" required>
-      <button class="btn primary lg" type="submit">Start setup &rarr;</button>
-    </form>
-    <div class="mono fineprint">
-      &#x25E6; <a href="/auth/login" style="color:var(--accent)">already have an account? sign in</a>
-      &nbsp; &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
-      &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
+    <div id="welcome-new">
+      <form class="welcome-form" action="/auth/login" method="get">
+        <input class="input" name="biz" id="biz-input" placeholder="Business name" required>
+        <button class="btn primary lg" type="submit">Start setup &rarr;</button>
+      </form>
+      <div class="mono fineprint">
+        &#x25E6; <a href="/auth/login" style="color:var(--accent)">already have an account? sign in</a>
+        &nbsp; &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
+        &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
+      </div>
+    </div>
+    <div id="welcome-back" style="display:none">
+      <p class="lead" id="wb-greeting" style="font-size:20px;margin-bottom:18px"></p>
+      <a href="/auth/login" class="btn primary lg">Sign in &rarr;</a>
+      <div class="mono fineprint" style="margin-top:18px">
+        &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
+        &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
+      </div>
     </div>
   </div>
   <aside class="postcard" aria-hidden="true">
@@ -105,7 +115,42 @@ pub fn welcome_html(base_url: &str) -> String {
     </div>
     <div class="stamp">ON<br>DUTY<br>24/7</div>
   </aside>
-</section>"#,
+</section>
+<script>
+(function() {{
+  function getCookie(name) {{
+    var c = document.cookie.split(';').map(function(s){{return s.trim()}}).find(function(s){{return s.startsWith(name+'=')}});
+    return c ? decodeURIComponent(c.substring(name.length+1)) : null;
+  }}
+
+  var provider = getCookie('last_provider');
+  var biz = getCookie('onboarding_biz');
+
+  if (provider) {{
+    // Returning user: show sign-in view
+    document.getElementById('welcome-new').style.display = 'none';
+    document.getElementById('welcome-back').style.display = 'block';
+    document.getElementById('wb-greeting').textContent = biz ? 'Hi, ' + biz + '.' : 'Welcome back.';
+    // Fill all rail segments and highlight "Go live"
+    document.querySelectorAll('.rail .seg').forEach(function(seg) {{
+      seg.classList.remove('active');
+      seg.classList.add('done');
+    }});
+    var labels = document.querySelectorAll('.rail-labels span');
+    labels.forEach(function(l) {{ l.classList.add('done'); l.classList.remove('active'); }});
+    if (labels.length > 0) {{ labels[labels.length-1].classList.add('active'); labels[labels.length-1].classList.remove('done'); }}
+  }} else {{
+    // New user: animate the first rail segment when business name is typed
+    var input = document.getElementById('biz-input');
+    var firstFill = document.querySelector('.rail .seg.active .fill');
+    if (input && firstFill) {{
+      input.addEventListener('input', function() {{
+        firstFill.style.width = input.value.trim().length > 0 ? '90%' : '55%';
+      }});
+    }}
+  }}
+}})();
+</script>"#,
         hash = HASH,
     );
 
