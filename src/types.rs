@@ -663,3 +663,39 @@ mod tests {
         );
     }
 }
+
+// ============================================================================
+// Billing Types — Reply Credits
+// ============================================================================
+
+/// Tenant billing state. Credits = reply count. Management grants credits.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct TenantBilling {
+    pub replies_remaining: i64,  // available replies
+    pub replies_used: i64,       // lifetime replies sent
+    pub replies_granted: i64,    // lifetime replies granted by management
+}
+
+impl TenantBilling {
+    pub fn has_credits(&self) -> bool {
+        self.replies_remaining > 0
+    }
+}
+
+/// Credit pack row from D1 (management-configurable).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreditPackRow {
+    pub id: i64,
+    pub name: String,
+    pub replies: i64,
+    pub price_inr: i64, // paise
+    pub price_usd: i64, // cents
+    pub active: i32,
+    pub sort_order: i32,
+}
+
+impl CreditPackRow {
+    pub fn price(&self, currency: &str) -> i64 {
+        if currency == "INR" { self.price_inr } else { self.price_usd }
+    }
+}

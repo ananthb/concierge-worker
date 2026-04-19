@@ -81,6 +81,13 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         return Ok(Response::empty()?.with_status(302).with_headers(headers));
     }
 
+    if path.starts_with("/admin/billing") {
+        return super::admin_billing::handle_billing_admin(
+            req, env, path, method, &base_url, &tenant_id,
+        )
+        .await;
+    }
+
     if path.starts_with("/admin/whatsapp") {
         return super::admin_whatsapp::handle_whatsapp_admin(
             req, env, path, method, &base_url, &tenant_id,

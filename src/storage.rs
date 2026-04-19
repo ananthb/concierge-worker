@@ -1,7 +1,7 @@
 use wasm_bindgen::JsValue;
 use worker::*;
 
-use crate::types::{InstagramAccount, LeadCaptureForm, Tenant, WhatsAppAccount};
+use crate::types::{CreditPackRow, InstagramAccount, LeadCaptureForm, Tenant, TenantBilling, WhatsAppAccount};
 
 // ============================================================================
 // Tenant KV Operations
@@ -927,4 +927,111 @@ pub async fn get_discord_config_by_tenant(
         .json::<DiscordConfig>()
         .await
         .map_err(|e| Error::from(e.to_string()))
+}
+
+// ============================================================================
+// Billing Storage
+// ============================================================================
+
+pub async fn get_tenant_billing(kv: &kv::KvStore, tenant_id: &str) -> Result<TenantBilling> {
+    let key = format!("billing:{tenant_id}");
+    kv.get(&key)
+        .json::<TenantBilling>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+        .map(|opt| opt.unwrap_or_default())
+}
+
+pub async fn save_tenant_billing(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    billing: &TenantBilling,
+) -> Result<()> {
+    let key = format!("billing:{tenant_id}");
+    let json =
+        serde_json::to_string(billing).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    kv.put(&key, json)?.execute().await?;
+    Ok(())
+}
+
+// ============================================================================
+// Credit Packs (D1)
+// ============================================================================
+
+pub async fn get_active_credit_packs(db: &D1Database) -> Result<Vec<CreditPackRow>> {
+    let stmt = db.prepare(
+        "SELECT * FROM credit_packs WHERE active = 1 ORDER BY sort_order ASC",
+    );
+    let result = stmt.all().await?;
+    result.results()
+}
+
+pub async fn get_all_credit_packs(db: &D1Database) -> Result<Vec<CreditPackRow>> {
+    let stmt = db.prepare("SELECT * FROM credit_packs ORDER BY sort_order ASC");
+    let result = stmt.all().await?;
+    result.results()
+}
+
+pub async fn get_credit_pack(db: &D1Database, id: i64) -> Result<Option<CreditPackRow>> {
+    let stmt = db.prepare("SELECT * FROM credit_packs WHERE id = ?");
+    stmt.bind(&[JsValue::from(id as f64)])?
+        .first::<CreditPackRow>(None)
+        .await
+}
+
+pub async fn save_credit_pack(
+    db: &D1Database,
+    name: &str,
+    replies: i64,
+    price_inr: i64,
+    price_usd: i64,
+    sort_order: i32,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "INSERT INTO credit_packs (name, replies, price_inr, price_usd, sort_order)
+         VALUES (?, ?, ?, ?, ?)",
+    );
+    stmt.bind(&[
+        name.into(),
+        JsValue::from(replies as f64),
+        JsValue::from(price_inr as f64),
+        JsValue::from(price_usd as f64),
+        JsValue::from(sort_order as f64),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+pub async fn update_credit_pack(
+    db: &D1Database,
+    id: i64,
+    name: &str,
+    replies: i64,
+    price_inr: i64,
+    price_usd: i64,
+    active: bool,
+    sort_order: i32,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE credit_packs SET name=?, replies=?, price_inr=?, price_usd=?, active=?, sort_order=? WHERE id=?",
+    );
+    stmt.bind(&[
+        name.into(),
+        JsValue::from(replies as f64),
+        JsValue::from(price_inr as f64),
+        JsValue::from(price_usd as f64),
+        JsValue::from(if active { 1.0 } else { 0.0 }),
+        JsValue::from(sort_order as f64),
+        JsValue::from(id as f64),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_credit_pack(db: &D1Database, id: i64) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM credit_packs WHERE id = ?");
+    stmt.bind(&[JsValue::from(id as f64)])?.run().await?;
+    Ok(())
 }

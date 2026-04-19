@@ -107,3 +107,46 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_tenant ON messages(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel, tenant_id, created_at);
+
+-- Credit packs (managed by management panel)
+CREATE TABLE IF NOT EXISTS credit_packs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    replies INTEGER NOT NULL,
+    price_inr INTEGER NOT NULL DEFAULT 0,
+    price_usd INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Seed default packs
+INSERT OR IGNORE INTO credit_packs (name, replies, price_inr, price_usd, sort_order) VALUES
+    ('Starter', 500, 24900, 300, 1),
+    ('Growth', 2000, 79900, 1000, 2),
+    ('Scale', 10000, 299900, 3600, 3),
+    ('Volume', 50000, 999900, 12000, 4);
+
+-- Payment history
+CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    razorpay_payment_id TEXT,
+    razorpay_subscription_id TEXT,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id, created_at);
+
+-- Audit log
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    actor_email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT,
+    details TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -61,6 +61,15 @@ async fn handle_auto_reply(
         _ => return Ok(()),
     };
 
+    // Check credits before generating a reply
+    if !crate::billing::can_reply(kv, &msg.tenant_id).await? {
+        console_log!(
+            "Tenant {} out of credits, skipping reply",
+            msg.tenant_id
+        );
+        return Ok(());
+    }
+
     // Generate reply
     let reply = match config.mode {
         AutoReplyMode::Static => config.prompt.clone(),
@@ -97,6 +106,9 @@ async fn handle_auto_reply(
         console_log!("Auto-reply send error: {:?}", e);
         return Ok(());
     }
+
+    // Deduct credit after successful send
+    let _ = crate::billing::deduct_reply(kv, &msg.tenant_id).await;
 
     // Log outbound
     let _ = save_message(
