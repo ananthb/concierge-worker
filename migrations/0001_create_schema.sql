@@ -117,9 +117,9 @@ CREATE TABLE IF NOT EXISTS credit_packs (
 -- Seed default packs
 INSERT OR IGNORE INTO credit_packs (name, replies, price_inr, price_usd, sort_order) VALUES
     ('Starter', 500, 24900, 300, 1),
-    ('Growth', 2000, 79900, 1000, 2),
-    ('Scale', 10000, 299900, 3600, 3),
-    ('Volume', 50000, 999900, 12000, 4);
+    ('Growth', 2000, 49900, 500, 2),
+    ('Scale', 10000, 99900, 1000, 3),
+    ('Volume', 50000, 199900, 2000, 4);
 
 -- Payment history
 CREATE TABLE IF NOT EXISTS payments (
