@@ -610,6 +610,7 @@ pub async fn save_email_reverse_alias(
 ) -> Result<()> {
     let key = format!("email_reverse:{reverse_address}");
     kv.put(&key, serde_json::to_string(alias)?)?
+        .expiration_ttl(30 * 24 * 60 * 60)
         .execute()
         .await?;
     Ok(())

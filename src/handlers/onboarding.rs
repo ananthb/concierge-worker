@@ -48,6 +48,28 @@ pub async fn handle_wizard(
                 }
             }
 
+            // Auto-save persona fields if present
+            if let Some(v) = form.get("biz_type").and_then(|v| v.as_str()) {
+                if !v.is_empty() {
+                    state.persona.biz_type = v.to_string();
+                }
+            }
+            if let Some(v) = form.get("city").and_then(|v| v.as_str()) {
+                if !v.is_empty() {
+                    state.persona.city = v.to_string();
+                }
+            }
+            if let Some(v) = form.get("tone").and_then(|v| v.as_str()) {
+                if !v.is_empty() {
+                    state.persona.tone = v.to_string();
+                }
+            }
+            if let Some(v) = form.get("never").and_then(|v| v.as_str()) {
+                if !v.is_empty() {
+                    state.persona.never = v.to_string();
+                }
+            }
+
             state.step = to.to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
