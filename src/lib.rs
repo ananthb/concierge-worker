@@ -44,6 +44,9 @@ mod whatsapp;
 
 pub use types::*;
 
+/// Meta Graph API version used across all Facebook/WhatsApp/Instagram API calls.
+pub const META_API_VERSION: &str = "v21.0";
+
 // --- Email event handler via wasm_bindgen ---
 
 #[wasm_bindgen]

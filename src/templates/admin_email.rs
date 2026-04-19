@@ -352,14 +352,14 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
             </div>
 
             <h3 style=\"margin: 1rem 0 0.5rem;\">Match Criteria</h3>
-            <p class=\"text-muted\" style=\"margin-bottom: 0.5rem;\"><small>Use <code>*</code> for wildcard, <code>?</code> for single char. All non-empty fields must match (AND).</small></p>
+            <p class=\"muted\" style=\"margin-bottom:12px\"><small>Patterns: <code>*</code> matches anything, <code>?</code> matches one character. Example: <code>*@newsletter.com</code> matches all emails from newsletter.com</small></p>
             <div class=\"form-group\">
                 <label>From</label>
                 <input type=\"text\" name=\"from_pattern\" value=\"{from_pattern}\" placeholder=\"*@newsletter.com\">
             </div>
             <div class=\"form-group\">
                 <label>To</label>
-                <input type=\"text\" name=\"to_pattern\" value=\"{to_pattern}\" placeholder=\"support@*\">
+                <input type=\"text\" name=\"to_pattern\" value=\"{to_pattern}\" placeholder=\"support+*@example.com\">
             </div>
             <div class=\"form-group\">
                 <label>Subject</label>

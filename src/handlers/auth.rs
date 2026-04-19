@@ -11,7 +11,7 @@ use crate::types::*;
 
 const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v2/userinfo";
-const GRAPH_API_URL: &str = "https://graph.facebook.com/v21.0";
+const GRAPH_API_BASE: &str = "https://graph.facebook.com";
 
 const SESSION_TTL_SECONDS: u64 = 7 * 24 * 60 * 60; // 7 days
 
@@ -196,8 +196,9 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
 
             // Exchange code for access token
             let token_url = format!(
-                "{}/oauth/access_token?client_id={}&redirect_uri={}&client_secret={}&code={}",
-                GRAPH_API_URL,
+                "{}/{}/oauth/access_token?client_id={}&redirect_uri={}&client_secret={}&code={}",
+                GRAPH_API_BASE,
+                crate::META_API_VERSION,
                 app_id,
                 urlencoding::encode(&redirect_uri),
                 app_secret,
@@ -223,8 +224,10 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
 
             // Get Facebook user info
             let me_url = format!(
-                "{}/me?fields=id,name,email&access_token={}",
-                GRAPH_API_URL, access_token
+                "{}/{}/me?fields=id,name,email&access_token={}",
+                GRAPH_API_BASE,
+                crate::META_API_VERSION,
+                access_token
             );
             let mut init = RequestInit::new();
             init.with_method(Method::Get);
@@ -392,7 +395,7 @@ async fn create_session_and_redirect(
     tenant_id: &str,
     provider: &str,
 ) -> Result<Response> {
-    let session_token = generate_token();
+    let session_token = generate_token()?;
     save_session(kv, &session_token, tenant_id, SESSION_TTL_SECONDS).await?;
 
     let headers = Headers::new();

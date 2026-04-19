@@ -26,8 +26,8 @@ pub async fn handle_email(
 
     // Loop detection
     if raw_bytes
-        .windows(b"X-EmailProxy-Forwarded".len())
-        .any(|w| w == b"X-EmailProxy-Forwarded")
+        .windows(b"X-EmailProxy-Forwarded:".len())
+        .any(|w| w == b"X-EmailProxy-Forwarded:")
     {
         console_log!("Loop detected: {from} -> {to}");
         return Ok(EmailResult::Reject("Forwarding loop detected".into()));

@@ -211,14 +211,15 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>> {
 }
 
 /// Compute HMAC-SHA256 and return as hex
-pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> String {
+pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> Result<String> {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
-    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC key length is valid");
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(key).map_err(|_| Error::from("Invalid HMAC key"))?;
     mac.update(data);
     let result = mac.finalize();
-    hex_encode(&result.into_bytes())
+    Ok(hex_encode(&result.into_bytes()))
 }
 
 /// Verify a Meta webhook signature (X-Hub-Signature-256 header)
@@ -228,7 +229,10 @@ pub fn verify_meta_signature(app_secret: &str, body: &[u8], signature_header: &s
     if expected.is_empty() {
         return false;
     }
-    let computed = hmac_sha256_hex(app_secret.as_bytes(), body);
+    let computed = match hmac_sha256_hex(app_secret.as_bytes(), body) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
     // Constant-time comparison
     if computed.len() != expected.len() {
         return false;

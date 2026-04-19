@@ -38,7 +38,7 @@ pub async fn handle_lead_forms_admin(
         // Create new lead form (GET /admin/lead-forms/new or POST /admin/lead-forms)
         (Method::Get, ["new"]) | (Method::Post, []) => {
             let now = now_iso();
-            let slug = generate_slug();
+            let slug = generate_slug()?;
             let id = generate_id();
             let form = LeadCaptureForm {
                 id: id.clone(),

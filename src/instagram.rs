@@ -3,18 +3,19 @@ use worker::*;
 
 use crate::types::InstagramToken;
 
-const GRAPH_API_URL: &str = "https://graph.facebook.com/v21.0";
-const FACEBOOK_OAUTH_URL: &str = "https://www.facebook.com/v21.0/dialog/oauth";
+const GRAPH_API_BASE: &str = "https://graph.facebook.com";
+const FACEBOOK_OAUTH_BASE: &str = "https://www.facebook.com";
 
 /// Generate Facebook Login OAuth authorization URL
 pub fn get_auth_url(app_id: &str, redirect_uri: &str, state: &str) -> String {
     let scopes = "instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_messaging";
     format!(
-        "{}?client_id={}&redirect_uri={}&scope={}&response_type=code&state={}",
-        FACEBOOK_OAUTH_URL,
+        "{}/{}/dialog/oauth?client_id={}&redirect_uri={}&scope={}&response_type=code&state={}",
+        FACEBOOK_OAUTH_BASE,
+        crate::META_API_VERSION,
         app_id,
-        urlencoding_encode(redirect_uri),
-        urlencoding_encode(scopes),
+        urlencoding::encode(redirect_uri),
+        urlencoding::encode(scopes),
         state
     )
 }
@@ -27,10 +28,11 @@ pub async fn exchange_code_for_token(
     redirect_uri: &str,
 ) -> Result<String> {
     let url = format!(
-        "{}/oauth/access_token?client_id={}&redirect_uri={}&client_secret={}&code={}",
-        GRAPH_API_URL,
+        "{}/{}/oauth/access_token?client_id={}&redirect_uri={}&client_secret={}&code={}",
+        GRAPH_API_BASE,
+        crate::META_API_VERSION,
         app_id,
-        urlencoding_encode(redirect_uri),
+        urlencoding::encode(redirect_uri),
         app_secret,
         code
     );
@@ -65,8 +67,8 @@ pub async fn exchange_for_long_lived_token(
     app_secret: &str,
 ) -> Result<InstagramToken> {
     let url = format!(
-        "{}/oauth/access_token?grant_type=fb_exchange_token&client_id={}&client_secret={}&fb_exchange_token={}",
-        GRAPH_API_URL, app_id, app_secret, short_lived_token
+        "{}/{}/oauth/access_token?grant_type=fb_exchange_token&client_id={}&client_secret={}&fb_exchange_token={}",
+        GRAPH_API_BASE, crate::META_API_VERSION, app_id, app_secret, short_lived_token
     );
 
     let mut init = RequestInit::new();
@@ -109,8 +111,10 @@ pub async fn exchange_for_long_lived_token(
 /// Get user's Facebook Pages
 pub async fn get_user_pages(access_token: &str) -> Result<Vec<(String, String, String)>> {
     let url = format!(
-        "{}/me/accounts?fields=id,name,access_token&access_token={}",
-        GRAPH_API_URL, access_token
+        "{}/{}/me/accounts?fields=id,name,access_token&access_token={}",
+        GRAPH_API_BASE,
+        crate::META_API_VERSION,
+        access_token
     );
 
     let mut init = RequestInit::new();
@@ -153,8 +157,11 @@ pub async fn get_instagram_business_account(
     page_access_token: &str,
 ) -> Result<Option<(String, String)>> {
     let url = format!(
-        "{}/{}?fields=instagram_business_account{{id,username}}&access_token={}",
-        GRAPH_API_URL, page_id, page_access_token
+        "{}/{}/{}?fields=instagram_business_account{{id,username}}&access_token={}",
+        GRAPH_API_BASE,
+        crate::META_API_VERSION,
+        page_id,
+        page_access_token
     );
 
     let mut init = RequestInit::new();
@@ -199,7 +206,12 @@ pub async fn send_instagram_dm(
     recipient_id: &str,
     text: &str,
 ) -> Result<()> {
-    let url = format!("{}/{}/messages", GRAPH_API_URL, page_id);
+    let url = format!(
+        "{}/{}/{}/messages",
+        GRAPH_API_BASE,
+        crate::META_API_VERSION,
+        page_id
+    );
 
     let payload = serde_json::json!({
         "recipient": {"id": recipient_id},
@@ -228,10 +240,14 @@ pub async fn send_instagram_dm(
 }
 
 /// Refresh a long-lived token
-pub async fn refresh_token(current_token: &str) -> Result<InstagramToken> {
+pub async fn refresh_token(
+    current_token: &str,
+    app_id: &str,
+    app_secret: &str,
+) -> Result<InstagramToken> {
     let url = format!(
-        "{}/oauth/access_token?grant_type=fb_exchange_token&fb_exchange_token={}",
-        GRAPH_API_URL, current_token
+        "{}/{}/oauth/access_token?grant_type=fb_exchange_token&client_id={}&client_secret={}&fb_exchange_token={}",
+        GRAPH_API_BASE, crate::META_API_VERSION, app_id, app_secret, current_token
     );
 
     let mut init = RequestInit::new();
@@ -307,19 +323,4 @@ fn parse_iso_timestamp(iso: &str) -> Option<i64> {
     } else {
         Some(time as i64)
     }
-}
-
-fn urlencoding_encode(s: &str) -> String {
-    let mut result = String::with_capacity(s.len() * 3);
-    for c in s.chars() {
-        match c {
-            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => result.push(c),
-            _ => {
-                for byte in c.to_string().as_bytes() {
-                    result.push_str(&format!("%{:02X}", byte));
-                }
-            }
-        }
-    }
-    result
 }

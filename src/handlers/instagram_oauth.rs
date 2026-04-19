@@ -46,7 +46,7 @@ pub async fn handle_instagram(
                 return Response::error("Instagram integration not configured", 500);
             }
 
-            let state = format!("{}:{}", tenant_id, generate_token());
+            let state = format!("{}:{}", tenant_id, generate_token()?);
             let redirect_uri = format!("{}/instagram/callback", base_url);
 
             kv.put(&format!("instagram_oauth_state:{}", state), *tenant_id)?
