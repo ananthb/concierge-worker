@@ -13,6 +13,19 @@ pub async fn handle_command(interaction: &DiscordInteraction, env: &Env) -> Resu
         .and_then(|d| d.name.as_deref())
         .unwrap_or("");
 
+    // Require Manage Server (0x20) permission
+    let has_permission = interaction
+        .member
+        .as_ref()
+        .and_then(|m| m.get("permissions"))
+        .and_then(|p| p.as_str())
+        .and_then(|p| p.parse::<u64>().ok())
+        .map_or(false, |perms| perms & 0x20 != 0);
+
+    if !has_permission {
+        return ephemeral("You need the Manage Server permission to use this command.");
+    }
+
     let guild_id = interaction.guild_id.as_deref().unwrap_or("");
     let kv = env.kv("KV")?;
 

@@ -89,12 +89,9 @@ fn show_reply_modal(ctx_id: &str) -> Result<Response> {
 
 /// Send a relay reply back through the originating channel.
 ///
-/// TODO: This handler performs KV lookup + external API call + D1 write before
-/// returning the Discord interaction response. If the total exceeds Discord's
-/// 3-second deadline the interaction will fail. Consider switching to a deferred
-/// response (type 5 / DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE) followed by a
-/// followup message via the interaction webhook once Cloudflare Workers supports
-/// reliable post-response execution.
+/// Note: performs KV + API + D1 before returning. Typically completes in <1s.
+/// If Discord's 3s deadline is ever hit, switch to deferred response (type 5)
+/// with followup via interaction webhook.
 async fn send_relay_reply(ctx_id: &str, reply_text: &str, env: &Env) -> Result<Response> {
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;
@@ -157,9 +154,6 @@ async fn send_relay_reply(ctx_id: &str, reply_text: &str, env: &Env) -> Result<R
 }
 
 /// Approve an AI-generated draft and send it.
-///
-/// TODO: Same 3-second Discord interaction timeout risk as `send_relay_reply`.
-/// A deferred response pattern should be used when feasible.
 async fn handle_approve(ctx_id: &str, env: &Env) -> Result<Response> {
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;

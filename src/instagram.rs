@@ -233,7 +233,10 @@ pub async fn send_instagram_dm(
     let response = Fetch::Request(request).send().await?;
 
     if !response.status_code().to_string().starts_with('2') {
-        console_log!("Instagram DM API error: status {}", response.status_code());
+        return Err(Error::from(format!(
+            "Instagram DM API error: status {}",
+            response.status_code()
+        )));
     }
 
     Ok(())

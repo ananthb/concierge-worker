@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS email_metrics (
     tenant_id TEXT NOT NULL,
     UNIQUE(domain, rule_id, date, action_type)
 );
+CREATE INDEX IF NOT EXISTS idx_email_metrics_domain_date ON email_metrics(domain, date);
 
 -- Unified message log (all channels)
 CREATE TABLE IF NOT EXISTS messages (
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_tenant ON messages(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel, tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_channel_account ON messages(channel_account_id);
 
 -- Credit packs (managed by management panel)
 CREATE TABLE IF NOT EXISTS credit_packs (
@@ -133,6 +135,16 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_id ON payments(razorpay_payment_id);
+
+-- Tenant billing (credit ledger)
+CREATE TABLE IF NOT EXISTS tenant_billing (
+    tenant_id TEXT PRIMARY KEY,
+    credits_json TEXT NOT NULL DEFAULT '[]',
+    free_month TEXT,
+    replies_used INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 -- Audit log
 CREATE TABLE IF NOT EXISTS audit_log (

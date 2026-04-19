@@ -57,7 +57,7 @@ async fn handle_auto_reply(
     };
 
     // Deduct credit BEFORE generating/sending (prevents double-spend race)
-    if !billing::try_deduct(kv, &msg.tenant_id).await? {
+    if !billing::try_deduct(&db, &msg.tenant_id).await? {
         console_log!("Tenant {} out of credits, skipping reply", msg.tenant_id);
         return Ok(());
     }
@@ -80,7 +80,7 @@ async fn handle_auto_reply(
                 Err(e) => {
                     console_log!("AI auto-reply error: {:?}", e);
                     // Restore credit since we didn't send
-                    if let Err(re) = billing::restore_credit(kv, &msg.tenant_id).await {
+                    if let Err(re) = billing::restore_credit(&db, &msg.tenant_id).await {
                         console_log!("Failed to restore credit: {:?}", re);
                     }
                     return Ok(());
@@ -91,7 +91,7 @@ async fn handle_auto_reply(
 
     if reply.is_empty() {
         // Restore credit — no reply to send
-        if let Err(e) = billing::restore_credit(kv, &msg.tenant_id).await {
+        if let Err(e) = billing::restore_credit(&db, &msg.tenant_id).await {
             console_log!("Failed to restore credit: {:?}", e);
         }
         return Ok(());
@@ -110,7 +110,7 @@ async fn handle_auto_reply(
     {
         console_log!("Auto-reply send error: {:?}", e);
         // Restore credit — send failed
-        if let Err(re) = billing::restore_credit(kv, &msg.tenant_id).await {
+        if let Err(re) = billing::restore_credit(&db, &msg.tenant_id).await {
             console_log!("Failed to restore credit: {:?}", re);
         }
         return Ok(());

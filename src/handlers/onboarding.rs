@@ -12,7 +12,6 @@ pub async fn handle_wizard(
     mut req: Request,
     env: Env,
     path: &str,
-    _method: Method,
     base_url: &str,
     tenant_id: &str,
 ) -> Result<Response> {

@@ -54,6 +54,33 @@ pub async fn handle_lead_form(
             let kv = env.kv("KV")?;
             let db = env.d1("DB")?;
 
+            // Rate limit: 10 submissions per form per IP per hour
+            let client_ip = req
+                .headers()
+                .get("CF-Connecting-IP")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            if !client_ip.is_empty() {
+                let rl_key = format!("ratelimit:lead:{}:{}", form_id, client_ip);
+                let count: i64 = kv
+                    .get(&rl_key)
+                    .text()
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                if count >= 10 {
+                    return Response::error("Too many submissions. Please try again later.", 429);
+                }
+                let _ = kv
+                    .put(&rl_key, (count + 1).to_string())?
+                    .expiration_ttl(3600)
+                    .execute()
+                    .await;
+            }
+
             let form = match get_lead_form(&kv, form_id).await? {
                 Some(f) if f.enabled => f,
                 _ => return Response::error("Form not found", 404),

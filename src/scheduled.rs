@@ -53,12 +53,17 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
         }
     }
 
+    let mut total_accounts = 0u32;
+    let mut refreshed = 0u32;
+    let mut failures = 0u32;
+
     for tenant_id in &seen_tenants {
         let accounts = list_instagram_accounts(&kv, tenant_id).await?;
         for account in accounts {
             if !account.enabled {
                 continue;
             }
+            total_accounts += 1;
 
             let token_key = format!("instagram_token:{}", account.id);
             let encrypted_token = match kv.get(&token_key).text().await? {
@@ -74,12 +79,14 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
                         account.id,
                         e
                     );
+                    failures += 1;
                     continue;
                 }
             };
 
             if instagram::token_is_expired(&token) {
                 console_log!("Token expired for Instagram account {}", account.id);
+                failures += 1;
                 continue;
             }
 
@@ -88,7 +95,7 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
                     Ok(new_token) => {
                         let encrypted = crypto::encrypt_token(&new_token, &encryption_key).await?;
                         kv.put(&token_key, encrypted)?.execute().await?;
-                        console_log!("Refreshed token for Instagram account {}", account.id);
+                        refreshed += 1;
                     }
                     Err(e) => {
                         console_log!(
@@ -96,11 +103,19 @@ async fn refresh_instagram_tokens(env: &Env) -> Result<()> {
                             account.id,
                             e
                         );
+                        failures += 1;
                     }
                 }
             }
         }
     }
+
+    console_log!(
+        "Instagram token refresh: {} accounts, {} refreshed, {} failures",
+        total_accounts,
+        refreshed,
+        failures
+    );
 
     Ok(())
 }

@@ -184,13 +184,9 @@ pub fn interpolate_template(
     result
 }
 
-/// Truncate string to max length
+/// Truncate string to max characters (Unicode-safe).
 pub fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        s[..max].to_string()
-    }
+    s.chars().take(max).collect()
 }
 
 #[cfg(test)]

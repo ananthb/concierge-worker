@@ -16,9 +16,6 @@ pub struct Tenant {
     pub updated_at: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct TenantCredentials {}
-
 // ============================================================================
 // WhatsApp Account Resource
 // ============================================================================

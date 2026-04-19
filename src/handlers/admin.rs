@@ -72,43 +72,35 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
     }
 
     if path.starts_with("/admin/billing") {
-        return super::admin_billing::handle_billing_admin(
-            req, env, path, method, &base_url, &tenant_id,
-        )
-        .await;
+        return super::admin_billing::handle_billing_admin(req, env, path, &base_url, &tenant_id)
+            .await;
     }
 
     if path.starts_with("/admin/whatsapp") {
-        return super::admin_whatsapp::handle_whatsapp_admin(
-            req, env, path, method, &base_url, &tenant_id,
-        )
-        .await;
+        return super::admin_whatsapp::handle_whatsapp_admin(req, env, path, &base_url, &tenant_id)
+            .await;
     }
 
     if path.starts_with("/admin/lead-forms") {
         return super::admin_lead_forms::handle_lead_forms_admin(
-            req, env, path, method, &base_url, &tenant_id,
+            req, env, path, &base_url, &tenant_id,
         )
         .await;
     }
 
     if path.starts_with("/admin/instagram") {
         return super::admin_instagram::handle_instagram_admin(
-            req, env, path, method, &base_url, &tenant_id,
+            req, env, path, &base_url, &tenant_id,
         )
         .await;
     }
 
     if path.starts_with("/admin/email") {
-        return super::admin_email::handle_email_admin(
-            req, env, path, method, &base_url, &tenant_id,
-        )
-        .await;
+        return super::admin_email::handle_email_admin(req, env, path, &base_url, &tenant_id).await;
     }
 
     if path.starts_with("/admin/wizard") {
-        return super::onboarding::handle_wizard(req, env, path, method, &base_url, &tenant_id)
-            .await;
+        return super::onboarding::handle_wizard(req, env, path, &base_url, &tenant_id).await;
     }
 
     if path == "/admin" || path == "/admin/" {
@@ -125,7 +117,8 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         let whatsapp_accounts = list_whatsapp_accounts(&kv, &tenant_id).await?;
         let instagram_accounts = list_instagram_accounts(&kv, &tenant_id).await?;
         let lead_forms = list_lead_forms(&kv, &tenant_id).await?;
-        let mut billing = crate::storage::get_tenant_billing(&kv, &tenant_id).await?;
+        let db = env.d1("DB")?;
+        let mut billing = crate::storage::get_tenant_billing(&db, &tenant_id).await?;
         crate::billing::refresh_billing(&mut billing);
 
         let mut resp = Response::from_html(admin_dashboard_html(
