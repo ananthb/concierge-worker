@@ -66,14 +66,14 @@ pub async fn handle_webhook(
                 .map(|s| s.to_string())
                 .unwrap_or_default();
 
-            if !app_secret.is_empty()
-                && !crate::crypto::verify_meta_signature(
+            if app_secret.is_empty()
+                || !crate::crypto::verify_meta_signature(
                     &app_secret,
                     body_text.as_bytes(),
                     &sig_header,
                 )
             {
-                console_log!("Invalid WhatsApp webhook signature");
+                console_log!("WhatsApp webhook signature verification failed");
                 return Response::error("Unauthorized", 401);
             }
 

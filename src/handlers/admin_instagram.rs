@@ -12,7 +12,6 @@ pub async fn handle_instagram_admin(
     mut req: Request,
     env: Env,
     path: &str,
-    _method: Method,
     base_url: &str,
     tenant_id: &str,
 ) -> Result<Response> {

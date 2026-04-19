@@ -23,8 +23,8 @@ const FREE_MONTHLY_AMOUNT: i64 = 100;
 /// Try to deduct one reply credit. Returns true if credit was available
 /// and deducted. Returns false if out of credits.
 /// Must be called BEFORE sending the reply.
-pub async fn try_deduct(kv: &kv::KvStore, tenant_id: &str) -> Result<bool> {
-    let mut billing = storage::get_tenant_billing(kv, tenant_id).await?;
+pub async fn try_deduct(db: &D1Database, tenant_id: &str) -> Result<bool> {
+    let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
     ensure_free_monthly(&mut billing);
     prune_expired(&mut billing);
     sort_credits(&mut billing);
@@ -39,20 +39,20 @@ pub async fn try_deduct(kv: &kv::KvStore, tenant_id: &str) -> Result<bool> {
     }
 
     if !deducted {
-        storage::save_tenant_billing(kv, tenant_id, &billing).await?;
+        storage::save_tenant_billing(db, tenant_id, &billing).await?;
         return Ok(false);
     }
 
     billing.credits.retain(|e| e.amount > 0);
     billing.replies_used += 1;
-    storage::save_tenant_billing(kv, tenant_id, &billing).await?;
+    storage::save_tenant_billing(db, tenant_id, &billing).await?;
     Ok(true)
 }
 
 /// Restore one reply credit after a failed send.
 /// Adds as a non-expiring purchase credit for simplicity.
-pub async fn restore_credit(kv: &kv::KvStore, tenant_id: &str) -> Result<()> {
-    let mut billing = storage::get_tenant_billing(kv, tenant_id).await?;
+pub async fn restore_credit(db: &D1Database, tenant_id: &str) -> Result<()> {
+    let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
     billing.credits.push(CreditEntry {
         amount: 1,
         source: CreditSource::Purchase,
@@ -60,27 +60,27 @@ pub async fn restore_credit(kv: &kv::KvStore, tenant_id: &str) -> Result<()> {
         granted_at: now_iso(),
     });
     billing.replies_used = (billing.replies_used - 1).max(0);
-    storage::save_tenant_billing(kv, tenant_id, &billing).await
+    storage::save_tenant_billing(db, tenant_id, &billing).await
 }
 
 /// Grant purchased credits (never expire).
-pub async fn grant_purchased(kv: &kv::KvStore, tenant_id: &str, count: i64) -> Result<()> {
+pub async fn grant_purchased(db: &D1Database, tenant_id: &str, count: i64) -> Result<()> {
     if count <= 0 {
         return Err(Error::from("Credit count must be positive"));
     }
-    let mut billing = storage::get_tenant_billing(kv, tenant_id).await?;
+    let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
     billing.credits.push(CreditEntry {
         amount: count,
         source: CreditSource::Purchase,
         expires_at: None,
         granted_at: now_iso(),
     });
-    storage::save_tenant_billing(kv, tenant_id, &billing).await
+    storage::save_tenant_billing(db, tenant_id, &billing).await
 }
 
 /// Grant credits with expiry (for management grants).
 pub async fn grant_with_expiry(
-    kv: &kv::KvStore,
+    db: &D1Database,
     tenant_id: &str,
     count: i64,
     expires_in_days: i64,
@@ -88,14 +88,14 @@ pub async fn grant_with_expiry(
     if count <= 0 {
         return Err(Error::from("Credit count must be positive"));
     }
-    let mut billing = storage::get_tenant_billing(kv, tenant_id).await?;
+    let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
     billing.credits.push(CreditEntry {
         amount: count,
         source: CreditSource::Grant,
         expires_at: Some(days_from_now(expires_in_days)),
         granted_at: now_iso(),
     });
-    storage::save_tenant_billing(kv, tenant_id, &billing).await
+    storage::save_tenant_billing(db, tenant_id, &billing).await
 }
 
 /// Prepare billing for display — ensures free monthly credits and prunes expired.

@@ -2,7 +2,8 @@ use wasm_bindgen::JsValue;
 use worker::*;
 
 use crate::types::{
-    CreditPackRow, InstagramAccount, LeadCaptureForm, Tenant, TenantBilling, WhatsAppAccount,
+    CreditEntry, CreditPackRow, InstagramAccount, LeadCaptureForm, Tenant, TenantBilling,
+    WhatsAppAccount,
 };
 
 // ============================================================================
@@ -393,8 +394,12 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         }
     }
 
-    // Delete KV billing data
-    kv.delete(&format!("billing:{}", tenant_id)).await?;
+    // Delete D1 billing data
+    let _ = db
+        .prepare("DELETE FROM tenant_billing WHERE tenant_id = ?")
+        .bind(&[tenant_id.into()])?
+        .run()
+        .await;
 
     // Delete email domains and rules
     if let Ok(domains) = get_email_domains(kv, tenant_id).await {
@@ -950,24 +955,68 @@ pub async fn get_discord_config_by_tenant(
 // Billing Storage
 // ============================================================================
 
-pub async fn get_tenant_billing(kv: &kv::KvStore, tenant_id: &str) -> Result<TenantBilling> {
-    let key = format!("billing:{tenant_id}");
-    kv.get(&key)
-        .json::<TenantBilling>()
-        .await
-        .map_err(|e| Error::from(e.to_string()))
-        .map(|opt| opt.unwrap_or_default())
+pub async fn get_tenant_billing(db: &D1Database, tenant_id: &str) -> Result<TenantBilling> {
+    let stmt = db.prepare(
+        "SELECT credits_json, free_month, replies_used FROM tenant_billing WHERE tenant_id = ?",
+    );
+    let result = stmt
+        .bind(&[tenant_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(row) => {
+            let credits_json = row
+                .get("credits_json")
+                .and_then(|v| v.as_str())
+                .unwrap_or("[]");
+            let credits: Vec<CreditEntry> = serde_json::from_str(credits_json).unwrap_or_default();
+            let free_month = row
+                .get("free_month")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let replies_used = row
+                .get("replies_used")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            Ok(TenantBilling {
+                credits,
+                free_month,
+                replies_used,
+            })
+        }
+        None => Ok(TenantBilling::default()),
+    }
 }
 
 pub async fn save_tenant_billing(
-    kv: &kv::KvStore,
+    db: &D1Database,
     tenant_id: &str,
     billing: &TenantBilling,
 ) -> Result<()> {
-    let key = format!("billing:{tenant_id}");
-    let json =
-        serde_json::to_string(billing).map_err(|e| Error::from(format!("JSON error: {e}")))?;
-    kv.put(&key, json)?.execute().await?;
+    let credits_json = serde_json::to_string(&billing.credits)
+        .map_err(|e| Error::from(format!("JSON error: {e}")))?;
+    let free_month_val: wasm_bindgen::JsValue = match &billing.free_month {
+        Some(m) => m.as_str().into(),
+        None => wasm_bindgen::JsValue::NULL,
+    };
+    let stmt = db.prepare(
+        "INSERT INTO tenant_billing (tenant_id, credits_json, free_month, replies_used, updated_at)
+         VALUES (?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(tenant_id) DO UPDATE SET
+           credits_json = excluded.credits_json,
+           free_month = excluded.free_month,
+           replies_used = excluded.replies_used,
+           updated_at = datetime('now')",
+    );
+    stmt.bind(&[
+        tenant_id.into(),
+        credits_json.as_str().into(),
+        free_month_val,
+        (billing.replies_used as f64).into(),
+    ])?
+    .run()
+    .await?;
     Ok(())
 }
 

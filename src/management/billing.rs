@@ -160,7 +160,7 @@ pub async fn handle_billing(
                 );
             }
 
-            crate::billing::grant_with_expiry(kv, tenant_id, count, expires_days).await?;
+            crate::billing::grant_with_expiry(db, tenant_id, count, expires_days).await?;
 
             let expires_at = crate::helpers::days_from_now(expires_days);
             audit::log_action(
@@ -173,7 +173,7 @@ pub async fn handle_billing(
             )
             .await?;
 
-            let mut billing = storage::get_tenant_billing(kv, tenant_id).await?;
+            let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
             crate::billing::refresh_billing(&mut billing);
             Response::from_html(format!(
                 r#"<div class="success">Granted {count} replies to {tid} (expires in {days} days). Balance: {bal}</div>"#,

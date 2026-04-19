@@ -24,10 +24,20 @@ pub async fn handle_email(
         return Ok(EmailResult::Reject("Invalid recipient".into()));
     }
 
-    // Loop detection
-    if raw_bytes
-        .windows(b"X-EmailProxy-Forwarded:".len())
-        .any(|w| w == b"X-EmailProxy-Forwarded:")
+    // Loop detection: check for our forwarding header in the raw email headers.
+    // Only search up to the first blank line (header/body boundary) to avoid false positives.
+    let header_end = raw_bytes
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap_or(raw_bytes.len().min(8192));
+    let header_section = &raw_bytes[..header_end];
+    let header_lower: Vec<u8> = header_section
+        .iter()
+        .map(|b| b.to_ascii_lowercase())
+        .collect();
+    if header_lower
+        .windows(b"x-emailproxy-forwarded:".len())
+        .any(|w| w == b"x-emailproxy-forwarded:")
     {
         console_log!("Loop detected: {from} -> {to}");
         return Ok(EmailResult::Reject("Forwarding loop detected".into()));

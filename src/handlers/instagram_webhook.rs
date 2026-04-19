@@ -46,10 +46,10 @@ pub async fn handle_instagram_dm(mut req: Request, env: Env) -> Result<Response>
         .map(|s| s.to_string())
         .unwrap_or_default();
 
-    if !app_secret.is_empty()
-        && !crate::crypto::verify_meta_signature(&app_secret, body_text.as_bytes(), &sig_header)
+    if app_secret.is_empty()
+        || !crate::crypto::verify_meta_signature(&app_secret, body_text.as_bytes(), &sig_header)
     {
-        console_log!("Invalid Instagram webhook signature");
+        console_log!("Instagram webhook signature verification failed");
         return Response::error("Unauthorized", 401);
     }
 

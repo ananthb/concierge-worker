@@ -38,6 +38,19 @@ struct EmailParams<'a> {
     proxy_domain: &'a str,
 }
 
+/// RFC 2047 encode a subject if it contains non-ASCII characters.
+fn encode_subject(subject: &str) -> String {
+    if subject.is_ascii() {
+        subject.to_string()
+    } else {
+        use base64::Engine;
+        format!(
+            "=?UTF-8?B?{}?=",
+            base64::engine::general_purpose::STANDARD.encode(subject.as_bytes())
+        )
+    }
+}
+
 /// Build a raw RFC 2822 email from parts.
 fn build_email(params: &EmailParams<'_>) -> Vec<u8> {
     let EmailParams {
@@ -65,7 +78,7 @@ fn build_email(params: &EmailParams<'_>) -> Vec<u8> {
     ));
     out.push_str(&format!("From: {from}\r\n"));
     out.push_str(&format!("To: {to}\r\n"));
-    out.push_str(&format!("Subject: {subject}\r\n"));
+    out.push_str(&format!("Subject: {}\r\n", encode_subject(subject)));
     out.push_str("MIME-Version: 1.0\r\n");
 
     if let Some(rt) = reply_to {
