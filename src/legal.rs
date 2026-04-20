@@ -4,7 +4,7 @@ use crate::templates::base::{base_html_with_meta, brand_mark, PageMeta};
 
 pub fn terms_of_service_html() -> String {
     let content = format!(
-        r##"<header style="display:flex;align-items:center;gap:28px;padding:18px 28px;border-bottom:1px solid var(--hair);background:var(--paper)">
+        r##"<header class="site-header">
   {brand}
   <div style="margin-left:auto"><a href="/" class="btn ghost sm">&larr; Home</a></div>
 </header>
@@ -52,7 +52,7 @@ pub fn terms_of_service_html() -> String {
 
 pub fn privacy_policy_html() -> String {
     let content = format!(
-        r##"<header style="display:flex;align-items:center;gap:28px;padding:18px 28px;border-bottom:1px solid var(--hair);background:var(--paper)">
+        r##"<header class="site-header">
   {brand}
   <div style="margin-left:auto"><a href="/" class="btn ghost sm">&larr; Home</a></div>
 </header>
