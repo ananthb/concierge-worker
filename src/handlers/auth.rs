@@ -49,25 +49,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 last_provider.as_deref(),
             );
 
-            // Capture biz name from query param (set during onboarding start)
-            let mut resp = Response::from_html(html)?;
-            let url = req.url()?;
-            if let Some(biz) = url
-                .query_pairs()
-                .find(|(k, _)| k == "biz")
-                .map(|(_, v)| v.to_string())
-            {
-                if !biz.is_empty() {
-                    resp.headers_mut().append(
-                        "Set-Cookie",
-                        &format!(
-                            "onboarding_biz={}; Path=/; Secure; SameSite=Lax; Max-Age=3600",
-                            urlencoding::encode(&biz)
-                        ),
-                    )?;
-                }
-            }
-            Ok(resp)
+            Ok(Response::from_html(html)?)
         }
 
         // Google OAuth callback
@@ -420,19 +402,6 @@ async fn create_session_and_redirect(
             provider
         ),
     )?;
-    // Persist biz name if it was set during onboarding start (upgrade to long-lived)
-    if let Some(biz) = get_cookie(req, "onboarding_biz") {
-        if !biz.is_empty() {
-            headers.append(
-                "Set-Cookie",
-                &format!(
-                    "onboarding_biz={}; Path=/; Secure; SameSite=Lax; Max-Age=31536000",
-                    biz
-                ),
-            )?;
-        }
-    }
-
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
 
