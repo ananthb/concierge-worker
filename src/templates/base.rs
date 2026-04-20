@@ -26,8 +26,10 @@ html, body { margin:0; padding:0; background:var(--cream); color:var(--ink);
 body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:1; opacity:.35;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 .05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   mix-blend-mode:multiply; }
-.app-root { position:relative; z-index:2; min-height:100vh; }
-.site-header { flex:none; }
+.app-root { position:relative; z-index:2; min-height:100vh; display:flex; flex-direction:column; }
+.app-root > :last-child { margin-top:auto; }
+.site-header, .site-footer { flex:none; padding:18px 28px; border-color:var(--hair); }
+.site-footer { border-top:1px solid var(--hair); text-align:center; color:var(--muted); font-size:13px; }
 .mono { font-family:var(--f-mono); letter-spacing:.02em; }
 .serif { font-family:var(--f-display); }
 .eyebrow { font-family:var(--f-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
@@ -359,7 +361,7 @@ pub fn brand_mark() -> String {
 
 /// Shared footer for all pages.
 pub fn footer() -> &'static str {
-    r##"<footer style="text-align:center;padding:2rem;color:var(--muted);font-size:13px;border-top:1px solid var(--hair)">
+    r##"<footer class="site-footer">
   <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">Open-source</a> &middot;
   Licensed under <a href="https://www.gnu.org/licenses/agpl-3.0.html" style="color:var(--muted)">AGPL-3.0</a> &middot;
   <a href="https://ananthb.github.io/concierge-worker/" style="color:var(--muted)">Docs</a> &middot;
