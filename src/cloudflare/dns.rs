@@ -14,6 +14,13 @@ struct CfApiResponse {
 }
 
 #[derive(Deserialize)]
+struct CfListResponse {
+    success: bool,
+    #[serde(default)]
+    result: Vec<CfMxRecord>,
+}
+
+#[derive(Deserialize)]
 struct CfApiError {
     message: String,
 }
@@ -21,6 +28,12 @@ struct CfApiError {
 #[derive(Deserialize)]
 struct CfDnsRecord {
     id: String,
+}
+
+#[derive(Deserialize)]
+struct CfMxRecord {
+    content: String,
+    priority: u16,
 }
 
 /// Validate a subdomain label (the part before the base domain).
@@ -60,28 +73,60 @@ pub fn validate_subdomain_label(label: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Create MX records for a subdomain on the Cloudflare zone.
+/// Create MX records for a subdomain by copying the apex domain's MX records.
 /// Returns the DNS record IDs on success.
 pub async fn create_mx_records(
     zone_id: &str,
     subdomain_label: &str,
     base_domain: &str,
-    mx_primary: &str,
-    mx_secondary: &str,
     api_token: &str,
 ) -> Result<Vec<String>> {
+    // Discover MX servers from the apex domain
+    let apex_mx = get_mx_records(zone_id, base_domain, api_token).await?;
+    if apex_mx.is_empty() {
+        return Err(Error::from(
+            "No MX records found on apex domain. Enable Cloudflare Email Routing first.",
+        ));
+    }
+
     let full_name = format!("{subdomain_label}.{base_domain}");
     let mut record_ids = Vec::new();
 
-    // Create primary MX record (priority 10)
-    let id = create_single_mx(zone_id, &full_name, mx_primary, 10, api_token).await?;
-    record_ids.push(id);
-
-    // Create secondary MX record (priority 20)
-    let id = create_single_mx(zone_id, &full_name, mx_secondary, 20, api_token).await?;
-    record_ids.push(id);
+    for mx in &apex_mx {
+        let id = create_single_mx(zone_id, &full_name, &mx.content, mx.priority, api_token).await?;
+        record_ids.push(id);
+    }
 
     Ok(record_ids)
+}
+
+/// List MX records for a given name in the zone.
+async fn get_mx_records(zone_id: &str, name: &str, api_token: &str) -> Result<Vec<CfMxRecord>> {
+    let url = format!(
+        "{CF_API_BASE}/zones/{zone_id}/dns_records?type=MX&name={name}",
+        name = urlencoding::encode(name),
+    );
+
+    let headers = auth_headers(api_token)?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Get).with_headers(headers);
+
+    let req = Request::new_with_init(&url, &init)?;
+    let mut resp = Fetch::Request(req).send().await?;
+    let text = resp.text().await?;
+
+    if resp.status_code() != 200 {
+        return Err(Error::from(format!("Failed to list MX records: {}", text)));
+    }
+
+    let api_resp: CfListResponse =
+        serde_json::from_str(&text).map_err(|e| Error::from(e.to_string()))?;
+
+    if !api_resp.success {
+        return Err(Error::from("Cloudflare API returned success=false"));
+    }
+
+    Ok(api_resp.result)
 }
 
 /// Delete DNS records by their IDs.

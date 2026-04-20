@@ -95,17 +95,9 @@ pub async fn handle_email_admin(
                 );
             }
 
-            // Provision MX records via Cloudflare API
+            // Provision MX records via Cloudflare API (auto-discovers MX from apex)
             let zone_id = env
                 .var("EMAIL_ZONE_ID")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-            let mx_primary = env
-                .var("EMAIL_MX_PRIMARY")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-            let mx_secondary = env
-                .var("EMAIL_MX_SECONDARY")
                 .map(|v| v.to_string())
                 .unwrap_or_default();
             let api_token = env.secret("CF_DNS_API_TOKEN")?.to_string();
@@ -114,8 +106,6 @@ pub async fn handle_email_admin(
                 &zone_id,
                 &label,
                 &base_domain,
-                &mx_primary,
-                &mx_secondary,
                 &api_token,
             )
             .await?;
