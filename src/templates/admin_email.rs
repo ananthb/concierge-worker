@@ -205,9 +205,29 @@ pub fn email_rules_html(domain: &str, rules: &[RoutingRule], base_url: &str) -> 
         ""
     };
 
+    let templates_section = if rules.is_empty() {
+        format!(
+            r#"<div class="card" style="padding:22px;margin-bottom:16px;border-color:var(--accent);background:linear-gradient(135deg,var(--paper),var(--accent-soft))">
+            <div class="eyebrow" style="margin-bottom:12px">Quick start</div>
+            <p style="margin-bottom:14px" class="muted">No rules yet. Pick a template to get started:</p>
+            <div class="row gap-8" style="flex-wrap:wrap" hx-ext="json-enc">
+                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"Forward all to inbox","priority":"0","enabled":"true","action_type":"forward_email","destination":"you@example.com"}}' hx-target="body" hx-swap="innerHTML">Forward all to inbox</button>
+                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"Relay to Discord","priority":"0","enabled":"true","action_type":"forward_discord","channel_id":""}}' hx-target="body" hx-swap="innerHTML">Relay to Discord</button>
+                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"AI auto-reply","priority":"0","enabled":"true","action_type":"ai_reply"}}' hx-target="body" hx-swap="innerHTML">AI auto-reply</button>
+            </div>
+        </div>"#,
+            base_url = base_url,
+            domain = html_escape(domain),
+        )
+    } else {
+        String::new()
+    };
+
     let content = format!(
         "<p><a href=\"{base_url}/admin/email\">&larr; Back to Email Routing</a></p>
         <h1>Rules for {domain}</h1>
+
+        {templates_section}
 
         <div class=\"card\">
             <table>
@@ -223,6 +243,7 @@ pub fn email_rules_html(domain: &str, rules: &[RoutingRule], base_url: &str) -> 
         </div>",
         base_url = base_url,
         domain = html_escape(domain),
+        templates_section = templates_section,
         rule_rows = rule_rows,
         empty = empty,
         rule_form = rule_form_html(domain, None, base_url),

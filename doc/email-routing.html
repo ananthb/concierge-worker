@@ -57,32 +57,55 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 
 <h1>Email Routing</h1>
 
-<p>Concierge acts as a smart email router. Inbound emails arrive via Cloudflare Email Routing's catch-all rule, are matched against configurable routing rules, and actions are executed automatically.</p>
+<p>Concierge provides managed email subdomains with smart routing. Each tenant gets one or more subdomains (e.g., <code>acme.conciergemail.co</code>) provisioned automatically. Inbound emails are matched against configurable routing rules and actions are executed automatically.</p>
+
+<h2>Getting Started</h2>
+
+<ol>
+  <li>Go to <strong>Email Routing</strong> in the admin panel</li>
+  <li>Enter a subdomain name (e.g., <code>acme</code>) — this creates <code>acme.youremaildomain.co</code></li>
+  <li>Complete payment (₹199/$2 per month per subdomain)</li>
+  <li>MX records are provisioned automatically via the Cloudflare API</li>
+  <li>Your subdomain is live — any email to <code>*@acme.youremaildomain.co</code> is processed</li>
+  <li>Set up routing rules to forward, relay to Discord, or auto-reply with AI</li>
+</ol>
 
 <h2>How It Works</h2>
 
 <ol>
-  <li>An email arrives at any address on your domain (e.g., <code>support@example.com</code>)</li>
+  <li>An email arrives at any address on your subdomain (e.g., <code>support@acme.conciergemail.co</code>)</li>
   <li>Cloudflare Email Routing triggers the Worker's <code>email()</code> handler</li>
   <li>The recipient domain is extracted and mapped to a tenant via a KV index</li>
   <li>The email is parsed (subject, body, attachments)</li>
   <li>A loop-detection header (<code>X-EmailProxy-Forwarded</code>) is checked</li>
-  <li>Routing rules for that domain are evaluated in priority order</li>
+  <li>Routing rules for that subdomain are evaluated in priority order</li>
   <li>The highest-priority matching rule's action is executed</li>
-  <li>If no rule matches, the domain's default action is used (defaults to Drop)</li>
+  <li>If no rule matches, the subdomain's default action is used (defaults to Drop)</li>
   <li>The action is logged to the <code>email_messages</code> table and <code>email_metrics</code> counters</li>
 </ol>
 
-<h2>Domains</h2>
+<h2>Subdomains</h2>
 
-<p>Each tenant can register one or more email domains. A domain represents a catch-all email endpoint. Domains are managed via:</p>
+<p>Each tenant can have multiple email subdomains. A subdomain represents a catch-all email endpoint under the operator's email zone. Subdomains are managed via the web admin panel.</p>
 
 <ul>
-  <li>The web admin panel</li>
-  <li>Discord <code>/domains</code> slash command (<code>/domains list</code>, <code>/domains add</code>, <code>/domains remove</code>)</li>
+  <li><strong>Pricing</strong>: ₹199/$2 per subdomain per month (recurring via Razorpay)</li>
+  <li><strong>Provisioning</strong>: MX records are created automatically when you add a subdomain</li>
+  <li><strong>Suspension</strong>: If payment fails, the subdomain is suspended and MX records are removed</li>
+  <li><strong>Deletion</strong>: Removes MX records, cancels subscription, and clears all rules</li>
 </ul>
 
-<p>Each domain has a <strong>default action</strong> that applies when no routing rule matches. The default is <code>Drop</code> (silently discard).</p>
+<p>Each subdomain has a <strong>default action</strong> that applies when no routing rule matches. The default is <code>Drop</code> (silently discard).</p>
+
+<h3>Subdomain Naming Rules</h3>
+
+<ul>
+  <li>3–63 characters</li>
+  <li>Letters, numbers, and hyphens only</li>
+  <li>Cannot start or end with a hyphen</li>
+  <li>Reserved names (<code>www</code>, <code>mail</code>, <code>admin</code>, <code>api</code>, etc.) are blocked</li>
+  <li>Must be globally unique across all tenants</li>
+</ul>
 
 <h2>Routing Rules</h2>
 
@@ -145,15 +168,15 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 
 <h2>Reverse-Alias Reply Routing</h2>
 
-<p>When an email is forwarded via the <strong>Forward Email</strong> action, Concierge generates a unique reverse-alias address on the domain (e.g., <code>reply-abc123@example.com</code>). This alias is used as the <code>From</code> address in the forwarded email.</p>
+<p>When an email is forwarded via the <strong>Forward Email</strong> action, Concierge generates a unique reverse-alias address on the subdomain (e.g., <code>reply+abc123@acme.conciergemail.co</code>). This alias is used as the <code>From</code> address in the forwarded email.</p>
 
 <p>When the recipient replies to the forwarded email, their reply goes to the reverse-alias address. Concierge looks up the alias, finds the original sender, and forwards the reply back to them: making the conversation appear seamless.</p>
 
 <ol>
-  <li>Email from <code>alice@external.com</code> to <code>support@example.com</code></li>
-  <li>Concierge forwards to <code>you@personal.com</code> with From: <code>reply-abc123@example.com</code></li>
-  <li>You reply to <code>reply-abc123@example.com</code></li>
-  <li>Concierge forwards your reply back to <code>alice@external.com</code> with From: <code>support@example.com</code></li>
+  <li>Email from <code>alice@external.com</code> to <code>support@acme.conciergemail.co</code></li>
+  <li>Concierge forwards to <code>you@personal.com</code> with From: <code>reply+abc123@acme.conciergemail.co</code></li>
+  <li>You reply to <code>reply+abc123@acme.conciergemail.co</code></li>
+  <li>Concierge forwards your reply back to <code>alice@external.com</code> with From: <code>support@acme.conciergemail.co</code></li>
 </ol>
 
 <h2>AI Reply with Approval</h2>
@@ -170,12 +193,9 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 
 <h2>Managing Rules</h2>
 
-<p>Rules can be managed via:</p>
+<p>Rules are managed via the <strong>web admin panel</strong>. Each subdomain has its own rules page with full CRUD.</p>
 
-<ul>
-  <li><strong>Web admin panel</strong>: Full CRUD for domains and rules</li>
-  <li><strong>Discord</strong>: <code>/rules list &lt;domain&gt;</code> to view rules. For complex rule management, use the web admin</li>
-</ul>
+<p>Use Discord <code>/domains list</code> to view your subdomains and their status.</p>
 
 <h2>Loop Detection</h2>
 
