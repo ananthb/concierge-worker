@@ -76,6 +76,68 @@ pub fn verify_webhook_signature(body: &str, signature: &str, webhook_secret: &st
     expected.as_bytes().ct_eq(signature.as_bytes()).into()
 }
 
+/// Create a Razorpay subscription for an email subdomain.
+pub async fn create_subscription(
+    key_id: &str,
+    key_secret: &str,
+    plan_id: &str,
+    tenant_id: &str,
+    subdomain: &str,
+) -> Result<serde_json::Value> {
+    let payload = serde_json::json!({
+        "plan_id": plan_id,
+        "total_count": 0,
+        "customer_notify": 1,
+        "notes": {
+            "tenant_id": tenant_id,
+            "subdomain": subdomain,
+            "type": "email_subdomain",
+        },
+    });
+
+    razorpay_post(key_id, key_secret, "/subscriptions", &payload).await
+}
+
+/// Cancel a Razorpay subscription (at end of current billing period).
+pub async fn cancel_subscription(
+    key_id: &str,
+    key_secret: &str,
+    subscription_id: &str,
+) -> Result<serde_json::Value> {
+    let payload = serde_json::json!({
+        "cancel_at_cycle_end": 1,
+    });
+
+    let url = format!("{RAZORPAY_API}/subscriptions/{subscription_id}/cancel");
+    let body =
+        serde_json::to_string(&payload).map_err(|e| Error::from(format!("JSON error: {e}")))?;
+
+    let auth = base64_encode(&format!("{key_id}:{key_secret}"));
+
+    let headers = Headers::new();
+    headers.set("Authorization", &format!("Basic {auth}"))?;
+    headers.set("Content-Type", "application/json")?;
+
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post)
+        .with_headers(headers)
+        .with_body(Some(wasm_bindgen::JsValue::from_str(&body)));
+
+    let request = Request::new_with_init(&url, &init)?;
+    let mut resp = Fetch::Request(request).send().await?;
+
+    if resp.status_code() >= 400 {
+        let err = resp.text().await.unwrap_or_default();
+        return Err(Error::from(format!(
+            "Razorpay cancel subscription error {}: {}",
+            resp.status_code(),
+            err
+        )));
+    }
+
+    resp.json().await
+}
+
 // --- Internal helpers ---
 
 async fn razorpay_post(

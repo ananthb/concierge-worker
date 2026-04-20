@@ -76,6 +76,93 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
             console_log!("Razorpay payment failed: {:?}", payload.get("payload"));
             Response::ok("OK")
         }
+
+        // Email subdomain subscription lifecycle
+        "subscription.activated" => {
+            let subscription = match payload.pointer("/payload/subscription/entity") {
+                Some(s) => s,
+                None => return Response::ok("OK"),
+            };
+            let tenant_id = subscription
+                .pointer("/notes/tenant_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let subdomain = subscription
+                .pointer("/notes/subdomain")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if !tenant_id.is_empty() && !subdomain.is_empty() {
+                console_log!("Subscription activated for {subdomain} (tenant {tenant_id})");
+            }
+            Response::ok("OK")
+        }
+
+        "subscription.halted" | "subscription.cancelled" => {
+            let subscription = match payload.pointer("/payload/subscription/entity") {
+                Some(s) => s,
+                None => return Response::ok("OK"),
+            };
+            let tenant_id = subscription
+                .pointer("/notes/tenant_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let subdomain_label = subscription
+                .pointer("/notes/subdomain")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if tenant_id.is_empty() || subdomain_label.is_empty() {
+                console_log!("Subscription {event} missing tenant_id/subdomain");
+                return Response::ok("OK");
+            }
+
+            console_log!(
+                "Subscription {event} for {subdomain_label} (tenant {tenant_id}) — suspending"
+            );
+
+            let kv = env.kv("KV")?;
+            let mut subdomains = crate::storage::get_email_subdomains(&kv, tenant_id).await?;
+
+            if let Some(sub) = subdomains.iter_mut().find(|s| s.label == subdomain_label) {
+                sub.status = crate::types::SubdomainStatus::Suspended;
+                sub.updated_at = crate::helpers::now_iso();
+
+                // Delete MX records
+                if !sub.dns_record_ids.is_empty() {
+                    let zone_id = env
+                        .var("EMAIL_ZONE_ID")
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    let api_token = env
+                        .secret("CF_DNS_API_TOKEN")
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    if !zone_id.is_empty() && !api_token.is_empty() {
+                        let _ = crate::cloudflare::dns::delete_dns_records(
+                            &zone_id,
+                            &sub.dns_record_ids,
+                            &api_token,
+                        )
+                        .await;
+                    }
+                    sub.dns_record_ids.clear();
+                }
+            }
+
+            crate::storage::save_email_subdomains(&kv, tenant_id, &subdomains).await?;
+
+            // Remove domain index so inbound email stops routing
+            let base_domain = env
+                .var("EMAIL_BASE_DOMAIN")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            let full_domain = format!("{subdomain_label}.{base_domain}");
+            let _ = crate::storage::delete_email_domain_index(&kv, &full_domain).await;
+
+            Response::ok("OK")
+        }
+
         _ => {
             console_log!("Unhandled Razorpay event: {event}");
             Response::ok("OK")
