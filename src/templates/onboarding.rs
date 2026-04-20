@@ -420,15 +420,7 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
     };
     let de = if config.digest_email { " selected" } else { "" };
 
-    let freq_options = |current: u32| -> String {
-        let opts = [
-            (5, "5 min"),
-            (15, "15 min"),
-            (30, "30 min"),
-            (60, "1 hour"),
-            (240, "4 hours"),
-            (1440, "Daily"),
-        ];
+    let freq_options = |current: u32, opts: &[(u32, &str)]| -> String {
         opts.iter()
             .map(|(val, label)| {
                 let sel = if current == *val { " selected" } else { "" };
@@ -437,8 +429,19 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
             .collect()
     };
 
-    let approval_freq_html = freq_options(config.approval_email_frequency_minutes);
-    let digest_freq_html = freq_options(config.digest_email_frequency_minutes);
+    let approval_freq_html = freq_options(
+        config.approval_email_frequency_minutes,
+        &[(5, "5 min"), (15, "15 min"), (30, "30 min"), (60, "1 hour")],
+    );
+    let digest_freq_html = freq_options(
+        config.digest_email_frequency_minutes,
+        &[
+            (60, "1 hour"),
+            (240, "4 hours"),
+            (720, "12 hours"),
+            (1440, "Daily"),
+        ],
+    );
 
     let content = format!(
         r##"<section class="page narrow">
@@ -507,10 +510,24 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
 
     <div class="between" style="margin-top:36px">
       <button type="button" class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"channels"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
-      <button type="submit" class="btn primary">Continue &rarr;</button>
+      <button id="notif-continue" type="submit" class="btn primary"{notif_disabled}>Continue &rarr;</button>
     </div>
   </form>
-</section>"##,
+</section>
+<script>
+(function() {{
+  var form = document.querySelector('form');
+  var btn = document.getElementById('notif-continue');
+  if (form && btn) {{
+    function check() {{
+      var boxes = form.querySelectorAll('input[type=checkbox]');
+      var any = Array.from(boxes).some(function(b) {{ return b.checked; }});
+      btn.disabled = !any;
+    }}
+    form.addEventListener('change', check);
+  }}
+}})();
+</script>"##,
         base_url = base_url,
         discord_icon = channel_icon("discord"),
         mail_icon = channel_icon("mail"),
@@ -542,6 +559,15 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
         de_display = if config.digest_email { "flex" } else { "none" },
         approval_freq_html = approval_freq_html,
         digest_freq_html = digest_freq_html,
+        notif_disabled = if config.approval_discord
+            || config.approval_email
+            || config.digest_discord
+            || config.digest_email
+        {
+            ""
+        } else {
+            " disabled"
+        },
     );
 
     wizard_shell("notifications", base_url, &content)

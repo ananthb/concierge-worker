@@ -123,21 +123,21 @@ pub async fn handle_wizard(
             let form: serde_json::Value = req.json().await?;
             let is_true =
                 |key: &str| -> bool { form.get(key).and_then(|v| v.as_str()) == Some("true") };
-            let parse_freq = |key: &str, default: u32| -> u32 {
+            let parse_freq = |key: &str, min: u32, max: u32, default: u32| -> u32 {
                 form.get(key)
                     .and_then(|v| v.as_str())
                     .and_then(|s| s.parse::<u32>().ok())
-                    .map(|v| v.clamp(5, 1440))
+                    .map(|v| v.clamp(min, max))
                     .unwrap_or(default)
             };
 
             state.notifications = NotificationConfig {
                 approval_discord: is_true("approval_discord"),
                 approval_email: is_true("approval_email"),
-                approval_email_frequency_minutes: parse_freq("approval_freq", 60),
+                approval_email_frequency_minutes: parse_freq("approval_freq", 5, 60, 15),
                 digest_discord: is_true("digest_discord"),
                 digest_email: is_true("digest_email"),
-                digest_email_frequency_minutes: parse_freq("digest_freq", 1440),
+                digest_email_frequency_minutes: parse_freq("digest_freq", 60, 1440, 1440),
             };
             state.step = "replies".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
