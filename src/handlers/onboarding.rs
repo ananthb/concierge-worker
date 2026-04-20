@@ -267,7 +267,10 @@ async fn render_step(
             let ig = list_instagram_accounts(kv, tenant_id).await?;
             let email_subs = get_email_subdomains(kv, tenant_id).await?;
             let slug = crate::helpers::generate_slug().unwrap_or_else(|_| "my-biz".into());
-            let base_domain = std::env::var("EMAIL_BASE_DOMAIN").unwrap_or_default();
+            let base_domain = env
+                .var("EMAIL_BASE_DOMAIN")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
             Response::from_html(connect_html(
                 !ig.is_empty(),
                 !wa.is_empty(),
