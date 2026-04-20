@@ -76,6 +76,29 @@ pub fn verify_webhook_signature(body: &str, signature: &str, webhook_secret: &st
     expected.as_bytes().ct_eq(signature.as_bytes()).into()
 }
 
+/// Create a Razorpay plan (idempotent — call on every deploy or first use).
+pub async fn create_plan(
+    key_id: &str,
+    key_secret: &str,
+    amount: i64,
+    currency: &str,
+    period: &str,
+    interval: i32,
+    name: &str,
+) -> Result<serde_json::Value> {
+    let payload = serde_json::json!({
+        "period": period,
+        "interval": interval,
+        "item": {
+            "name": name,
+            "amount": amount,
+            "currency": currency,
+        },
+    });
+
+    razorpay_post(key_id, key_secret, "/plans", &payload).await
+}
+
 /// Create a Razorpay subscription for an email subdomain.
 pub async fn create_subscription(
     key_id: &str,

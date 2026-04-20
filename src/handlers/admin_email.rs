@@ -95,13 +95,46 @@ pub async fn handle_email_admin(
                 );
             }
 
-            // Create Razorpay subscription
-            let plan_id = env
-                .var("RAZORPAY_EMAIL_PLAN_ID")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
+            // Get or create a Razorpay plan for this tenant's total subdomain count
             let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
             let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
+
+            // Price: ₹199/$2 per subdomain per month
+            // Plan amount = (current count + 1) * per-unit price
+            let new_count = (subdomains.len() + 1) as i64;
+            // TODO: detect currency from tenant's locale/preference
+            let (amount, currency) = (199_00 * new_count, "INR"); // paise
+
+            let plan_key = format!("razorpay_plan:email:{currency}:{amount}");
+            let plan_id = match kv.get(&plan_key).text().await? {
+                Some(id) => id,
+                None => {
+                    let name = format!("Email {} subdomain(s)", new_count);
+                    let plan = crate::billing::razorpay::create_plan(
+                        &key_id,
+                        &key_secret,
+                        amount,
+                        currency,
+                        "monthly",
+                        1,
+                        &name,
+                    )
+                    .await?;
+                    let id = plan
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if id.is_empty() {
+                        return Response::from_html(
+                            "<div class=\"error\">Failed to create billing plan</div>".to_string(),
+                        );
+                    }
+                    kv.put(&plan_key, &id)?.execute().await?;
+                    console_log!("Created Razorpay plan {id} for {currency} {amount}");
+                    id
+                }
+            };
 
             let subscription = crate::billing::razorpay::create_subscription(
                 &key_id,

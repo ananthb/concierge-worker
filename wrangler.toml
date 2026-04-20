@@ -40,7 +40,6 @@ WHATSAPP_WABA_ID = ""           # Your WhatsApp Business Account ID
 WHATSAPP_SIGNUP_CONFIG_ID = ""  # Meta Embedded Signup config ID
 EMAIL_ZONE_ID = "5cf43b684849d5805eb0a115a18dbee2" # Cloudflare zone ID for cncg.email
 EMAIL_BASE_DOMAIN = "cncg.email" # Base domain for tenant subdomains
-RAZORPAY_EMAIL_PLAN_ID = ""     # Razorpay plan ID for email subdomain subscription
 
 # ============================================================================
 # Cron triggers — daily at 6AM UTC for Instagram token refresh
