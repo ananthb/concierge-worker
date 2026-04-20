@@ -77,8 +77,8 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
             Response::ok("OK")
         }
 
-        // Email subdomain subscription lifecycle
-        "subscription.activated" => {
+        // Email subdomain subscription lifecycle — provision on first payment
+        "subscription.activated" | "subscription.charged" => {
             let subscription = match payload.pointer("/payload/subscription/entity") {
                 Some(s) => s,
                 None => return Response::ok("OK"),
@@ -87,14 +87,76 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
                 .pointer("/notes/tenant_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let subdomain = subscription
+            let subdomain_label = subscription
                 .pointer("/notes/subdomain")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
-            if !tenant_id.is_empty() && !subdomain.is_empty() {
-                console_log!("Subscription activated for {subdomain} (tenant {tenant_id})");
+            if tenant_id.is_empty() || subdomain_label.is_empty() {
+                return Response::ok("OK");
             }
+
+            let kv = env.kv("KV")?;
+            let mut subdomains = crate::storage::get_email_subdomains(&kv, tenant_id).await?;
+
+            if let Some(sub) = subdomains.iter_mut().find(|s| s.label == subdomain_label) {
+                // Only provision if not already active
+                if sub.status != crate::types::SubdomainStatus::Active {
+                    let base_domain = env
+                        .var("EMAIL_BASE_DOMAIN")
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    let zone_id = env
+                        .var("EMAIL_ZONE_ID")
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    let api_token = env
+                        .secret("CF_DNS_API_TOKEN")
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+
+                    if !zone_id.is_empty() && !api_token.is_empty() {
+                        match crate::cloudflare::dns::create_mx_records(
+                            &zone_id,
+                            subdomain_label,
+                            &base_domain,
+                            &api_token,
+                        )
+                        .await
+                        {
+                            Ok(record_ids) => {
+                                sub.dns_record_ids = record_ids;
+                                sub.status = crate::types::SubdomainStatus::Active;
+                                sub.updated_at = crate::helpers::now_iso();
+
+                                // Set domain index for inbound routing
+                                let _ = crate::storage::set_email_domain_index(
+                                    &kv,
+                                    &sub.domain,
+                                    tenant_id,
+                                )
+                                .await;
+
+                                console_log!(
+                                    "Provisioned MX for {}.{} (tenant {})",
+                                    subdomain_label,
+                                    base_domain,
+                                    tenant_id
+                                );
+                            }
+                            Err(e) => {
+                                console_log!(
+                                    "Failed to provision MX for {}: {:?}",
+                                    subdomain_label,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            crate::storage::save_email_subdomains(&kv, tenant_id, &subdomains).await?;
             Response::ok("OK")
         }
 

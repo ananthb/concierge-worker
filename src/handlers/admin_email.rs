@@ -57,7 +57,7 @@ pub async fn handle_email_admin(
             Response::from_html("<div class=\"success\">Settings saved</div>".to_string())
         }
 
-        // Add subdomain (TODO: Phase 5 — add CF API provisioning + Razorpay billing)
+        // Add subdomain — validate, create Razorpay subscription, redirect to payment
         (Method::Post, ["subdomains"]) => {
             let form: serde_json::Value = req.json().await?;
             let label = form
@@ -95,39 +95,60 @@ pub async fn handle_email_admin(
                 );
             }
 
-            // Provision MX records via Cloudflare API (auto-discovers MX from apex)
-            let zone_id = env
-                .var("EMAIL_ZONE_ID")
+            // Create Razorpay subscription
+            let plan_id = env
+                .var("RAZORPAY_EMAIL_PLAN_ID")
                 .map(|v| v.to_string())
                 .unwrap_or_default();
-            let api_token = env.secret("CF_DNS_API_TOKEN")?.to_string();
+            let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
+            let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
 
-            let record_ids = crate::cloudflare::dns::create_mx_records(
-                &zone_id,
+            let subscription = crate::billing::razorpay::create_subscription(
+                &key_id,
+                &key_secret,
+                &plan_id,
+                tenant_id,
                 &label,
-                &base_domain,
-                &api_token,
             )
             .await?;
 
+            let subscription_id = subscription
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let short_url = subscription
+                .get("short_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            if subscription_id.is_empty() || short_url.is_empty() {
+                return Response::from_html(
+                    "<div class=\"error\">Failed to create subscription. Please try again.</div>"
+                        .to_string(),
+                );
+            }
+
+            // Save subdomain as Pending (MX records provisioned on payment confirmation)
             let now = now_iso();
             let subdomain = EmailSubdomain {
                 label: label.clone(),
                 domain: domain.clone(),
                 tenant_id: tenant_id.to_string(),
                 default_action: EmailAction::Drop,
-                dns_record_ids: record_ids,
-                subscription_id: None,
-                status: SubdomainStatus::Active,
+                dns_record_ids: vec![],
+                subscription_id: Some(subscription_id),
+                status: SubdomainStatus::Suspended, // not active until paid
                 created_at: now.clone(),
                 updated_at: now,
             };
             subdomains.push(subdomain);
             save_email_subdomains(&kv, tenant_id, &subdomains).await?;
-            set_email_domain_index(&kv, &domain, tenant_id).await?;
 
+            // Redirect to Razorpay payment page
             let headers = Headers::new();
-            headers.set("HX-Redirect", &format!("{base_url}/admin/email"))?;
+            headers.set("HX-Redirect", &short_url)?;
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
@@ -141,6 +162,15 @@ pub async fn handle_email_admin(
             if let Some(sub) = removed {
                 delete_email_domain_index(&kv, &sub.domain).await?;
                 save_email_rules(&kv, tenant_id, &sub.domain, &[]).await?;
+
+                // Cancel Razorpay subscription
+                if let Some(ref sub_id) = sub.subscription_id {
+                    let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
+                    let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
+                    let _ =
+                        crate::billing::razorpay::cancel_subscription(&key_id, &key_secret, sub_id)
+                            .await;
+                }
 
                 // Delete MX records from Cloudflare
                 if !sub.dns_record_ids.is_empty() {
