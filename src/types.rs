@@ -456,12 +456,78 @@ pub struct ModalComponent {
     pub value: Option<String>,
 }
 
+/// Business information for KYC / Indian regulatory compliance.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct BusinessInfo {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub contact_name: String,
+    #[serde(default)]
+    pub phone: String,
+    #[serde(default)]
+    pub business_type: String, // "sole_proprietorship" | "partnership" | "pvt_ltd" | "llp"
+    #[serde(default)]
+    pub pan: String,
+    #[serde(default)]
+    pub gstin: String,
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub pincode: String,
+}
+
+/// Notification delivery configuration.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NotificationConfig {
+    #[serde(default)]
+    pub approval_discord: bool,
+    #[serde(default)]
+    pub approval_email: bool,
+    #[serde(default = "default_approval_freq")]
+    pub approval_email_frequency_minutes: u32,
+    #[serde(default)]
+    pub digest_discord: bool,
+    #[serde(default)]
+    pub digest_email: bool,
+    #[serde(default = "default_digest_freq")]
+    pub digest_email_frequency_minutes: u32,
+}
+
+fn default_approval_freq() -> u32 {
+    60
+}
+fn default_digest_freq() -> u32 {
+    1440
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            approval_discord: false,
+            approval_email: false,
+            approval_email_frequency_minutes: 60,
+            digest_discord: false,
+            digest_email: false,
+            digest_email_frequency_minutes: 1440,
+        }
+    }
+}
+
 /// Onboarding state for the setup wizard.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct OnboardingState {
     pub step: String,
-    pub biz_name: String,
-    pub admin_channel: String, // "discord" | "email"
+    #[serde(default)]
+    pub biz_name: String, // backward compat
+    #[serde(default)]
+    pub business: BusinessInfo,
+    #[serde(default)]
+    pub notifications: NotificationConfig,
+    #[serde(default)]
+    pub admin_channel: String, // backward compat, ignored
     pub persona: PersonaConfig,
     pub canned_replies: Vec<CannedReply>,
     pub completed: bool,
