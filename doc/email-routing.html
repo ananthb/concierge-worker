@@ -63,12 +63,14 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 
 <ol>
   <li>Go to <strong>Email Routing</strong> in the admin panel</li>
-  <li>Enter a subdomain name (e.g., <code>acme</code>) — this creates <code>acme.youremaildomain.co</code></li>
-  <li>Complete payment (₹199/$2 per month per subdomain)</li>
-  <li>MX records are provisioned automatically via the Cloudflare API</li>
-  <li>Your subdomain is live — any email to <code>*@acme.youremaildomain.co</code> is processed</li>
+  <li>Enter a subdomain name (e.g., <code>acme</code>) — this creates <code>acme.cncg.email</code></li>
+  <li>You'll be redirected to Razorpay to complete payment (₹199/$2 per subdomain per month)</li>
+  <li>Once payment confirms, MX records are provisioned automatically and your subdomain goes live</li>
+  <li>Any email to <code>*@acme.cncg.email</code> is now processed by your routing rules</li>
   <li>Set up routing rules to forward, relay to Discord, or auto-reply with AI</li>
 </ol>
+
+<p>Billing plans are created automatically based on the number of subdomains and currency. No manual configuration needed.</p>
 
 <h2>How It Works</h2>
 

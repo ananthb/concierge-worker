@@ -169,13 +169,15 @@ wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></pre>
 
 <p>Tenant subdomains (e.g. <code>acme.cncg.email</code>) are provisioned automatically via the admin panel. MX records are auto-discovered from the apex domain. See <a href="email-routing.html">Email Routing</a> for details.</p>
 
-<h3>Razorpay Email Plan (for subscription billing)</h3>
+<h3>Razorpay Webhook (for subscription billing)</h3>
+
+<p>Email subdomain billing plans are created automatically via the Razorpay API — no manual plan setup needed. Just configure the webhook:</p>
 
 <ol>
-  <li>In the <a href="https://dashboard.razorpay.com">Razorpay Dashboard</a>, go to <strong>Products &gt; Subscriptions &gt; Plans</strong></li>
-  <li>Create a plan: Amount ₹199, Period: Monthly, Interval: 1</li>
-  <li>Copy the plan ID (starts with <code>plan_</code>)</li>
-  <li>Set it as <code>RAZORPAY_EMAIL_PLAN_ID</code> in your Worker vars</li>
+  <li>In the <a href="https://dashboard.razorpay.com">Razorpay Dashboard</a>, go to <strong>Settings &gt; Webhooks</strong></li>
+  <li>Add webhook URL: <code>https://your-domain/webhook/razorpay</code></li>
+  <li>Subscribe to events: <code>payment.captured</code>, <code>payment.failed</code>, <code>subscription.activated</code>, <code>subscription.charged</code>, <code>subscription.halted</code>, <code>subscription.cancelled</code></li>
+  <li>Copy the webhook secret and set it: <code>wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></li>
 </ol>
 
 <h2>10. Set Up Cloudflare Access for Management</h2>
