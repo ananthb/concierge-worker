@@ -40,8 +40,6 @@ WHATSAPP_WABA_ID = ""           # Your WhatsApp Business Account ID
 WHATSAPP_SIGNUP_CONFIG_ID = ""  # Meta Embedded Signup config ID
 EMAIL_ZONE_ID = ""              # Cloudflare zone ID for cncg.email
 EMAIL_BASE_DOMAIN = "cncg.email" # Base domain for tenant subdomains
-EMAIL_MX_PRIMARY = ""           # Primary MX server assigned by CF Email Routing
-EMAIL_MX_SECONDARY = ""         # Secondary MX server assigned by CF Email Routing
 RAZORPAY_EMAIL_PLAN_ID = ""     # Razorpay plan ID for email subdomain subscription
 
 # ============================================================================

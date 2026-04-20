@@ -163,8 +163,7 @@ wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></pre>
   <li>Add your email domain (e.g. <code>cncg.email</code>) to your Cloudflare account</li>
   <li>In the Cloudflare dashboard, go to <strong>Email Routing</strong> for that domain</li>
   <li>Enable Email Routing and add a <strong>catch-all</strong> rule that routes to your Worker (<code>concierge-worker</code>)</li>
-  <li>Note the MX servers assigned (visible in the Email Routing DNS settings)</li>
-  <li>Set the environment variables: <code>EMAIL_ZONE_ID</code>, <code>EMAIL_BASE_DOMAIN</code>, <code>EMAIL_MX_PRIMARY</code>, <code>EMAIL_MX_SECONDARY</code></li>
+  <li>Set the environment variables: <code>EMAIL_ZONE_ID</code> (zone ID from the Overview page) and <code>EMAIL_BASE_DOMAIN</code></li>
   <li>Create a Cloudflare API token with <strong>DNS Edit</strong> permission scoped to the email zone</li>
   <li>Set the token: <code>wrangler secret put CF_DNS_API_TOKEN</code></li>
 </ol>
