@@ -847,6 +847,32 @@ pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
     <div class="eyebrow" style="margin-bottom:8px">What counts as a reply?</div>
     <p class="muted" style="margin:0">Every auto-reply sent by the concierge on WhatsApp, Instagram, or email uses one reply credit. Inbound messages, email forwarding, and Discord relay are free.</p>
   </div>
+
+  <h2 style="margin-top:2rem">Email subdomains</h2>
+  <p class="muted">Get a dedicated email address like <code>hello@yourname.cncg.email</code> with smart routing rules.</p>
+
+  <div class="card" style="padding:0;overflow:hidden;margin:24px 0">
+    <div class="rt-head" style="grid-template-columns:1fr 1fr">
+      <div>Feature</div><div>Price</div>
+    </div>
+    <div class="rt-row" style="grid-template-columns:1fr 1fr">
+      <div>Email subdomain</div><div>&#x20B9;199 / $2 per month</div>
+    </div>
+    <div class="rt-row" style="grid-template-columns:1fr 1fr">
+      <div>Inbound routing &amp; forwarding</div><div>Included</div>
+    </div>
+    <div class="rt-row" style="grid-template-columns:1fr 1fr">
+      <div>AI-generated replies</div><div>1 reply credit each</div>
+    </div>
+    <div class="rt-row" style="grid-template-columns:1fr 1fr">
+      <div>Discord relay</div><div>Free</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:18px">
+    <div class="eyebrow" style="margin-bottom:8px">How email subdomains work</div>
+    <p class="muted" style="margin:0">Each subdomain gets MX records provisioned automatically. Set up routing rules to forward, drop, AI-reply, or relay to Discord. Reverse-alias replies let you respond through your subdomain address.</p>
+  </div>
 </article>"##,
         brand = brand_mark(),
     );

@@ -30,7 +30,10 @@ pub async fn handle_wizard(
             state.step = to.to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
-            render_step(to, &state, &kv, &env, tenant_id, base_url).await
+            // Redirect so the URL changes (enables back/forward)
+            let headers = Headers::new();
+            headers.set("HX-Redirect", &format!("{base_url}/admin/wizard/{to}"))?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
         // Save business info (The basics step)
@@ -43,9 +46,18 @@ pub async fn handle_wizard(
                     .trim()
                     .to_string()
             };
-            state.business.name = get("name");
+            let name = get("name");
+            let phone = get("phone");
+
+            if name.is_empty() || phone.is_empty() {
+                return Response::from_html(
+                    "<div class=\"error\">Brand name and phone are required.</div>".to_string(),
+                );
+            }
+
+            state.business.name = name;
             state.business.contact_name = get("contact_name");
-            state.business.phone = get("phone");
+            state.business.phone = phone;
             state.business.business_type = get("business_type");
             state.business.pan = get("pan").to_uppercase();
             state.business.gstin = get("gstin").to_uppercase();
@@ -55,7 +67,9 @@ pub async fn handle_wizard(
             state.step = "channels".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
-            render_step("channels", &state, &kv, &env, tenant_id, base_url).await
+            let headers = Headers::new();
+            headers.set("HX-Redirect", &format!("{base_url}/admin/wizard/channels"))?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
         // Add email subdomain in wizard (no billing yet — deferred to Ship it)
@@ -142,7 +156,9 @@ pub async fn handle_wizard(
             state.step = "replies".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
-            render_step("replies", &state, &kv, &env, tenant_id, base_url).await
+            let headers = Headers::new();
+            headers.set("HX-Redirect", &format!("{base_url}/admin/wizard/replies"))?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
         // Add canned reply
@@ -222,7 +238,9 @@ pub async fn handle_wizard(
             state.step = "launch".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
-            render_step("launch", &state, &kv, &env, tenant_id, base_url).await
+            let headers = Headers::new();
+            headers.set("HX-Redirect", &format!("{base_url}/admin/wizard/launch"))?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
         // Complete the wizard
@@ -236,19 +254,50 @@ pub async fn handle_wizard(
             Ok(Response::empty()?.with_status(302).with_headers(headers))
         }
 
+        // Direct step access via URL — allow going back, block skipping ahead
+        "basics" | "channels" | "notifications" | "replies" | "launch" => {
+            let requested_idx = step_index(sub);
+            let current_idx = step_index(&state.step);
+
+            if requested_idx <= current_idx {
+                // Going back or revisiting current — allowed
+                render_step(sub, &state, &kv, &env, tenant_id, base_url).await
+            } else {
+                // Trying to skip ahead — redirect to current step
+                let headers = Headers::new();
+                headers.set(
+                    "Location",
+                    &format!("{base_url}/admin/wizard/{}", state.step),
+                )?;
+                Ok(Response::empty()?.with_status(302).with_headers(headers))
+            }
+        }
+
         // Default: show current step (resume from where user left off)
         _ => {
             let step =
                 if state.step.is_empty() || state.step == "welcome" || state.step == "business" {
-                    // New users or legacy steps → start at "basics"
                     state.step = "basics".to_string();
                     let _ = save_onboarding(&kv, tenant_id, &state).await;
                     "basics"
                 } else {
                     &state.step
                 };
-            render_step(step, &state, &kv, &env, tenant_id, base_url).await
+            let headers = Headers::new();
+            headers.set("Location", &format!("{base_url}/admin/wizard/{step}"))?;
+            Ok(Response::empty()?.with_status(302).with_headers(headers))
         }
+    }
+}
+
+fn step_index(step: &str) -> usize {
+    match step {
+        "basics" => 0,
+        "channels" => 1,
+        "notifications" => 2,
+        "replies" => 3,
+        "launch" => 4,
+        _ => 0,
     }
 }
 
@@ -281,7 +330,7 @@ async fn render_step(
             ))
         }
         "notifications" => Response::from_html(notifications_html(&state.notifications, base_url)),
-        "replies" | "persona" => Response::from_html(replies_html(
+        "replies" => Response::from_html(replies_html(
             &state.persona,
             &state.canned_replies,
             base_url,
