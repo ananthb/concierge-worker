@@ -149,6 +149,8 @@ code {
 }
 
 /* App shell */
+.site-header { display:flex; align-items:center; gap:28px; padding:18px 28px;
+  border-bottom:1px solid var(--hair); background:var(--paper); }
 .app { min-height:100vh; }
 .app-top { display:flex; align-items:center; gap:28px; padding:16px 28px;
   border-bottom:1px solid var(--hair); background:var(--paper); }

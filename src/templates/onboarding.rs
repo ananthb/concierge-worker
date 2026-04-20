@@ -76,7 +76,7 @@ fn wizard_shell(step: &str, base_url: &str, content: &str) -> String {
 
 pub fn welcome_html(_base_url: &str) -> String {
     let header = format!(
-        r#"<header style="display:flex;align-items:center;gap:28px;padding:18px 28px;border-bottom:1px solid var(--hair);background:var(--paper)">
+        r#"<header class="site-header">
   {brand}
   <div style="margin-left:auto"><a href="/auth/login" class="btn ghost sm">Sign in</a></div>
 </header>"#,
@@ -825,7 +825,7 @@ pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
         .collect();
 
     let content = format!(
-        r##"<header style="display:flex;align-items:center;gap:28px;padding:18px 28px;border-bottom:1px solid var(--hair);background:var(--paper)">
+        r##"<header class="site-header">
   {brand}
   <div style="margin-left:auto"><a href="/auth/login" class="btn ghost sm">Sign in</a></div>
 </header>
