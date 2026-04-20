@@ -27,28 +27,6 @@ pub async fn handle_wizard(
             let form: serde_json::Value = req.json().await?;
             let to = form.get("to").and_then(|v| v.as_str()).unwrap_or("basics");
 
-            // Auto-save persona fields if present
-            if let Some(v) = form.get("biz_type").and_then(|v| v.as_str()) {
-                if !v.is_empty() {
-                    state.persona.biz_type = v.to_string();
-                }
-            }
-            if let Some(v) = form.get("city").and_then(|v| v.as_str()) {
-                if !v.is_empty() {
-                    state.persona.city = v.to_string();
-                }
-            }
-            if let Some(v) = form.get("tone").and_then(|v| v.as_str()) {
-                if !v.is_empty() {
-                    state.persona.tone = v.to_string();
-                }
-            }
-            if let Some(v) = form.get("never").and_then(|v| v.as_str()) {
-                if !v.is_empty() {
-                    state.persona.never = v.to_string();
-                }
-            }
-
             state.step = to.to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
@@ -161,31 +139,10 @@ pub async fn handle_wizard(
                 digest_email: is_true("digest_email"),
                 digest_email_frequency_minutes: parse_freq("digest_freq", 1440),
             };
-            state.step = "persona".to_string();
-            save_onboarding(&kv, tenant_id, &state).await?;
-
-            render_step("persona", &state, &kv, &env, tenant_id, base_url).await
-        }
-
-        // Persona save
-        "persona" => {
-            let form: serde_json::Value = req.json().await?;
-            if let Some(v) = form.get("biz_type").and_then(|v| v.as_str()) {
-                state.persona.biz_type = v.to_string();
-            }
-            if let Some(v) = form.get("city").and_then(|v| v.as_str()) {
-                state.persona.city = v.to_string();
-            }
-            if let Some(v) = form.get("tone").and_then(|v| v.as_str()) {
-                state.persona.tone = v.to_string();
-            }
-            if let Some(v) = form.get("never").and_then(|v| v.as_str()) {
-                state.persona.never = v.to_string();
-            }
             state.step = "replies".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
-            Response::from_html(replies_html(&state.canned_replies, base_url))
+            render_step("replies", &state, &kv, &env, tenant_id, base_url).await
         }
 
         // Add canned reply
@@ -195,7 +152,11 @@ pub async fn handle_wizard(
                 reply: String::new(),
             });
             save_onboarding(&kv, tenant_id, &state).await?;
-            Response::from_html(replies_html(&state.canned_replies, base_url))
+            Response::from_html(replies_html(
+                &state.persona,
+                &state.canned_replies,
+                base_url,
+            ))
         }
 
         // Delete canned reply
@@ -210,10 +171,14 @@ pub async fn handle_wizard(
                 state.canned_replies.remove(i);
             }
             save_onboarding(&kv, tenant_id, &state).await?;
-            Response::from_html(replies_html(&state.canned_replies, base_url))
+            Response::from_html(replies_html(
+                &state.persona,
+                &state.canned_replies,
+                base_url,
+            ))
         }
 
-        // Save canned replies and go to test
+        // Save persona + canned replies, advance to launch
         "replies/save" => {
             // Parse the form — triggers and replies come as trigger_0, reply_0, etc.
             let form: serde_json::Value = req.json().await?;
@@ -239,6 +204,21 @@ pub async fn handle_wizard(
                 i += 1;
             }
             state.canned_replies = replies;
+
+            // Save persona fields from hidden inputs
+            if let Some(v) = form.get("biz_type").and_then(|v| v.as_str()) {
+                state.persona.biz_type = v.to_string();
+            }
+            if let Some(v) = form.get("city").and_then(|v| v.as_str()) {
+                state.persona.city = v.to_string();
+            }
+            if let Some(v) = form.get("tone").and_then(|v| v.as_str()) {
+                state.persona.tone = v.to_string();
+            }
+            if let Some(v) = form.get("never").and_then(|v| v.as_str()) {
+                state.persona.never = v.to_string();
+            }
+
             state.step = "launch".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;
 
@@ -298,8 +278,11 @@ async fn render_step(
             ))
         }
         "notifications" => Response::from_html(notifications_html(&state.notifications, base_url)),
-        "persona" => Response::from_html(persona_html(&state.persona, base_url)),
-        "replies" => Response::from_html(replies_html(&state.canned_replies, base_url)),
+        "replies" | "persona" => Response::from_html(replies_html(
+            &state.persona,
+            &state.canned_replies,
+            base_url,
+        )),
         "launch" => {
             let email_subs = get_email_subdomains(kv, tenant_id).await?;
             let db = env.d1("DB")?;

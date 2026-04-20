@@ -10,8 +10,7 @@ const STEPS: &[(&str, &str)] = &[
     ("basics", "The basics"),
     ("channels", "Plug in"),
     ("notifications", "Heads up"),
-    ("persona", "Set the vibe"),
-    ("replies", "Auto-answers"),
+    ("replies", "Replies"),
     ("launch", "Ship it"),
 ];
 
@@ -548,79 +547,6 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
     wizard_shell("notifications", base_url, &content)
 }
 
-pub fn persona_html(persona: &PersonaConfig, base_url: &str) -> String {
-    let prompt = persona.to_system_prompt();
-    let disabled = if persona.biz_type.is_empty() {
-        " disabled"
-    } else {
-        ""
-    };
-
-    let content = format!(
-        r#"<section class="page">
-  <div class="section-label"><span class="mono muted">03 / 04</span><span class="eyebrow">Your auto-reply voice</span></div>
-  <h2 class="display-md">Configure your AI persona.</h2>
-  <p class="lead">Tell the AI about your business so it can reply in your voice.</p>
-  <div class="card" style="padding:22px">
-    <form hx-post="{base_url}/admin/wizard/persona" hx-target="body" hx-swap="innerHTML">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div>
-          <label class="eyebrow" style="display:block;margin-bottom:6px">Type of business</label>
-          <input class="input" name="biz_type" value="{biz_type}" placeholder="florist, hair salon, coffee shop...">
-        </div>
-        <div>
-          <label class="eyebrow" style="display:block;margin-bottom:6px">City</label>
-          <input class="input" name="city" value="{city}" placeholder="Sydney, Berlin...">
-        </div>
-        <div>
-          <label class="eyebrow" style="display:block;margin-bottom:6px">Tone</label>
-          <select class="select" name="tone">
-            <option value="">Choose a tone...</option>
-            <option value="warm &amp; chatty"{tone_wc}>warm &amp; chatty</option>
-            <option value="concise &amp; professional"{tone_cp}>concise &amp; professional</option>
-            <option value="playful with emoji"{tone_pe}>playful with emoji</option>
-            <option value="old-school polite"{tone_op}>old-school polite</option>
-          </select>
-        </div>
-        <div>
-          <label class="eyebrow" style="display:block;margin-bottom:6px">Never do this</label>
-          <select class="select" name="never">
-            <option value="">Choose a boundary...</option>
-            <option value="quote prices"{never_qp}>quote prices</option>
-            <option value="promise dates"{never_pd}>promise dates</option>
-            <option value="handle refunds"{never_hr}>handle refunds</option>
-          </select>
-        </div>
-      </div>
-      <button class="btn primary" type="submit" style="margin-top:16px">Save persona</button>
-    </form>
-  </div>
-  <div class="card" style="padding:18px;background:var(--ink);color:var(--cream);margin-top:16px;border-color:var(--ink)">
-    <div class="mono" style="font-size:11px;letter-spacing:.2em;color:var(--accent-soft);margin-bottom:10px">COMPILED SYSTEM PROMPT</div>
-    <pre class="mono" style="margin:0;white-space:pre-wrap;font-size:12px;color:var(--cream);line-height:1.6">{prompt}</pre>
-  </div>
-  <div class="between" style="margin-top:32px">
-    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML" hx-include="[name=biz_type],[name=city],[name=tone],[name=never]">&larr; Back</button>
-    <button class="btn primary"{disabled} hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML" hx-include="[name=biz_type],[name=city],[name=tone],[name=never]">Continue &rarr;</button>
-  </div>
-</section>"#,
-        base_url = base_url,
-        biz_type = html_escape(&persona.biz_type),
-        city = html_escape(&persona.city),
-        prompt = html_escape(&prompt),
-        disabled = disabled,
-        tone_wc = sel_attr(&persona.tone, "warm & chatty"),
-        tone_cp = sel_attr(&persona.tone, "concise & professional"),
-        tone_pe = sel_attr(&persona.tone, "playful with emoji"),
-        tone_op = sel_attr(&persona.tone, "old-school polite"),
-        never_qp = sel_attr(&persona.never, "quote prices"),
-        never_pd = sel_attr(&persona.never, "promise dates"),
-        never_hr = sel_attr(&persona.never, "handle refunds"),
-    );
-
-    wizard_shell("persona", base_url, &content)
-}
-
 fn sel_attr(current: &str, value: &str) -> &'static str {
     if current == value {
         " selected"
@@ -629,7 +555,7 @@ fn sel_attr(current: &str, value: &str) -> &'static str {
     }
 }
 
-pub fn replies_html(canned: &[CannedReply], base_url: &str) -> String {
+pub fn replies_html(persona: &PersonaConfig, canned: &[CannedReply], base_url: &str) -> String {
     let rows: String = canned
         .iter()
         .enumerate()
@@ -649,31 +575,89 @@ pub fn replies_html(canned: &[CannedReply], base_url: &str) -> String {
         .collect();
 
     let empty = if canned.is_empty() {
-        r#"<div class="replies-row"><span class="muted" style="grid-column:1/-1;text-align:center">No canned replies yet. Add one below.</span></div>"#
+        r#"<div class="replies-row"><span class="muted" style="grid-column:1/-1;text-align:center">No canned replies yet. Add one below — or just let the AI handle everything.</span></div>"#
     } else {
         ""
     };
 
+    let prompt = persona.to_system_prompt();
+
     let content = format!(
         r#"<section class="page narrow">
-  <div class="section-label"><span class="mono muted">04 / 04</span><span class="eyebrow">Canned replies (optional)</span></div>
-  <h2 class="display-md">When they ask X, always say Y.</h2>
-  <p class="lead">Static replies fire before the AI, so common questions get instant, perfect answers. Glob patterns work - <span class="mono">*</span> matches anything.</p>
+  <div class="section-label"><span class="mono muted">04 / 05</span><span class="eyebrow">Replies</span></div>
+  <h2 class="display-md">How should your concierge respond?</h2>
+  <p class="lead">Configure the AI voice for general replies, then add canned overrides for specific questions.</p>
+
+  <div class="card" style="padding:22px;margin-bottom:16px">
+    <div class="eyebrow" style="margin-bottom:12px">AI persona</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <label class="eyebrow" style="display:block;margin-bottom:6px">Type of business</label>
+        <input class="input" name="biz_type" value="{biz_type}" placeholder="florist, hair salon, coffee shop...">
+      </div>
+      <div>
+        <label class="eyebrow" style="display:block;margin-bottom:6px">City</label>
+        <input class="input" name="city" value="{city}" placeholder="Chennai, Berlin...">
+      </div>
+      <div>
+        <label class="eyebrow" style="display:block;margin-bottom:6px">Tone</label>
+        <select class="select" name="tone">
+          <option value="">Choose a tone...</option>
+          <option value="warm &amp; chatty"{tone_wc}>warm &amp; chatty</option>
+          <option value="concise &amp; professional"{tone_cp}>concise &amp; professional</option>
+          <option value="playful with emoji"{tone_pe}>playful with emoji</option>
+          <option value="old-school polite"{tone_op}>old-school polite</option>
+        </select>
+      </div>
+      <div>
+        <label class="eyebrow" style="display:block;margin-bottom:6px">Never do this</label>
+        <select class="select" name="never">
+          <option value="">Choose a boundary...</option>
+          <option value="quote prices"{never_qp}>quote prices</option>
+          <option value="promise dates"{never_pd}>promise dates</option>
+          <option value="handle refunds"{never_hr}>handle refunds</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" style="padding:14px;background:var(--ink);color:var(--cream);margin-top:16px;border-color:var(--ink);border-radius:var(--r-sm)">
+      <div class="mono" style="font-size:10px;letter-spacing:.18em;color:var(--accent-soft);margin-bottom:6px">SYSTEM PROMPT</div>
+      <pre class="mono" style="margin:0;white-space:pre-wrap;font-size:11px;color:var(--cream);line-height:1.5">{prompt}</pre>
+    </div>
+  </div>
+
   <form hx-post="{base_url}/admin/wizard/replies/save" hx-target="body" hx-swap="innerHTML">
+    <input type="hidden" name="biz_type" value="{biz_type}">
+    <input type="hidden" name="city" value="{city}">
+    <input type="hidden" name="tone" value="{tone_raw}">
+    <input type="hidden" name="never" value="{never_raw}">
     <div class="card replies-card">
-      <div class="replies-head"><div>When message matches</div><div>Reply with</div><div></div></div>
+      <div class="eyebrow" style="padding:14px 20px 0">Canned replies <span class="muted">(optional)</span></div>
+      <p class="muted" style="padding:4px 20px 0;font-size:13px">These fire before the AI. Glob patterns work &mdash; <span class="mono">*</span> matches anything.</p>
+      <div class="replies-head" style="margin-top:12px"><div>When message matches</div><div>Reply with</div><div></div></div>
       {rows}{empty}
       <div class="replies-add">
         <button type="button" class="btn ghost sm" hx-post="{base_url}/admin/wizard/replies/add" hx-target="body" hx-swap="innerHTML">+ Add reply</button>
       </div>
     </div>
     <div class="between" style="margin-top:32px">
-      <button type="button" class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"persona"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
-      <button type="submit" class="btn primary">Run a test message &rarr;</button>
+      <button type="button" class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
+      <button type="submit" class="btn primary">Continue &rarr;</button>
     </div>
   </form>
 </section>"#,
         base_url = base_url,
+        biz_type = html_escape(&persona.biz_type),
+        city = html_escape(&persona.city),
+        tone_raw = html_escape(&persona.tone),
+        never_raw = html_escape(&persona.never),
+        prompt = html_escape(&prompt),
+        tone_wc = sel_attr(&persona.tone, "warm & chatty"),
+        tone_cp = sel_attr(&persona.tone, "concise & professional"),
+        tone_pe = sel_attr(&persona.tone, "playful with emoji"),
+        tone_op = sel_attr(&persona.tone, "old-school polite"),
+        never_qp = sel_attr(&persona.never, "quote prices"),
+        never_pd = sel_attr(&persona.never, "promise dates"),
+        never_hr = sel_attr(&persona.never, "handle refunds"),
         rows = rows,
         empty = empty,
     );
