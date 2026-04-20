@@ -61,7 +61,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                     resp.headers_mut().append(
                         "Set-Cookie",
                         &format!(
-                            "onboarding_biz={}; Path=/; Secure; SameSite=Strict; Max-Age=3600",
+                            "onboarding_biz={}; Path=/; Secure; SameSite=Lax; Max-Age=3600",
                             urlencoding::encode(&biz)
                         ),
                     )?;
@@ -375,7 +375,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
             headers.set("Location", "/auth/login")?;
             headers.set(
                 "Set-Cookie",
-                "session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0",
+                "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
             )?;
 
             Ok(Response::empty()?.with_status(302).with_headers(headers))
@@ -401,14 +401,14 @@ async fn create_session_and_redirect(
     headers.set(
         "Set-Cookie",
         &format!(
-            "session={}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age={}",
+            "session={}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={}",
             session_token, SESSION_TTL_SECONDS
         ),
     )?;
     headers.append(
         "Set-Cookie",
         &format!(
-            "csrf={}; Path=/; Secure; SameSite=Strict; Max-Age={}",
+            "csrf={}; Path=/; Secure; SameSite=Lax; Max-Age={}",
             csrf_token, SESSION_TTL_SECONDS
         ),
     )?;
@@ -416,7 +416,7 @@ async fn create_session_and_redirect(
     headers.append(
         "Set-Cookie",
         &format!(
-            "last_provider={}; Path=/; Secure; SameSite=Strict; Max-Age=31536000",
+            "last_provider={}; Path=/; Secure; SameSite=Lax; Max-Age=31536000",
             provider
         ),
     )?;
@@ -426,7 +426,7 @@ async fn create_session_and_redirect(
             headers.append(
                 "Set-Cookie",
                 &format!(
-                    "onboarding_biz={}; Path=/; Secure; SameSite=Strict; Max-Age=31536000",
+                    "onboarding_biz={}; Path=/; Secure; SameSite=Lax; Max-Age=31536000",
                     biz
                 ),
             )?;
