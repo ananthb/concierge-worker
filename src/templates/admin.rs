@@ -160,6 +160,20 @@ pub fn admin_settings_html(
                 </table></div>
             </div>
         </div>
+        <div class=\"card\" style=\"padding:22px\" hx-ext=\"json-enc\">
+            <h2>Billing Currency</h2>
+            <p style=\"margin-bottom:1rem\" class=\"muted\">All future charges will be in this currency.</p>
+            <form hx-put=\"{base_url}/admin/settings/currency\" hx-target=\"{hash}currency-toast\" hx-swap=\"innerHTML\">
+                <div class=\"row gap-12\">
+                    <select class=\"select\" name=\"currency\" style=\"width:auto\">
+                        <option value=\"INR\"{inr_sel}>&#x20B9; INR (Indian Rupee)</option>
+                        <option value=\"USD\"{usd_sel}>$ USD (US Dollar)</option>
+                    </select>
+                    <button type=\"submit\" class=\"btn sm\">Save</button>
+                </div>
+            </form>
+            <div id=\"currency-toast\" style=\"margin-top:8px\"></div>
+        </div>
         <div class=\"card\" style=\"padding:22px\">
             <h2>Session</h2>
             <a href=\"{base_url}/auth/logout\" class=\"btn ghost\">Sign Out</a>
@@ -173,8 +187,11 @@ pub fn admin_settings_html(
                     >Delete My Account</button>
         </div>",
         base_url = base_url,
+        hash = HASH,
         google_row = google_row,
         facebook_row = facebook_row,
+        inr_sel = if tenant.currency != "USD" { " selected" } else { "" },
+        usd_sel = if tenant.currency == "USD" { " selected" } else { "" },
     );
 
     base_html("Settings - Concierge", &content)

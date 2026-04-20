@@ -244,7 +244,17 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         let packs = storage::get_active_credit_packs(&db)
             .await
             .unwrap_or_default();
-        return Response::from_html(templates::onboarding::pricing_html(&packs));
+        let country = req
+            .headers()
+            .get("cf-ipcountry")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let default_currency = if country == "IN" { "inr" } else { "usd" };
+        return Response::from_html(templates::onboarding::pricing_html(
+            &packs,
+            default_currency,
+        ));
     }
 
     // Data deletion callback (Facebook requirement)
