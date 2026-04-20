@@ -68,6 +68,7 @@ fn criteria_summary(c: &MatchCriteria) -> String {
 pub fn email_dashboard_html(
     subdomains: &[EmailSubdomain],
     metrics: &[serde_json::Value],
+    email_base_domain: &str,
     base_url: &str,
 ) -> String {
     let subdomain_rows: String = subdomains
@@ -149,9 +150,7 @@ pub fn email_dashboard_html(
   </div>
 </div>"#,
         base_url = base_url,
-        base_domain = html_escape(
-            &std::env::var("EMAIL_BASE_DOMAIN").unwrap_or_else(|_| "cncg.email".into())
-        ),
+        base_domain = html_escape(email_base_domain),
         subdomain_rows = subdomain_rows,
         empty_state = empty_state,
         metrics_section = if metrics_html.is_empty() {

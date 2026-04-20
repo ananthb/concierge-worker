@@ -33,7 +33,16 @@ pub async fn handle_email_admin(
         (Method::Get, []) => {
             let subdomains = get_email_subdomains(&kv, tenant_id).await?;
             let metrics = get_email_metrics(&db, tenant_id, None).await?;
-            Response::from_html(email_dashboard_html(&subdomains, &metrics, base_url))
+            let email_base_domain = env
+                .var("EMAIL_BASE_DOMAIN")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            Response::from_html(email_dashboard_html(
+                &subdomains,
+                &metrics,
+                &email_base_domain,
+                base_url,
+            ))
         }
 
         // Log viewer
