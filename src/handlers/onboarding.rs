@@ -6,8 +6,6 @@ use crate::storage::*;
 use crate::templates::onboarding::*;
 use crate::types::*;
 
-use super::get_base_url;
-
 pub async fn handle_wizard(
     mut req: Request,
     env: Env,
@@ -18,17 +16,6 @@ pub async fn handle_wizard(
     let kv = env.kv("KV")?;
     let mut state = get_onboarding(&kv, tenant_id).await?;
 
-    // Pick up business name from onboarding cookie (set during login)
-    if state.biz_name.is_empty() {
-        if let Some(biz) = crate::handlers::auth::get_cookie(&req, "onboarding_biz") {
-            let decoded = urlencoding::decode(&biz).unwrap_or_default().to_string();
-            if !decoded.is_empty() {
-                state.biz_name = decoded;
-                let _ = save_onboarding(&kv, tenant_id, &state).await;
-            }
-        }
-    }
-
     let sub = path
         .strip_prefix("/admin/wizard")
         .unwrap_or("")
@@ -38,9 +25,12 @@ pub async fn handle_wizard(
         // Navigation between steps
         "goto" => {
             let form: serde_json::Value = req.json().await?;
-            let to = form.get("to").and_then(|v| v.as_str()).unwrap_or("welcome");
+            let to = form
+                .get("to")
+                .and_then(|v| v.as_str())
+                .unwrap_or("business");
 
-            // Save biz name if coming from welcome
+            // Save biz name if provided
             if let Some(biz) = form.get("biz").and_then(|v| v.as_str()) {
                 if !biz.is_empty() {
                     state.biz_name = biz.to_string();
@@ -163,10 +153,13 @@ pub async fn handle_wizard(
             Response::from_html(test_html(base_url))
         }
 
-        // Default: show current step
+        // Default: show current step (resume from where user left off)
         _ => {
-            let step = if state.step.is_empty() {
-                "welcome"
+            let step = if state.step.is_empty() || state.step == "welcome" {
+                // New users or legacy "welcome" step → start at "business"
+                state.step = "business".to_string();
+                let _ = save_onboarding(&kv, tenant_id, &state).await;
+                "business"
             } else {
                 &state.step
             };
@@ -183,7 +176,7 @@ async fn render_step(
     base_url: &str,
 ) -> Result<Response> {
     match step {
-        "welcome" => Response::from_html(welcome_html(base_url)),
+        "business" => Response::from_html(business_html(&state.biz_name, base_url)),
         "channels" => {
             let wa = list_whatsapp_accounts(kv, tenant_id).await?;
             let ig = list_instagram_accounts(kv, tenant_id).await?;
@@ -193,6 +186,6 @@ async fn render_step(
         "persona" => Response::from_html(persona_html(&state.persona, base_url)),
         "replies" => Response::from_html(replies_html(&state.canned_replies, base_url)),
         "launch" => Response::from_html(test_html(base_url)),
-        _ => Response::from_html(welcome_html(base_url)),
+        _ => Response::from_html(business_html(&state.biz_name, base_url)),
     }
 }

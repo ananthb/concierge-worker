@@ -3,11 +3,11 @@
 use crate::helpers::html_escape;
 use crate::types::*;
 
-use super::base::{base_html, base_html_with_meta, brand_mark, PageMeta, LOGO_INLINE};
+use super::base::{base_html, base_html_with_meta, brand_mark, PageMeta};
 use super::HASH;
 
 const STEPS: &[(&str, &str)] = &[
-    ("welcome", "Hey"),
+    ("business", "Your biz"),
     ("channels", "Plug in"),
     ("notifications", "Ping me"),
     ("persona", "Your voice"),
@@ -75,31 +75,17 @@ fn wizard_shell(step: &str, base_url: &str, content: &str) -> String {
     base_html(&format!("Concierge - Setup"), &inner)
 }
 
-pub fn welcome_html(base_url: &str) -> String {
+pub fn welcome_html(_base_url: &str) -> String {
     let content = format!(
         r#"<section class="page welcome">
   <div class="welcome-left">
     <div class="eyebrow">// automated customer engagement</div>
     <h1 class="display">Hello. I'll be answering <br>every <em>DM, WhatsApp &amp; email</em> <br>so you don't have to.</h1>
     <p class="lead">Connect your channels, set a tone, and your concierge handles the rest. Auto-replies across WhatsApp, Instagram, and email. 100 replies free every month.</p>
-    <div id="welcome-new">
-      <form class="welcome-form" action="/auth/login" method="get">
-        <input class="input" name="biz" id="biz-input" placeholder="Business name" required>
-        <button class="btn primary lg" type="submit">Start setup &rarr;</button>
-      </form>
-      <div class="mono fineprint">
-        &#x25E6; <a href="/auth/login" style="color:var(--accent)">already have an account? sign in</a>
-        &nbsp; &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
-        &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
-      </div>
-    </div>
-    <div id="welcome-back" style="display:none">
-      <p class="lead" id="wb-greeting" style="font-size:20px;margin-bottom:18px"></p>
-      <a href="/auth/login" class="btn primary lg">Sign in &rarr;</a>
-      <div class="mono fineprint" style="margin-top:18px">
-        &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
-        &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
-      </div>
+    <a href="/auth/login" class="btn primary lg">Get started &rarr;</a>
+    <div class="mono fineprint" style="margin-top:18px">
+      &#x25E6; <a href="/pricing" style="color:var(--muted)">pricing</a>
+      &nbsp; &#x25E6; <a href="https://github.com/ananthb/concierge-worker" style="color:var(--muted)">open-source</a>
     </div>
   </div>
   <aside class="postcard" aria-hidden="true">
@@ -115,46 +101,47 @@ pub fn welcome_html(base_url: &str) -> String {
     </div>
     <div class="stamp">ON<br>DUTY<br>24/7</div>
   </aside>
-</section>
-<script>
-(function() {{
-  function getCookie(name) {{
-    var c = document.cookie.split(';').map(function(s){{return s.trim()}}).find(function(s){{return s.startsWith(name+'=')}});
-    return c ? decodeURIComponent(c.substring(name.length+1)) : null;
-  }}
-
-  var provider = getCookie('last_provider');
-  var biz = getCookie('onboarding_biz');
-
-  if (provider) {{
-    // Returning user: show sign-in view
-    document.getElementById('welcome-new').style.display = 'none';
-    document.getElementById('welcome-back').style.display = 'block';
-    document.getElementById('wb-greeting').textContent = biz ? 'Hi, ' + biz + '.' : 'Welcome back.';
-    // Fill all rail segments and highlight "Go live"
-    document.querySelectorAll('.rail .seg').forEach(function(seg) {{
-      seg.classList.remove('active');
-      seg.classList.add('done');
-    }});
-    var labels = document.querySelectorAll('.rail-labels span');
-    labels.forEach(function(l) {{ l.classList.add('done'); l.classList.remove('active'); }});
-    if (labels.length > 0) {{ labels[labels.length-1].classList.add('active'); labels[labels.length-1].classList.remove('done'); }}
-  }} else {{
-    // New user: animate the first rail segment when business name is typed
-    var input = document.getElementById('biz-input');
-    var firstFill = document.querySelector('.rail .seg.active .fill');
-    if (input && firstFill) {{
-      input.addEventListener('input', function() {{
-        firstFill.style.width = input.value.trim().length > 0 ? '90%' : '55%';
-      }});
-    }}
-  }}
-}})();
-</script>"#,
+</section>"#,
         hash = HASH,
     );
 
-    wizard_shell("welcome", base_url, &content)
+    base_html("Concierge - Automated customer messaging", &content)
+}
+
+pub fn business_html(biz_name: &str, base_url: &str) -> String {
+    let disabled = if biz_name.is_empty() { " disabled" } else { "" };
+
+    let content = format!(
+        r#"<section class="page narrow">
+  <div class="section-label"><span class="mono muted">01 / 05</span><span class="eyebrow">About you</span></div>
+  <h2 class="display-md">What's your business called?</h2>
+  <p class="lead">This helps the AI understand who it's representing when it replies to your customers.</p>
+  <div class="card" style="padding:28px">
+    <label class="eyebrow" style="display:block;margin-bottom:8px">Business name</label>
+    <input class="input" name="biz" id="biz-input" value="{biz_name}" placeholder="e.g. Blossom Florist, Joe's Coffee..." style="font-size:18px;padding:14px 16px" autofocus>
+  </div>
+  <div class="between" style="margin-top:36px">
+    <a href="/" class="btn ghost">&larr; Back</a>
+    <button id="biz-continue" class="btn primary"{disabled} hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"channels"}}' hx-target="body" hx-swap="innerHTML" hx-include="[name=biz]">Continue &rarr;</button>
+  </div>
+</section>
+<script>
+(function() {{
+  var input = document.getElementById('biz-input');
+  var btn = document.getElementById('biz-continue');
+  if (input && btn) {{
+    input.addEventListener('input', function() {{
+      btn.disabled = input.value.trim().length === 0;
+    }});
+  }}
+}})();
+</script>"#,
+        biz_name = html_escape(biz_name),
+        base_url = base_url,
+        disabled = disabled,
+    );
+
+    wizard_shell("business", base_url, &content)
 }
 
 pub fn connect_html(ig_connected: bool, wa_connected: bool, base_url: &str) -> String {
@@ -197,7 +184,7 @@ pub fn connect_html(ig_connected: bool, wa_connected: bool, base_url: &str) -> S
     </div>
   </div>
   <div class="between" style="margin-top:36px">
-    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"welcome"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
+    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"business"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
     <div class="row gap-12">
       {hint}
       <button class="btn primary"{disabled} hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML">Continue &rarr;</button>
