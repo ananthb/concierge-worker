@@ -54,6 +54,25 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         ));
     }
 
+    if path == "/admin/settings/currency" && method == Method::Put {
+        let db = env.d1("DB")?;
+        let mut req = req;
+        let form: serde_json::Value = req.json().await?;
+        let currency = form
+            .get("currency")
+            .and_then(|v| v.as_str())
+            .unwrap_or("INR");
+        let currency = if currency == "USD" { "USD" } else { "INR" };
+
+        if let Some(mut tenant) = get_tenant(&db, &tenant_id).await? {
+            tenant.currency = currency.to_string();
+            tenant.updated_at = crate::helpers::now_iso();
+            save_tenant(&db, &tenant).await?;
+        }
+
+        return Response::from_html("<div class=\"success\">Currency updated.</div>".to_string());
+    }
+
     if path == "/admin/delete-account" && method == Method::Delete {
         let db = env.d1("DB")?;
         delete_tenant_data(&kv, &db, &tenant_id).await?;

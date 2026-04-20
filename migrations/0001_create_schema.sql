@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     name TEXT,
     facebook_id TEXT,
     plan TEXT DEFAULT 'free',
+    currency TEXT NOT NULL DEFAULT 'INR',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );

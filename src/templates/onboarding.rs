@@ -801,7 +801,7 @@ pub fn launch_html(
 }
 
 /// Public pricing page at /pricing
-pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
+pub fn pricing_html(packs: &[crate::types::CreditPackRow], default_currency: &str) -> String {
     let pack_rows: String = packs
         .iter()
         .map(|p| {
@@ -866,6 +866,7 @@ pub fn pricing_html(packs: &[crate::types::CreditPackRow]) -> String {
   </div>
 </article>
 <script>
+setCurrency('{default_currency}');
 function setCurrency(c) {{
   var inr = document.querySelectorAll('.p-inr');
   var usd = document.querySelectorAll('.p-usd');
@@ -885,6 +886,7 @@ function setCurrency(c) {{
 }}
 </script>"##,
         brand = brand_mark(),
+        default_currency = default_currency,
     );
 
     base_html_with_meta(
