@@ -704,10 +704,15 @@ pub fn launch_html(
                 r#"<div class="side-row" style="padding:10px 14px">
   <span>{mail_icon}</span>
   <div style="flex:1"><span class="mono" style="font-size:13px">{domain}</span></div>
-  <span class="chip warn">&#x20B9;199/mo</span>
+  <form hx-post="{base_url}/admin/email/subdomains" hx-target="body" style="display:inline" hx-ext="json-enc">
+    <input type="hidden" name="subdomain" value="{label}">
+    <button type="submit" class="btn sm primary">Subscribe &#x20B9;199/mo</button>
+  </form>
 </div>"#,
                 mail_icon = channel_icon("mail"),
                 domain = html_escape(&s.domain),
+                label = html_escape(&s.label),
+                base_url = base_url,
             )
         })
         .collect();
@@ -718,7 +723,7 @@ pub fn launch_html(
         format!(
             r#"<div class="card" style="padding:22px;margin-bottom:16px">
   <div class="eyebrow" style="margin-bottom:8px">Email subdomains</div>
-  <p class="muted" style="margin-bottom:12px;font-size:14px">These will be billed after you finish setup. You can manage subscriptions from the dashboard.</p>
+  <p class="muted" style="margin-bottom:12px;font-size:14px">Subscribe to activate your email addresses. You'll be redirected to Razorpay.</p>
   {pending_emails}
 </div>"#
         )
@@ -728,12 +733,16 @@ pub fn launch_html(
         .iter()
         .map(|p| {
             format!(
-                r#"<div class="card" style="padding:16px;text-align:center;min-width:140px">
-  <div class="stat-n serif">{replies}</div>
-  <div class="mono muted" style="font-size:11px;margin-bottom:8px">replies</div>
-  <div style="font-weight:600;margin-bottom:4px">&#x20B9;{inr} / ${usd}</div>
-  <div class="mono muted" style="font-size:10px">never expire</div>
-</div>"#,
+                r#"<form hx-post="{base_url}/admin/billing/checkout" hx-target="body" hx-swap="innerHTML" style="display:inline" hx-ext="json-enc">
+  <input type="hidden" name="credits" value="{replies}">
+  <button type="submit" class="card" style="padding:16px;text-align:center;min-width:140px;cursor:pointer;border:1px solid var(--hair)">
+    <div class="stat-n serif">{replies}</div>
+    <div class="mono muted" style="font-size:11px;margin-bottom:8px">replies</div>
+    <div style="font-weight:600;margin-bottom:4px">&#x20B9;{inr} / ${usd}</div>
+    <div class="mono muted" style="font-size:10px">never expire</div>
+  </button>
+</form>"#,
+                base_url = base_url,
                 replies = p.replies,
                 inr = p.price_inr / 100,
                 usd = p.price_usd / 100,
@@ -749,7 +758,6 @@ pub fn launch_html(
   <div class="eyebrow" style="margin-bottom:8px">Reply credit packs</div>
   <p class="muted" style="margin-bottom:12px;font-size:14px">You get 100 free replies every month. Buy more if you need them — purchased credits never expire.</p>
   <div class="row gap-12" style="flex-wrap:wrap;justify-content:center">{pack_buttons}</div>
-  <p class="mono muted" style="font-size:11px;margin-top:12px;text-align:center">You can buy packs anytime from the billing page.</p>
 </div>"#
         )
     };
