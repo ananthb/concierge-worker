@@ -222,7 +222,7 @@ code {
   box-shadow:var(--shadow-1); font:inherit; color:inherit; transition:all .2s ease; }
 .admin-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-2); }
 .admin-card.selected { border:2px solid var(--accent);
-  background:linear-gradient(160deg,#FFF 0%,var(--accent-soft) 180%); }
+  background:var(--paper); box-shadow: inset 0 0 0 1px var(--accent-soft), var(--shadow-2); }
 .admin-mark { width:54px; height:54px; border-radius:14px; background:var(--ink); color:var(--cream);
   display:flex; align-items:center; justify-content:center; }
 .mini-preview { margin-top:14px; border:1px solid var(--hair); border-radius:10px; overflow:hidden; background:#FFF; }

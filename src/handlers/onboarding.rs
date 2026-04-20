@@ -25,12 +25,9 @@ pub async fn handle_wizard(
         // Navigation between steps
         "goto" => {
             let form: serde_json::Value = req.json().await?;
-            let to = form
-                .get("to")
-                .and_then(|v| v.as_str())
-                .unwrap_or("business");
+            let to = form.get("to").and_then(|v| v.as_str()).unwrap_or("basics");
 
-            // Save biz name if provided
+            // Save biz name if provided (backward compat)
             if let Some(biz) = form.get("biz").and_then(|v| v.as_str()) {
                 if !biz.is_empty() {
                     state.biz_name = biz.to_string();
@@ -65,7 +62,34 @@ pub async fn handle_wizard(
             render_step(to, &state, &kv, tenant_id, base_url).await
         }
 
-        // Admin channel selection
+        // Save business info (The basics step)
+        "basics" => {
+            let form: serde_json::Value = req.json().await?;
+            let get = |key: &str| -> String {
+                form.get(key)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string()
+            };
+            state.business.name = get("name");
+            state.business.contact_name = get("contact_name");
+            state.business.phone = get("phone");
+            state.business.business_type = get("business_type");
+            state.business.pan = get("pan").to_uppercase();
+            state.business.gstin = get("gstin").to_uppercase();
+            state.business.address = get("address");
+            state.business.state = get("state");
+            state.business.pincode = get("pincode");
+            // Sync biz_name for backward compat
+            state.biz_name = state.business.name.clone();
+            state.step = "channels".to_string();
+            save_onboarding(&kv, tenant_id, &state).await?;
+
+            render_step("channels", &state, &kv, tenant_id, base_url).await
+        }
+
+        // Admin channel selection (legacy, kept for backward compat)
         "admin-pick" => {
             let form: serde_json::Value = req.json().await?;
             let v = form.get("v").and_then(|v| v.as_str()).unwrap_or("");
@@ -155,14 +179,15 @@ pub async fn handle_wizard(
 
         // Default: show current step (resume from where user left off)
         _ => {
-            let step = if state.step.is_empty() || state.step == "welcome" {
-                // New users or legacy "welcome" step → start at "business"
-                state.step = "business".to_string();
-                let _ = save_onboarding(&kv, tenant_id, &state).await;
-                "business"
-            } else {
-                &state.step
-            };
+            let step =
+                if state.step.is_empty() || state.step == "welcome" || state.step == "business" {
+                    // New users or legacy steps → start at "basics"
+                    state.step = "basics".to_string();
+                    let _ = save_onboarding(&kv, tenant_id, &state).await;
+                    "basics"
+                } else {
+                    &state.step
+                };
             render_step(step, &state, &kv, tenant_id, base_url).await
         }
     }
@@ -176,7 +201,7 @@ async fn render_step(
     base_url: &str,
 ) -> Result<Response> {
     match step {
-        "business" => Response::from_html(business_html(&state.biz_name, base_url)),
+        "basics" => Response::from_html(basics_html(&state.business, base_url)),
         "channels" => {
             let wa = list_whatsapp_accounts(kv, tenant_id).await?;
             let ig = list_instagram_accounts(kv, tenant_id).await?;
@@ -186,6 +211,6 @@ async fn render_step(
         "persona" => Response::from_html(persona_html(&state.persona, base_url)),
         "replies" => Response::from_html(replies_html(&state.canned_replies, base_url)),
         "launch" => Response::from_html(test_html(base_url)),
-        _ => Response::from_html(business_html(&state.biz_name, base_url)),
+        _ => Response::from_html(basics_html(&state.business, base_url)),
     }
 }

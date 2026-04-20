@@ -7,12 +7,12 @@ use super::base::{base_html, base_html_with_meta, brand_mark, PageMeta};
 use super::HASH;
 
 const STEPS: &[(&str, &str)] = &[
-    ("business", "Your biz"),
+    ("basics", "The basics"),
     ("channels", "Plug in"),
-    ("notifications", "Ping me"),
-    ("persona", "Your voice"),
-    ("replies", "Quick replies"),
-    ("launch", "Go live"),
+    ("notifications", "Heads up"),
+    ("persona", "Set the vibe"),
+    ("replies", "Auto-answers"),
+    ("launch", "Ship it"),
 ];
 
 fn rail_html(current: &str) -> String {
@@ -118,48 +118,115 @@ pub fn welcome_html(_base_url: &str) -> String {
     base_html("Concierge - Automated customer messaging", &content)
 }
 
-pub fn business_html(biz_name: &str, base_url: &str) -> String {
-    let disabled = if biz_name.is_empty() { " disabled" } else { "" };
+pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> String {
+    let disabled = if business.name.is_empty() || business.phone.is_empty() {
+        " disabled"
+    } else {
+        ""
+    };
+
+    let biz_type_options = [
+        ("", "Select type..."),
+        ("sole_proprietorship", "Sole Proprietorship"),
+        ("partnership", "Partnership"),
+        ("pvt_ltd", "Private Limited"),
+        ("llp", "LLP"),
+    ];
+    let biz_type_html: String = biz_type_options
+        .iter()
+        .map(|(val, label)| {
+            let sel = if business.business_type == *val {
+                " selected"
+            } else {
+                ""
+            };
+            format!(r#"<option value="{val}"{sel}>{label}</option>"#)
+        })
+        .collect();
 
     let content = format!(
         r#"<section class="page narrow">
-  <div class="section-label"><span class="mono muted">01 / 05</span><span class="eyebrow">About you</span></div>
-  <h2 class="display-md">What's your business called?</h2>
-  <p class="lead">This helps the AI understand who it's representing when it replies to your customers.</p>
-  <form hx-post="{base_url}/admin/wizard/goto" hx-target="body" hx-swap="innerHTML">
-    <input type="hidden" name="to" value="channels">
-    <div class="card" style="padding:28px">
-      <label class="eyebrow" style="display:block;margin-bottom:8px">Business name</label>
-      <input class="input" name="biz" id="biz-input" value="{biz_name}" placeholder="e.g. Blossom Florist, Joe's Coffee..." style="font-size:18px;padding:14px 16px" autofocus>
+  <div class="section-label"><span class="mono muted">01 / 06</span><span class="eyebrow">The basics</span></div>
+  <h2 class="display-md">Tell us about your business.</h2>
+  <p class="lead">We need this for invoicing and Indian regulatory compliance. Your details are never shared.</p>
+  <form hx-post="{base_url}/admin/wizard/basics" hx-target="body" hx-swap="innerHTML">
+    <div class="card" style="padding:24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">Business name *</label>
+          <input class="input" name="name" value="{name}" placeholder="Blossom Florist" required>
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">Contact name *</label>
+          <input class="input" name="contact_name" value="{contact_name}" placeholder="Your name">
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">Phone *</label>
+          <input class="input" type="tel" name="phone" value="{phone}" placeholder="+91 98765 43210" required>
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">Business type</label>
+          <select class="select" name="business_type">{biz_type_html}</select>
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">PAN</label>
+          <input class="input" name="pan" value="{pan}" placeholder="ABCDE1234F" style="text-transform:uppercase">
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">GSTIN <span class="muted">(optional)</span></label>
+          <input class="input" name="gstin" value="{gstin}" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase">
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <label class="eyebrow" style="display:block;margin-bottom:6px">Registered address</label>
+        <textarea class="textarea" name="address" rows="2" placeholder="Shop 12, Main Road...">{address}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">State</label>
+          <input class="input" name="state" value="{state}" placeholder="Tamil Nadu">
+        </div>
+        <div>
+          <label class="eyebrow" style="display:block;margin-bottom:6px">Pincode</label>
+          <input class="input" name="pincode" value="{pincode}" placeholder="600001" pattern="[0-9]{{6}}" maxlength="6">
+        </div>
+      </div>
     </div>
     <div class="between" style="margin-top:36px">
       <a href="/" class="btn ghost">&larr; Back</a>
-      <button id="biz-continue" class="btn primary" type="submit"{disabled}>Continue &rarr;</button>
+      <button id="basics-continue" class="btn primary" type="submit"{disabled}>Continue &rarr;</button>
     </div>
   </form>
 </section>
 <script>
 (function() {{
-  var input = document.getElementById('biz-input');
-  var btn = document.getElementById('biz-continue');
-  var fill = document.querySelector('.rail .seg.active .fill');
-  if (input && btn) {{
+  var form = document.querySelector('form');
+  var btn = document.getElementById('basics-continue');
+  if (form && btn) {{
     function update() {{
-      var hasValue = input.value.trim().length > 0;
-      btn.disabled = !hasValue;
-      if (fill) fill.style.width = hasValue ? '90%' : '55%';
+      var name = form.querySelector('[name=name]').value.trim();
+      var phone = form.querySelector('[name=phone]').value.trim();
+      btn.disabled = name.length === 0 || phone.length === 0;
     }}
-    input.addEventListener('input', update);
+    form.addEventListener('input', update);
     update();
   }}
 }})();
 </script>"#,
-        biz_name = html_escape(biz_name),
         base_url = base_url,
+        name = html_escape(&business.name),
+        contact_name = html_escape(&business.contact_name),
+        phone = html_escape(&business.phone),
+        biz_type_html = biz_type_html,
+        pan = html_escape(&business.pan),
+        gstin = html_escape(&business.gstin),
+        address = html_escape(&business.address),
+        state = html_escape(&business.state),
+        pincode = html_escape(&business.pincode),
         disabled = disabled,
     );
 
-    wizard_shell("business", base_url, &content)
+    wizard_shell("basics", base_url, &content)
 }
 
 pub fn connect_html(ig_connected: bool, wa_connected: bool, base_url: &str) -> String {
@@ -201,7 +268,7 @@ pub fn connect_html(ig_connected: bool, wa_connected: bool, base_url: &str) -> S
     </div>
   </div>
   <div class="between" style="margin-top:36px">
-    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"business"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
+    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"basics"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
     <div class="row gap-12">
       <button class="btn primary" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML">{continue_label}</button>
     </div>
