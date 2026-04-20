@@ -189,6 +189,18 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     let path = url.path();
     let method = req.method();
 
+    // Redirect cncg.email (and subdomains) to the main site
+    let host = url.host_str().unwrap_or("");
+    let email_base = env
+        .var("EMAIL_BASE_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if !email_base.is_empty() && (host == email_base || host.ends_with(&format!(".{email_base}"))) {
+        let headers = Headers::new();
+        headers.set("Location", "https://concierge.calculon.tech")?;
+        return Ok(Response::empty()?.with_status(301).with_headers(headers));
+    }
+
     // Static assets
     match path {
         "/robots.txt" => {
