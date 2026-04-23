@@ -148,7 +148,7 @@ fn add_security_headers(resp: &mut Response) -> Result<()> {
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin")?;
     headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'"
+        "default-src 'self'; script-src 'self' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'"
     )?;
     Ok(())
 }

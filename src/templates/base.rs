@@ -90,6 +90,7 @@ a { color:var(--accent); }
 .wrap{flex-wrap:wrap}
 .jc-center{justify-content:center}
 .link-reset{text-decoration:none;color:inherit}
+[x-cloak]{display:none!important}
 .inline{display:inline} .block{display:block} .hidden{display:none}
 .w-full{width:100%}
 .text-warn{color:var(--warn)} .text-ok{color:var(--ok)}
@@ -453,6 +454,7 @@ pub fn base_html_with_meta(title: &str, content: &str, meta: &PageMeta) -> Strin
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js" integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/htmx.org@2.0.8/dist/ext/json-enc.js"></script>
+<script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
 <style>{css}</style>
 </head>
 <body>
