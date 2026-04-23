@@ -286,6 +286,65 @@ pub async fn handle_email_admin(
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
+        // Bulk replace rules from a pasted JSON array (power-user text mode).
+        (Method::Put, ["domains", domain, "rules-bulk"]) => {
+            let form: serde_json::Value = req.json().await?;
+            let rules_json = form
+                .get("rules_json")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let parsed: Vec<RoutingRule> = match serde_json::from_str(rules_json) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Response::from_html(format!(
+                        "<div class=\"error\">Invalid JSON: {}</div>",
+                        crate::helpers::html_escape(&e.to_string())
+                    ));
+                }
+            };
+
+            // Detect duplicate ids (empty ids are treated as "new" so we
+            // only flag explicit duplicates).
+            let mut seen = std::collections::HashSet::new();
+            for r in &parsed {
+                if !r.id.is_empty() && !seen.insert(r.id.clone()) {
+                    return Response::from_html(format!(
+                        "<div class=\"error\">Duplicate rule id: {}</div>",
+                        crate::helpers::html_escape(&r.id)
+                    ));
+                }
+            }
+
+            let existing = get_email_rules(&kv, tenant_id, domain).await?;
+            let existing_by_id: std::collections::HashMap<String, &RoutingRule> =
+                existing.iter().map(|r| (r.id.clone(), r)).collect();
+            let now = now_iso();
+            let mut normalized: Vec<RoutingRule> = parsed
+                .into_iter()
+                .map(|mut r| {
+                    r.domain = domain.to_string();
+                    if r.id.is_empty() {
+                        r.id = generate_id();
+                    }
+                    r.created_at = existing_by_id
+                        .get(&r.id)
+                        .map(|e| e.created_at.clone())
+                        .unwrap_or_else(|| now.clone());
+                    r.updated_at = now.clone();
+                    r
+                })
+                .collect();
+            normalized.sort_by_key(|r| r.priority);
+            save_email_rules(&kv, tenant_id, domain, &normalized).await?;
+
+            let headers = Headers::new();
+            headers.set(
+                "HX-Redirect",
+                &format!("{base_url}/admin/email/domains/{domain}/rules"),
+            )?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
+        }
+
         // Edit rule page
         (Method::Get, ["domains", domain, "rules", rule_id]) => {
             let rules = get_email_rules(&kv, tenant_id, domain).await?;

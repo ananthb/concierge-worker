@@ -242,24 +242,48 @@ pub fn email_rules_html(domain: &str, rules: &[RoutingRule], base_url: &str) -> 
         String::new()
     };
 
+    let rules_json_pretty =
+        serde_json::to_string_pretty(rules).unwrap_or_else(|_| "[]".to_string());
+
     let content = format!(
-        "<div class=\"page-pad\">
+        "<div class=\"page-pad\" x-data=\"{{ mode: 'gui' }}\">
         <p><a href=\"{base_url}/admin/email\" class=\"btn ghost sm\">&larr; Email Routing</a></p>
-        <h1 class=\"display-sm mt-8 mb-16\">Rules for {domain}</h1>
-
-        {templates_section}
-
-        <div class=\"card\" style=\"padding:0;overflow:hidden\">
-            <div class=\"table-wrap\"><table>
-                <thead><tr><th>Priority</th><th>Name</th><th>Criteria</th><th>Action</th><th>Status</th><th></th></tr></thead>
-                <tbody>{rule_rows}{empty}</tbody>
-            </table></div>
+        <div class=\"between mt-8 mb-16\">
+            <h1 class=\"display-sm m-0\">Rules for {domain}</h1>
+            <div class=\"row gap-8\">
+                <button type=\"button\" class=\"btn sm\" :class=\"mode === 'gui' ? 'primary' : 'ghost'\" @click=\"mode = 'gui'\">GUI</button>
+                <button type=\"button\" class=\"btn sm\" :class=\"mode === 'text' ? 'primary' : 'ghost'\" @click=\"mode = 'text'\">Text (JSON)</button>
+            </div>
         </div>
 
-        <div class=\"card p-22 mt-16\">
-            <h2>Add Rule</h2>
-            <div id=\"toast\"></div>
-            {rule_form}
+        <div x-show=\"mode === 'gui'\" x-cloak>
+            {templates_section}
+
+            <div class=\"card\" style=\"padding:0;overflow:hidden\">
+                <div class=\"table-wrap\"><table>
+                    <thead><tr><th>Priority</th><th>Name</th><th>Criteria</th><th>Action</th><th>Status</th><th></th></tr></thead>
+                    <tbody>{rule_rows}{empty}</tbody>
+                </table></div>
+            </div>
+
+            <div class=\"card p-22 mt-16\">
+                <h2>Add Rule</h2>
+                <div id=\"toast\"></div>
+                {rule_form}
+            </div>
+        </div>
+
+        <div x-show=\"mode === 'text'\" x-cloak>
+            <div class=\"card p-22\">
+                <p class=\"muted mb-12\">Edit every rule for <code>{domain}</code> as JSON. Saving replaces the whole set. Omit or leave <code>id</code> empty to generate a fresh one.</p>
+                <form hx-put=\"{base_url}/admin/email/domains/{domain}/rules-bulk\" hx-ext=\"json-enc\" hx-target=\"{hash}bulk-toast\" hx-swap=\"innerHTML\">
+                    <textarea name=\"rules_json\" class=\"input mono w-full\" rows=\"24\" spellcheck=\"false\">{rules_json_pretty}</textarea>
+                    <div class=\"row gap-12 mt-12\">
+                        <button type=\"submit\" class=\"btn primary\">Save all</button>
+                    </div>
+                    <div id=\"bulk-toast\" class=\"mt-8\"></div>
+                </form>
+            </div>
         </div>
         </div>",
         base_url = base_url,
@@ -268,6 +292,8 @@ pub fn email_rules_html(domain: &str, rules: &[RoutingRule], base_url: &str) -> 
         rule_rows = rule_rows,
         empty = empty,
         rule_form = rule_form_html(domain, None, base_url),
+        rules_json_pretty = html_escape(&rules_json_pretty),
+        hash = HASH,
     );
 
     let page = super::base::app_shell(&content, "Email Routing", base_url);
@@ -397,7 +423,7 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
         .collect();
 
     format!(
-        "<form {method}=\"{url}\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\">
+        "<form {method}=\"{url}\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\" x-data=\"{{ action: '{action_type}' }}\">
             <div class=\"form-group\">
                 <label>Name</label>
                 <input type=\"text\" name=\"name\" value=\"{name}\" placeholder=\"Newsletter filter\" required>
@@ -412,7 +438,7 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
                 </div>
             </div>
 
-            <h3 style=\"margin: 1rem 0 0.5rem;\">Match Criteria</h3>
+            <h3 class=\"mt-16 mb-8\">Match Criteria</h3>
             <p class=\"muted mb-12\"><small>Patterns: <code>*</code> matches anything, <code>?</code> matches one character. Example: <code>*@newsletter.com</code> matches all emails from newsletter.com</small></p>
             <div class=\"form-group\">
                 <label>From</label>
@@ -434,33 +460,31 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
                 <label><input type=\"checkbox\" name=\"has_attachment\" value=\"true\"{has_attachment_checked}> Has attachment</label>
             </div>
 
-            <h3 style=\"margin: 1rem 0 0.5rem;\">Action</h3>
+            <h3 class=\"mt-16 mb-8\">Action</h3>
             <div class=\"form-group\">
                 <label>Action type</label>
-                <select name=\"action_type\" onchange=\"document.querySelectorAll('.action-fields').forEach(e => e.style.display='none'); var el=document.getElementById('action-'+this.value); if(el) el.style.display='block';\">
-                    {action_select}
-                </select>
+                <select name=\"action_type\" x-model=\"action\">{action_select}</select>
             </div>
 
-            <div id=\"action-spam\" class=\"action-fields\" style=\"display:{spam_display};\">
+            <div class=\"action-fields\" x-show=\"action === 'spam'\" x-cloak>
                 <div class=\"form-group\">
                     <label>Reject message</label>
                     <input type=\"text\" name=\"spam_message\" value=\"{spam_message}\" placeholder=\"Rejected as spam\">
                 </div>
             </div>
-            <div id=\"action-forward_email\" class=\"action-fields\" style=\"display:{fwd_display};\">
+            <div class=\"action-fields\" x-show=\"action === 'forward_email'\" x-cloak>
                 <div class=\"form-group\">
                     <label>Destination email</label>
                     <input type=\"email\" name=\"destination\" value=\"{destination}\" placeholder=\"me@gmail.com\">
                 </div>
             </div>
-            <div id=\"action-forward_discord\" class=\"action-fields\" style=\"display:{discord_display};\">
+            <div class=\"action-fields\" x-show=\"action === 'forward_discord'\" x-cloak>
                 <div class=\"form-group\">
                     <label>Discord channel ID</label>
                     <input type=\"text\" name=\"channel_id\" value=\"{channel_id}\" placeholder=\"123456789012345678\">
                 </div>
             </div>
-            <div id=\"action-ai_reply\" class=\"action-fields\" style=\"display:{ai_display};\">
+            <div class=\"action-fields\" x-show=\"action === 'ai_reply'\" x-cloak>
                 <div class=\"form-group\">
                     <label>System prompt</label>
                     <textarea name=\"system_prompt\" rows=\"3\" placeholder=\"You are a helpful assistant...\">{system_prompt}</textarea>
@@ -482,6 +506,7 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
         method = method,
         url = url,
         hash = HASH,
+        action_type = action_type,
         name = name,
         priority = priority,
         enabled_checked = enabled_checked,
@@ -497,10 +522,6 @@ fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> S
         system_prompt = html_escape(system_prompt),
         approval_channel_id = html_escape(approval_channel_id),
         approval_email = html_escape(approval_email),
-        spam_display = if action_type == "spam" { "block" } else { "none" },
-        fwd_display = if action_type == "forward_email" { "block" } else { "none" },
-        discord_display = if action_type == "forward_discord" { "block" } else { "none" },
-        ai_display = if action_type == "ai_reply" { "block" } else { "none" },
     )
 }
 
