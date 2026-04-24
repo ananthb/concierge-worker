@@ -56,21 +56,6 @@ pub async fn handle_email_admin(
             Response::from_html(email_log_html(&log, base_url))
         }
 
-        // Settings (discord bot token)
-        (Method::Get, ["settings"]) => {
-            let token = get_discord_bot_token(&kv, tenant_id).await?;
-            Response::from_html(email_settings_html(token.as_deref(), base_url))
-        }
-
-        // Save discord bot token
-        (Method::Put, ["settings"]) => {
-            let form: serde_json::Value = req.json().await?;
-            if let Some(token) = form.get("discord_bot_token").and_then(|v| v.as_str()) {
-                save_discord_bot_token(&kv, tenant_id, token).await?;
-            }
-            Response::from_html("<div class=\"success\">Settings saved</div>".to_string())
-        }
-
         // Add or subscribe to a subdomain. The wizard's "channels" step can
         // pre-create a subdomain with no subscription yet — so if a row for
         // this label already exists without a subscription, resume it here

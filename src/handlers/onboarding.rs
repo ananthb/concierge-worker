@@ -338,6 +338,7 @@ async fn render_step(
                 .await?
                 .map(|t| t.currency)
                 .unwrap_or_else(|| "INR".to_string());
+            let discord = get_discord_config_by_tenant(kv, tenant_id).await?;
             Response::from_html(connect_html(
                 !ig.is_empty(),
                 !wa.is_empty(),
@@ -346,10 +347,18 @@ async fn render_step(
                 &base_domain,
                 &currency,
                 tenant_id,
+                discord.as_ref(),
                 base_url,
             ))
         }
-        "notifications" => Response::from_html(notifications_html(&state.notifications, base_url)),
+        "notifications" => {
+            let dc_installed = get_discord_config_by_tenant(kv, tenant_id).await?.is_some();
+            Response::from_html(notifications_html(
+                &state.notifications,
+                dc_installed,
+                base_url,
+            ))
+        }
         "replies" => Response::from_html(replies_html(
             &state.persona,
             &state.canned_replies,

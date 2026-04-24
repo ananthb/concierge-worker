@@ -339,6 +339,11 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
             Response::from_html("<div class=\"success\">Facebook account unlinked.</div>")
         }
 
+        // Discord bot install callback
+        (Method::Get, "/auth/discord/callback") => {
+            super::discord_oauth::handle_discord_callback(req, env).await
+        }
+
         (Method::Get, "/auth/logout") => {
             // Clear session from KV if exists
             if let Some(session_token) = get_session_cookie(&req) {
