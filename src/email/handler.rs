@@ -2,6 +2,7 @@
 
 use worker::*;
 
+use super::send::OutboundEmail;
 use super::{ai_reply, discord, forward, mime, routing};
 use crate::helpers::generate_id;
 use crate::storage::*;
@@ -146,23 +147,15 @@ async fn execute_action(
                 };
                 save_email_reverse_alias(kv, &reverse_addr, &reverse_alias).await?;
 
-                let forwarded = mime::build_forwarded_email(
-                    parsed,
-                    &reverse_addr,
-                    destination,
-                    &reverse_addr,
-                    from,
-                    domain,
-                );
-
                 console_log!(
                     "Forwarding from {from} to {destination} via {to} (rule: {rule_name})"
                 );
-                Ok(EmailResult::Send {
-                    from: reverse_addr,
-                    to: destination.clone(),
-                    raw: forwarded,
-                })
+                Ok(EmailResult::Send(forwarded_email(
+                    parsed,
+                    &reverse_addr,
+                    destination,
+                    from,
+                )))
             } else {
                 Ok(EmailResult::Reject("Failed to parse email".into()))
             }
@@ -269,9 +262,6 @@ async fn handle_reverse_alias(
         }
     };
 
-    let reply_bytes =
-        mime::build_reply_email(parsed, &reverse.alias, &reverse.original_sender, domain);
-
     let _ = save_email_message(
         db,
         &EmailLogEntry {
@@ -294,11 +284,53 @@ async fn handle_reverse_alias(
         reverse.original_sender
     );
 
-    Ok(EmailResult::Send {
-        from: reverse.alias,
+    let mut headers: Vec<(String, String)> =
+        vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())];
+    if let Some(msg_id) = &parsed.message_id {
+        headers.push(("In-Reply-To".to_string(), msg_id.clone()));
+    }
+    if let Some(refs) = &parsed.references {
+        headers.push(("References".to_string(), refs.clone()));
+    }
+
+    Ok(EmailResult::Send(OutboundEmail {
+        from: reverse.alias.clone(),
         to: reverse.original_sender,
-        raw: reply_bytes,
-    })
+        subject: parsed.subject.clone(),
+        text: parsed.text_body.clone(),
+        html: parsed.html_body.clone(),
+        reply_to: Some(reverse.alias),
+        headers,
+    }))
+}
+
+/// Build the structured outbound message for a forwarded email.
+fn forwarded_email(
+    parsed: &mime::ParsedEmail,
+    reverse_addr: &str,
+    destination: &str,
+    original_from: &str,
+) -> OutboundEmail {
+    let mut headers: Vec<(String, String)> = vec![
+        ("X-EmailProxy-Forwarded".to_string(), "1".to_string()),
+        ("X-Original-From".to_string(), original_from.to_string()),
+    ];
+    if let Some(msg_id) = &parsed.message_id {
+        headers.push(("In-Reply-To".to_string(), msg_id.clone()));
+    }
+    if let Some(refs) = &parsed.references {
+        headers.push(("References".to_string(), refs.clone()));
+    }
+
+    OutboundEmail {
+        from: reverse_addr.to_string(),
+        to: destination.to_string(),
+        subject: parsed.subject.clone(),
+        text: parsed.text_body.clone(),
+        html: parsed.html_body.clone(),
+        reply_to: Some(reverse_addr.to_string()),
+        headers,
+    }
 }
 
 /// Result of email processing.
@@ -308,9 +340,5 @@ pub enum EmailResult {
     /// Reject the email with a message.
     Reject(String),
     /// Send a new email via the send_email binding.
-    Send {
-        from: String,
-        to: String,
-        raw: Vec<u8>,
-    },
+    Send(OutboundEmail),
 }

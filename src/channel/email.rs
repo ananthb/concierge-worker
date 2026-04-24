@@ -1,6 +1,7 @@
 use worker::*;
 
-use crate::email::{forward, mime};
+use crate::email::mime;
+use crate::email::send::{self, OutboundEmail};
 use crate::helpers::generate_id;
 use crate::types::*;
 
@@ -31,24 +32,14 @@ pub fn parse_inbound(
     }
 }
 
-/// The result of sending an email reply.
-pub enum EmailSendResult {
-    Sent {
-        from: String,
-        to: String,
-        raw: Vec<u8>,
-    },
-}
-
-/// Send a reply via email. Builds a MIME message and returns the raw bytes
-/// for the caller to dispatch via the send_email binding.
+/// Send a reply via email through the EMAIL binding.
 pub async fn send_reply(
     env: &Env,
     metadata: &serde_json::Value,
     to: &str,
     body: &str,
     subject: Option<&str>,
-) -> Result<EmailSendResult> {
+) -> Result<()> {
     let domain = metadata
         .get("domain")
         .and_then(|v| v.as_str())
@@ -61,23 +52,17 @@ pub async fn send_reply(
 
     let subject = subject.unwrap_or("Re: your message");
 
-    // Build a simple reply email
-    let parsed = mime::ParsedEmail {
-        subject: subject.to_string(),
-        message_id: None,
-        references: None,
-        text_body: Some(body.to_string()),
-        html_body: None,
-        has_attachment: false,
-    };
-
-    let raw = mime::build_reply_email(&parsed, original_to, to, domain);
-
-    Ok(EmailSendResult::Sent {
+    let outbound = OutboundEmail {
         from: original_to.to_string(),
         to: to.to_string(),
-        raw,
-    })
+        subject: subject.to_string(),
+        text: Some(body.to_string()),
+        html: None,
+        reply_to: Some(original_to.to_string()),
+        headers: vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())],
+    };
+
+    send::send_outbound(env, &outbound).await
 }
 
 #[cfg(test)]
