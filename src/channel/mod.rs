@@ -18,10 +18,7 @@ pub async fn send_reply(
     match channel {
         Channel::WhatsApp => whatsapp::send_reply(env, metadata, to, body).await,
         Channel::Instagram => instagram::send_reply(env, metadata, to, body).await,
-        Channel::Email => {
-            email::send_reply(env, metadata, to, body, subject).await?;
-            Ok(())
-        }
+        Channel::Email => email::send_reply(env, metadata, to, body, subject).await,
         Channel::Discord => Ok(()), // Discord replies handled by interaction handler
     }
 }

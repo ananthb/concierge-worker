@@ -65,11 +65,6 @@ extern "C" {
 
     #[wasm_bindgen(method, js_name = "setReject")]
     fn set_reject(this: &IncomingEmailMessage, reason: &str);
-
-    pub type SendEmailBinding;
-
-    #[wasm_bindgen(method)]
-    fn send(this: &SendEmailBinding, message: &JsValue) -> js_sys::Promise;
 }
 
 #[wasm_bindgen]
@@ -97,26 +92,10 @@ pub async fn email(
         .map_err(|e| JsValue::from_str(&format!("Email handler error: {e}")))?;
 
     match result {
-        email::handler::EmailResult::Send {
-            from: send_from,
-            to: send_to,
-            raw,
-        } => {
-            let email_binding = js_sys::Reflect::get(&worker_env.into(), &"EMAIL".into())
-                .map_err(|_| JsValue::from_str("Missing EMAIL binding"))?;
-            let send_email: SendEmailBinding = email_binding.unchecked_into();
-
-            let obj = js_sys::Object::new();
-            js_sys::Reflect::set(&obj, &"from".into(), &send_from.into())
-                .map_err(|_| JsValue::from_str("Failed to set from"))?;
-            js_sys::Reflect::set(&obj, &"to".into(), &send_to.into())
-                .map_err(|_| JsValue::from_str("Failed to set to"))?;
-            let uint8 = js_sys::Uint8Array::from(raw.as_slice());
-            js_sys::Reflect::set(&obj, &"raw".into(), &uint8.into())
-                .map_err(|_| JsValue::from_str("Failed to set raw"))?;
-
-            let send_promise = send_email.send(&obj.into());
-            wasm_bindgen_futures::JsFuture::from(send_promise).await?;
+        email::handler::EmailResult::Send(outbound) => {
+            email::send::send_outbound(&worker_env, &outbound)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("send_outbound: {e}")))?;
         }
         email::handler::EmailResult::Reject(reason) => {
             message.set_reject(&reason);
