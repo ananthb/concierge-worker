@@ -282,7 +282,7 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
 
     // Discord interaction endpoint
     if path == "/discord/interactions" && method == Method::Post {
-        return discord::interactions::handle_interaction(req, env).await;
+        return discord::handle_interaction(req, env).await;
     }
 
     // Razorpay payment webhook

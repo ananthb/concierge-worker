@@ -1,36 +1,7 @@
-//! Discord bot integration for email forwarding
+//! Discord bot integration for email forwarding (uses the `botrelay` crate).
 
-use serde::Serialize;
+use botrelay::discord::{CreateMessage, DiscordBot, Embed, EmbedField, EmbedFooter};
 use worker::*;
-
-const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
-
-#[derive(Serialize)]
-struct CreateMessage {
-    content: Option<String>,
-    embeds: Option<Vec<Embed>>,
-}
-
-#[derive(Serialize)]
-struct Embed {
-    title: Option<String>,
-    description: Option<String>,
-    color: Option<u32>,
-    fields: Vec<EmbedField>,
-    footer: Option<EmbedFooter>,
-}
-
-#[derive(Serialize)]
-struct EmbedField {
-    name: String,
-    value: String,
-    inline: bool,
-}
-
-#[derive(Serialize)]
-struct EmbedFooter {
-    text: String,
-}
 
 /// Post an email summary to a Discord channel as an embed.
 pub async fn post_email_to_discord(
@@ -49,8 +20,7 @@ pub async fn post_email_to_discord(
     };
 
     let message = CreateMessage {
-        content: None,
-        embeds: Some(vec![Embed {
+        embeds: vec![Embed {
             title: Some(if subject.is_empty() {
                 "(no subject)".into()
             } else {
@@ -73,37 +43,20 @@ pub async fn post_email_to_discord(
             footer: Some(EmbedFooter {
                 text: format!("Rule: {rule_name}"),
             }),
-        }]),
+        }],
+        ..Default::default()
     };
 
-    let url = format!("{DISCORD_API_BASE}/channels/{channel_id}/messages");
-    let body =
-        serde_json::to_string(&message).map_err(|e| Error::from(format!("JSON error: {e}")))?;
-
-    let headers = Headers::new();
-    headers.set("Authorization", &format!("Bot {bot_token}"))?;
-    headers.set("Content-Type", "application/json")?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post)
-        .with_headers(headers)
-        .with_body(Some(wasm_bindgen::JsValue::from_str(&body)));
-
-    let request = Request::new_with_init(&url, &init)?;
-    let resp = Fetch::Request(request).send().await?;
-
-    if resp.status_code() >= 400 {
-        console_log!(
-            "Discord API error: status={} channel={}",
-            resp.status_code(),
-            channel_id
-        );
+    // `application_id` and `public_key` are not needed for `create_message`;
+    // pass empty placeholders.
+    let bot = DiscordBot::new(bot_token, "", "");
+    if let Err(e) = bot.create_message(channel_id, message).await {
+        console_log!("Discord API error: channel={channel_id} err={e}");
     }
-
     Ok(())
 }
 
-/// Post an AI draft reply to Discord for approval (with reaction prompt).
+/// Post an AI draft reply to Discord for approval.
 pub async fn post_ai_draft_for_approval(
     bot_token: &str,
     channel_id: &str,
@@ -121,8 +74,8 @@ pub async fn post_ai_draft_for_approval(
     };
 
     let message = CreateMessage {
-        content: Some("**AI Draft Reply**: React with ✅ to approve, ❌ to discard.".to_string()),
-        embeds: Some(vec![
+        content: "**AI Draft Reply**: React with ✅ to approve, ❌ to discard.".into(),
+        embeds: vec![
             Embed {
                 title: Some(format!("Re: {subject}")),
                 description: Some(format!("**Draft reply:**\n{ai_draft}")),
@@ -147,35 +100,15 @@ pub async fn post_ai_draft_for_approval(
                 title: Some("Original message".into()),
                 description: Some(original_truncated),
                 color: Some(0x99AAB5),
-                fields: vec![],
-                footer: None,
+                ..Default::default()
             },
-        ]),
+        ],
+        ..Default::default()
     };
 
-    let url = format!("{DISCORD_API_BASE}/channels/{channel_id}/messages");
-    let body =
-        serde_json::to_string(&message).map_err(|e| Error::from(format!("JSON error: {e}")))?;
-
-    let headers = Headers::new();
-    headers.set("Authorization", &format!("Bot {bot_token}"))?;
-    headers.set("Content-Type", "application/json")?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post)
-        .with_headers(headers)
-        .with_body(Some(wasm_bindgen::JsValue::from_str(&body)));
-
-    let request = Request::new_with_init(&url, &init)?;
-    let resp = Fetch::Request(request).send().await?;
-
-    if resp.status_code() >= 400 {
-        console_log!(
-            "Discord API error (AI draft): status={} channel={}",
-            resp.status_code(),
-            channel_id
-        );
+    let bot = DiscordBot::new(bot_token, "", "");
+    if let Err(e) = bot.create_message(channel_id, message).await {
+        console_log!("Discord API error (AI draft): channel={channel_id} err={e}");
     }
-
     Ok(())
 }

@@ -1,12 +1,13 @@
 //! Discord slash command handlers (/domains, /rules, /status).
 
+use botrelay::discord::{Interaction, InteractionResponse};
 use worker::*;
 
 use crate::storage::*;
 use crate::types::*;
 
 /// Dispatch a slash command.
-pub async fn handle_command(interaction: &DiscordInteraction, env: &Env) -> Result<Response> {
+pub async fn handle_command(interaction: &Interaction, env: &Env) -> Result<Response> {
     let name = interaction
         .data
         .as_ref()
@@ -14,15 +15,7 @@ pub async fn handle_command(interaction: &DiscordInteraction, env: &Env) -> Resu
         .unwrap_or("");
 
     // Require Manage Server (0x20) permission
-    let has_permission = interaction
-        .member
-        .as_ref()
-        .and_then(|m| m.get("permissions"))
-        .and_then(|p| p.as_str())
-        .and_then(|p| p.parse::<u64>().ok())
-        .map_or(false, |perms| perms & 0x20 != 0);
-
-    if !has_permission {
+    if !interaction.member_has_permissions(0x20) {
         return ephemeral("You need the Manage Server permission to use this command.");
     }
 
@@ -89,7 +82,7 @@ async fn handle_status(kv: &kv::KvStore, env: &Env, tenant_id: &str) -> Result<R
 }
 
 async fn handle_domains(
-    interaction: &DiscordInteraction,
+    interaction: &Interaction,
     kv: &kv::KvStore,
     tenant_id: &str,
 ) -> Result<Response> {
@@ -124,23 +117,19 @@ async fn handle_domains(
 }
 
 async fn handle_rules(
-    interaction: &DiscordInteraction,
+    interaction: &Interaction,
     kv: &kv::KvStore,
     tenant_id: &str,
 ) -> Result<Response> {
-    let subcommand = interaction
+    let first_option = interaction
         .data
         .as_ref()
         .and_then(|d| d.options.as_ref())
-        .and_then(|opts| opts.first())
-        .map(|o| o.name.as_str())
-        .unwrap_or("list");
+        .and_then(|opts| opts.first());
 
-    let domain = interaction
-        .data
-        .as_ref()
-        .and_then(|d| d.options.as_ref())
-        .and_then(|opts| opts.first())
+    let subcommand = first_option.map(|o| o.name.as_str()).unwrap_or("list");
+
+    let domain = first_option
         .and_then(|o| o.options.first())
         .and_then(|o| o.value.as_ref())
         .and_then(|v| v.as_str())
@@ -191,11 +180,5 @@ async fn handle_rules(
 }
 
 fn ephemeral(content: &str) -> Result<Response> {
-    Response::from_json(&serde_json::json!({
-        "type": 4,
-        "data": {
-            "content": content,
-            "flags": 64
-        }
-    }))
+    Response::from_json(&InteractionResponse::ephemeral_message(content))
 }

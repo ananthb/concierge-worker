@@ -45,7 +45,7 @@ pub fn install_cta_html(from: &str, base_url: &str) -> String {
 /// Render the installed-management page: show guild, pick channels, uninstall.
 pub fn manage_html(
     cfg: &DiscordConfig,
-    channels: &[crate::discord::api::GuildChannel],
+    channels: &[botrelay::discord::GuildChannel],
     from: &str,
     base_url: &str,
 ) -> String {
