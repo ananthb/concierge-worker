@@ -117,7 +117,8 @@ pub async fn handle_discord_callback(req: Request, env: Env) -> Result<Response>
     let guild_name = if bot_token.is_empty() {
         None
     } else {
-        crate::discord::api::fetch_guild_name(&bot_token, &guild_id).await
+        let bot = botrelay::discord::DiscordBot::new(&bot_token, "", "");
+        bot.fetch_guild(&guild_id).await.and_then(|g| g.name)
     };
 
     let config = DiscordConfig {
@@ -216,7 +217,8 @@ async fn show_manage_page(
             let channels = if bot_token.is_empty() {
                 Vec::new()
             } else {
-                crate::discord::api::list_guild_text_channels(&bot_token, &cfg.guild_id)
+                let bot = botrelay::discord::DiscordBot::new(&bot_token, "", "");
+                bot.list_guild_text_channels(&cfg.guild_id)
                     .await
                     .unwrap_or_default()
             };
@@ -264,7 +266,8 @@ async fn uninstall(
             .map(|s| s.to_string())
             .unwrap_or_default();
         if !bot_token.is_empty() {
-            let _ = crate::discord::api::leave_guild(&bot_token, &cfg.guild_id).await;
+            let bot = botrelay::discord::DiscordBot::new(&bot_token, "", "");
+            let _ = bot.leave_guild(&cfg.guild_id).await;
         }
     }
 

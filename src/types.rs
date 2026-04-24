@@ -405,63 +405,6 @@ pub struct ConversationContext {
     pub created_at: String,
 }
 
-// ============================================================================
-// Discord Interaction Types
-// ============================================================================
-
-#[derive(Deserialize, Debug)]
-pub struct DiscordInteraction {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub interaction_type: u8,
-    #[serde(default)]
-    pub data: Option<InteractionData>,
-    #[serde(default)]
-    pub message: Option<serde_json::Value>,
-    #[serde(default)]
-    pub member: Option<serde_json::Value>,
-    pub token: String,
-    #[serde(default)]
-    pub guild_id: Option<String>,
-    #[serde(default)]
-    pub channel_id: Option<String>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct InteractionData {
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub custom_id: Option<String>,
-    #[serde(default)]
-    pub options: Option<Vec<CommandOption>>,
-    #[serde(default)]
-    pub components: Option<Vec<ActionRow>>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct CommandOption {
-    pub name: String,
-    #[serde(default)]
-    pub value: Option<serde_json::Value>,
-    #[serde(default)]
-    pub options: Vec<CommandOption>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct ActionRow {
-    #[serde(default)]
-    pub components: Vec<ModalComponent>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct ModalComponent {
-    #[serde(default)]
-    pub custom_id: Option<String>,
-    #[serde(default)]
-    pub value: Option<String>,
-}
-
 /// Business information for KYC / Indian regulatory compliance.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct BusinessInfo {
@@ -706,28 +649,6 @@ mod tests {
         let parsed: ConversationContext = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.origin_channel, Channel::Email);
         assert_eq!(parsed.ai_draft.as_deref(), Some("Draft reply text"));
-    }
-
-    #[test]
-    fn test_discord_interaction_deserialization() {
-        let json = r#"{
-            "id": "int-1",
-            "type": 2,
-            "token": "tok",
-            "guild_id": "guild-1",
-            "channel_id": "ch-1",
-            "data": {
-                "name": "status",
-                "options": []
-            }
-        }"#;
-        let interaction: DiscordInteraction = serde_json::from_str(json).unwrap();
-        assert_eq!(interaction.interaction_type, 2);
-        assert_eq!(
-            interaction.data.as_ref().unwrap().name.as_deref(),
-            Some("status")
-        );
-        assert_eq!(interaction.guild_id.as_deref(), Some("guild-1"));
     }
 
     #[test]
