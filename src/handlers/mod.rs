@@ -8,6 +8,7 @@ mod admin_lead_forms;
 mod admin_whatsapp;
 pub mod auth;
 mod data_deletion;
+pub mod discord_oauth;
 mod instagram_oauth;
 mod instagram_webhook;
 mod lead_form;

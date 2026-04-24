@@ -589,7 +589,14 @@ pub struct CannedReply {
 pub struct DiscordConfig {
     pub guild_id: String,
     pub tenant_id: String,
-    pub default_channel_id: Option<String>,
+    #[serde(default)]
+    pub guild_name: Option<String>,
+    #[serde(default)]
+    pub approval_channel_id: Option<String>,
+    #[serde(default)]
+    pub digest_channel_id: Option<String>,
+    #[serde(default)]
+    pub relay_channel_id: Option<String>,
 }
 
 #[cfg(test)]

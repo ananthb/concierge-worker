@@ -70,9 +70,86 @@ pub fn admin_settings_html(
     base_url: &str,
     google_client_id: &str,
     meta_app_id: &str,
+    wa: &[WhatsAppAccount],
+    ig: &[InstagramAccount],
+    discord: Option<&DiscordConfig>,
+    tenant_id: &str,
 ) -> String {
     let has_google = !tenant.email.is_empty();
     let has_facebook = tenant.facebook_id.is_some();
+
+    // Integrations section reuses the wizard's channel card helper, so
+    // Connect/Manage behaves identically to the onboarding Channels step.
+    use super::onboarding::{channel_card_html, ChannelCardProps};
+    let ig_card = {
+        let ig_handle = ig
+            .first()
+            .map(|a| format!("@{}", a.instagram_username))
+            .unwrap_or_default();
+        let connect = format!(
+            "{base_url}/instagram/auth/{}",
+            crate::helpers::html_escape(tenant_id)
+        );
+        let manage = format!("{base_url}/admin/instagram");
+        channel_card_html(&ChannelCardProps {
+            key: "ig",
+            name: "Instagram DMs",
+            connected: !ig.is_empty(),
+            status_line: if ig.is_empty() {
+                "Meta login. We'll read DMs from your business account."
+            } else {
+                &ig_handle
+            },
+            connect_href: &connect,
+            manage_href: &manage,
+        })
+    };
+    let wa_card = {
+        let wa_handle = wa
+            .first()
+            .map(|a| a.phone_number.clone())
+            .unwrap_or_default();
+        let connect = format!("{base_url}/admin/whatsapp/new");
+        let manage = format!("{base_url}/admin/whatsapp");
+        channel_card_html(&ChannelCardProps {
+            key: "wa",
+            name: "WhatsApp Business",
+            connected: !wa.is_empty(),
+            status_line: if wa.is_empty() {
+                "Uses your Meta Business access token + phone number ID."
+            } else {
+                &wa_handle
+            },
+            connect_href: &connect,
+            manage_href: &manage,
+        })
+    };
+    let dc_card = {
+        let dc_handle = discord
+            .and_then(|c| c.guild_name.clone())
+            .unwrap_or_else(|| "Connected".to_string());
+        let connect = format!("{base_url}/admin/discord/install");
+        let manage = format!("{base_url}/admin/discord");
+        channel_card_html(&ChannelCardProps {
+            key: "discord",
+            name: "Discord",
+            connected: discord.is_some(),
+            status_line: if discord.is_some() {
+                &dc_handle
+            } else {
+                "Install the bot to relay messages, approve AI drafts, and run slash commands."
+            },
+            connect_href: &connect,
+            manage_href: &manage,
+        })
+    };
+    let integrations_section = format!(
+        r#"<div class="card p-22">
+    <h2>Integrations</h2>
+    <p class="muted mb-16">Connect, reconfigure, or disconnect messaging channels.</p>
+    <div class="channels-grid">{ig_card}{wa_card}{dc_card}</div>
+  </div>"#
+    );
 
     let google_row = if has_google {
         let unlink = if has_facebook {
@@ -160,6 +237,7 @@ pub fn admin_settings_html(
                 </table></div>
             </div>
         </div>
+        {integrations_section}
         <div class=\"card p-22\" hx-ext=\"json-enc\">
             <h2>Billing Currency</h2>
             <p class=\"muted mb-16\">All future charges will be in this currency.</p>
@@ -191,6 +269,7 @@ pub fn admin_settings_html(
         hash = HASH,
         google_row = google_row,
         facebook_row = facebook_row,
+        integrations_section = integrations_section,
         inr_sel = if tenant.currency != "USD" { " selected" } else { "" },
         usd_sel = if tenant.currency == "USD" { " selected" } else { "" },
     );

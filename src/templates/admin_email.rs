@@ -139,7 +139,6 @@ pub fn email_dashboard_html(
     </div>
     <div class="row gap-8">
       <a href="{base_url}/admin/email/log" class="btn ghost sm">Log</a>
-      <a href="{base_url}/admin/email/settings" class="btn ghost sm">Settings</a>
     </div>
   </div>
 
@@ -602,33 +601,4 @@ pub fn email_log_html(log: &[serde_json::Value], base_url: &str) -> String {
 
     let page = super::base::app_shell(&content, "Email Routing", base_url);
     base_html("Email Log - Concierge", &page)
-}
-
-pub fn email_settings_html(discord_token: Option<&str>, base_url: &str) -> String {
-    let token_value = discord_token.unwrap_or("");
-
-    let content = format!(
-        "<div class=\"page-pad\">
-        <p><a href=\"{base_url}/admin/email\" class=\"btn ghost sm\">&larr; Email Routing</a></p>
-        <h1 class=\"display-sm mt-8 mb-16\">Email Settings</h1>
-        <div class=\"card p-22\">
-            <div id=\"toast\"></div>
-            <h2>Discord Bot</h2>
-            <p class=\"muted mb-16\">Bot token for forwarding emails to Discord channels.</p>
-            <form hx-put=\"{base_url}/admin/email/settings\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\">
-                <div class=\"form-group\">
-                    <label>Bot Token</label>
-                    <input type=\"password\" name=\"discord_bot_token\" value=\"{token}\" placeholder=\"Bot token\" class=\"mono\">
-                </div>
-                <button type=\"submit\" class=\"btn\">Save</button>
-            </form>
-        </div>
-        </div>",
-        base_url = base_url,
-        hash = HASH,
-        token = html_escape(token_value),
-    );
-
-    let page = super::base::app_shell(&content, "Email Routing", base_url);
-    base_html("Email Settings - Concierge", &page)
 }

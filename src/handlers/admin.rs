@@ -46,11 +46,18 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             .secret("META_APP_ID")
             .map(|s| s.to_string())
             .unwrap_or_default();
+        let wa = list_whatsapp_accounts(&kv, &tenant_id).await?;
+        let ig = list_instagram_accounts(&kv, &tenant_id).await?;
+        let dc = get_discord_config_by_tenant(&kv, &tenant_id).await?;
         return Response::from_html(admin_settings_html(
             &tenant,
             &base_url,
             &google_client_id,
             &meta_app_id,
+            &wa,
+            &ig,
+            dc.as_ref(),
+            &tenant_id,
         ));
     }
 
@@ -113,6 +120,11 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
 
     if path.starts_with("/admin/email") {
         return super::admin_email::handle_email_admin(req, env, path, &base_url, &tenant_id).await;
+    }
+
+    if path.starts_with("/admin/discord") {
+        return super::discord_oauth::handle_discord_admin(req, env, path, &base_url, &tenant_id)
+            .await;
     }
 
     if path.starts_with("/admin/wizard") {

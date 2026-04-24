@@ -710,22 +710,6 @@ pub async fn save_email_reverse_alias(
     Ok(())
 }
 
-/// Get discord bot token for a tenant.
-pub async fn get_discord_bot_token(kv: &kv::KvStore, tenant_id: &str) -> Result<Option<String>> {
-    let key = format!("discord_bot_token:{tenant_id}");
-    kv.get(&key)
-        .text()
-        .await
-        .map_err(|e| Error::from(e.to_string()))
-}
-
-/// Save discord bot token for a tenant.
-pub async fn save_discord_bot_token(kv: &kv::KvStore, tenant_id: &str, token: &str) -> Result<()> {
-    let key = format!("discord_bot_token:{tenant_id}");
-    kv.put(&key, token)?.execute().await?;
-    Ok(())
-}
-
 /// Log an email message to D1.
 pub struct EmailLogEntry<'a> {
     pub id: &'a str,

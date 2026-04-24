@@ -262,6 +262,7 @@ pub fn connect_html(
     email_base_domain: &str,
     currency: &str,
     tenant_id: &str,
+    discord: Option<&crate::types::DiscordConfig>,
     base_url: &str,
 ) -> String {
     let subdomain_price = if currency == "USD" { "$2" } else { "₹199" };
@@ -280,6 +281,22 @@ pub fn connect_html(
         wa_connected,
         "+61 431 555 019",
         "Uses your Meta Business access token + phone number ID.",
+        tenant_id,
+        base_url,
+    );
+    let (dc_connected, dc_handle) = match discord {
+        Some(c) => (
+            true,
+            c.guild_name.clone().unwrap_or_else(|| "Connected".into()),
+        ),
+        None => (false, String::new()),
+    };
+    let dc_card = channel_card(
+        "discord",
+        "Discord",
+        dc_connected,
+        &dc_handle,
+        "Install the bot to relay messages, approve AI drafts, and run slash commands.",
         tenant_id,
         base_url,
     );
@@ -349,7 +366,7 @@ pub fn connect_html(
   <div class="section-label"><span class="mono muted">02 / 05</span><span class="eyebrow">Plug in</span></div>
   <h2 class="display-md">Where do your customers already talk to you?</h2>
   <p class="lead">Connect your channels. Skip anything you don't use &mdash; you can add more from the dashboard later.</p>
-  <div class="channels-grid">{ig_card}{wa_card}{email_section}</div>
+  <div class="channels-grid">{ig_card}{wa_card}{dc_card}{email_section}</div>
   <div class="between mt-36">
     <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"basics"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
     <button class="btn primary" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"notifications"}}' hx-target="body" hx-swap="innerHTML">{continue_label}</button>
@@ -357,44 +374,41 @@ pub fn connect_html(
 </section>"#,
         ig_card = ig_card,
         wa_card = wa_card,
+        dc_card = dc_card,
         email_section = email_section,
         base_url = base_url,
         continue_label = continue_label,
     );
 
-    // Progress: 40% Instagram, 40% WhatsApp, 20% any email subdomain added.
+    // Progress: 30% Instagram, 30% WhatsApp, 20% Discord, 20% any email subdomain.
     let x_data = format!(
-        "{{ ig: {}, wa: {}, emails: {} }}",
+        "{{ ig: {}, wa: {}, dc: {}, emails: {} }}",
         ig_connected,
         wa_connected,
+        dc_connected,
         email_subdomains.len(),
     );
-    let progress_expr = "((ig ? 0.4 : 0) + (wa ? 0.4 : 0) + (emails > 0 ? 0.2 : 0))";
+    let progress_expr =
+        "((ig ? 0.3 : 0) + (wa ? 0.3 : 0) + (dc ? 0.2 : 0) + (emails > 0 ? 0.2 : 0))";
 
     wizard_shell("channels", base_url, &x_data, progress_expr, &content)
 }
 
-fn channel_card(
-    key: &str,
-    name: &str,
-    connected: bool,
-    handle: &str,
-    flavor: &str,
-    tenant_id: &str,
-    base_url: &str,
-) -> String {
-    // For the wizard, send users straight into the connect flow instead of
-    // the dashboard-style list page — one fewer click.
-    let connect_href = if key == "ig" {
-        format!("{base_url}/instagram/auth/{}", html_escape(tenant_id))
-    } else {
-        format!("{base_url}/admin/whatsapp/new")
-    };
-    let manage_href = format!(
-        "{base_url}/admin/{}",
-        if key == "ig" { "instagram" } else { "whatsapp" }
-    );
-    if connected {
+/// Props for a channel card. Shared between the wizard Channels step and the
+/// Settings "Integrations" section so the UI stays identical.
+pub struct ChannelCardProps<'a> {
+    /// Icon key: "ig" | "wa" | "discord" | "mail".
+    pub key: &'a str,
+    pub name: &'a str,
+    pub connected: bool,
+    /// One-line status: handle/identifier when connected, flavor text when not.
+    pub status_line: &'a str,
+    pub connect_href: &'a str,
+    pub manage_href: &'a str,
+}
+
+pub fn channel_card_html(p: &ChannelCardProps) -> String {
+    if p.connected {
         format!(
             r#"<div class="channel is-connected">
   <div class="ribbon">connected</div>
@@ -405,16 +419,16 @@ fn channel_card(
   </div>
   <div class="channel-body">
     <div class="mono text-ok fs-12">&#x25CF; active</div>
-    <div class="serif mt-4" style="font-size:22px;line-height:1.1">{handle}</div>
+    <div class="serif mt-4" style="font-size:18px;line-height:1.2">{status}</div>
   </div>
   <div class="row gap-8">
     <a href="{manage_href}" class="btn ghost sm">Manage</a>
   </div>
 </div>"#,
-            icon = channel_icon(key),
-            name = html_escape(name),
-            handle = html_escape(handle),
-            manage_href = manage_href,
+            icon = channel_icon(p.key),
+            name = html_escape(p.name),
+            status = html_escape(p.status_line),
+            manage_href = p.manage_href,
         )
     } else {
         format!(
@@ -427,15 +441,48 @@ fn channel_card(
   <div class="channel-body"><p class="muted m-0">{flavor}</p></div>
   <a href="{connect_href}" class="btn">Connect &rarr;</a>
 </div>"#,
-            icon = channel_icon(key),
-            name = html_escape(name),
-            flavor = html_escape(flavor),
-            connect_href = connect_href,
+            icon = channel_icon(p.key),
+            name = html_escape(p.name),
+            flavor = html_escape(p.status_line),
+            connect_href = p.connect_href,
         )
     }
 }
 
-fn channel_icon(key: &str) -> &'static str {
+// Thin wrapper kept for the wizard's `connect_html` call sites.
+fn channel_card(
+    key: &str,
+    name: &str,
+    connected: bool,
+    handle: &str,
+    flavor: &str,
+    tenant_id: &str,
+    base_url: &str,
+) -> String {
+    let connect_href = match key {
+        "ig" => format!("{base_url}/instagram/auth/{}", html_escape(tenant_id)),
+        "wa" => format!("{base_url}/admin/whatsapp/new"),
+        "discord" => format!("{base_url}/admin/discord/install?from=wizard_channels"),
+        _ => format!("{base_url}/admin/{key}"),
+    };
+    let manage_href = match key {
+        "ig" => format!("{base_url}/admin/instagram"),
+        "wa" => format!("{base_url}/admin/whatsapp"),
+        "discord" => format!("{base_url}/admin/discord"),
+        _ => format!("{base_url}/admin/{key}"),
+    };
+    let status_line = if connected { handle } else { flavor };
+    channel_card_html(&ChannelCardProps {
+        key,
+        name,
+        connected,
+        status_line,
+        connect_href: &connect_href,
+        manage_href: &manage_href,
+    })
+}
+
+pub fn channel_icon(key: &str) -> &'static str {
     match key {
         "ig" => {
             r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor"/></svg>"#
@@ -453,7 +500,11 @@ fn channel_icon(key: &str) -> &'static str {
     }
 }
 
-pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &str) -> String {
+pub fn notifications_html(
+    config: &crate::types::NotificationConfig,
+    discord_installed: bool,
+    base_url: &str,
+) -> String {
     let freq_options = |current: u32, opts: &[(u32, &str)]| -> String {
         opts.iter()
             .map(|(val, label)| {
@@ -513,6 +564,12 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
           </div>
         </label>
       </div>
+      <div class="card-soft p-14 mt-12" x-show="(approval.discord || digest.discord) && !{dc_installed_js}" x-cloak>
+        <div class="row gap-12">
+          <div class="fs-13 flex-1">Discord isn't installed yet. You need the bot in a server before approvals or digests land there.</div>
+          <a href="{base_url}/admin/discord/install?from=wizard_heads_up" class="btn sm primary">Install Discord</a>
+        </div>
+      </div>
     </div>
 
     <div class="card p-22">
@@ -556,6 +613,7 @@ pub fn notifications_html(config: &crate::types::NotificationConfig, base_url: &
         mail_icon = channel_icon("mail"),
         approval_freq_html = approval_freq_html,
         digest_freq_html = digest_freq_html,
+        dc_installed_js = if discord_installed { "true" } else { "false" },
     );
 
     let x_data = format!(

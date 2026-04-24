@@ -270,3 +270,78 @@ struct EmbedField {
 struct EmbedFooter {
     text: String,
 }
+
+// ============================================================================
+// Install-flow helpers
+// ============================================================================
+
+/// A text channel in a guild, as returned by GET /guilds/{id}/channels.
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GuildChannel {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub position: i32,
+    #[serde(rename = "type")]
+    pub channel_type: u32,
+}
+
+/// List text channels in a guild (type 0). Sorted by position ascending.
+pub async fn list_guild_text_channels(
+    bot_token: &str,
+    guild_id: &str,
+) -> Result<Vec<GuildChannel>> {
+    let url = format!("{DISCORD_API}/guilds/{guild_id}/channels");
+    let headers = Headers::new();
+    headers.set("Authorization", &format!("Bot {bot_token}"))?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Get).with_headers(headers);
+    let req = Request::new_with_init(&url, &init)?;
+    let mut resp = Fetch::Request(req).send().await?;
+    if resp.status_code() != 200 {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(Error::from(format!(
+            "Discord channels fetch {}: {body}",
+            resp.status_code()
+        )));
+    }
+    let mut channels: Vec<GuildChannel> = resp.json().await?;
+    channels.retain(|c| c.channel_type == 0);
+    channels.sort_by_key(|c| c.position);
+    Ok(channels)
+}
+
+/// Fetch a guild's display name. Returns None on failure.
+pub async fn fetch_guild_name(bot_token: &str, guild_id: &str) -> Option<String> {
+    fetch_guild_name_inner(bot_token, guild_id).await.ok()
+}
+
+async fn fetch_guild_name_inner(bot_token: &str, guild_id: &str) -> Result<String> {
+    let url = format!("{DISCORD_API}/guilds/{guild_id}");
+    let headers = Headers::new();
+    headers.set("Authorization", &format!("Bot {bot_token}"))?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Get).with_headers(headers);
+    let req = Request::new_with_init(&url, &init)?;
+    let mut resp = Fetch::Request(req).send().await?;
+    if resp.status_code() != 200 {
+        return Err(Error::from(format!("guild fetch {}", resp.status_code())));
+    }
+    let v: serde_json::Value = resp.json().await?;
+    v.get("name")
+        .and_then(|n| n.as_str())
+        .map(String::from)
+        .ok_or_else(|| Error::from("guild name missing"))
+}
+
+/// Leave a guild (bot removes itself). Best-effort.
+pub async fn leave_guild(bot_token: &str, guild_id: &str) -> Result<()> {
+    let url = format!("{DISCORD_API}/users/@me/guilds/{guild_id}");
+    let headers = Headers::new();
+    headers.set("Authorization", &format!("Bot {bot_token}"))?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Delete).with_headers(headers);
+    let req = Request::new_with_init(&url, &init)?;
+    let _ = Fetch::Request(req).send().await?;
+    Ok(())
+}

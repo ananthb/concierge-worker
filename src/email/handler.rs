@@ -169,16 +169,20 @@ async fn execute_action(
         }
 
         EmailAction::ForwardDiscord { channel_id } => {
-            if let Some(token) = get_discord_bot_token(kv, tenant_id).await? {
+            let token = env
+                .secret("DISCORD_BOT_TOKEN")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            if token.is_empty() {
+                console_log!("DISCORD_BOT_TOKEN secret not set — skipping forward");
+            } else {
                 discord::post_email_to_discord(
                     &token, channel_id, from, to, subject, text_body, rule_name,
                 )
                 .await?;
                 console_log!("Forwarded to Discord channel {channel_id} (rule: {rule_name})");
-            } else {
-                console_log!("Discord bot token not configured for tenant {tenant_id}");
             }
-            Ok(EmailResult::Drop) // Email is consumed by Discord, no SMTP forward
+            Ok(EmailResult::Drop)
         }
 
         EmailAction::AiReply {
@@ -197,7 +201,11 @@ async fn execute_action(
 
             // Post draft to Discord for approval
             if let Some(ch_id) = approval_channel_id {
-                if let Some(token) = get_discord_bot_token(kv, tenant_id).await? {
+                let token = env
+                    .secret("DISCORD_BOT_TOKEN")
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                if !token.is_empty() {
                     discord::post_ai_draft_for_approval(
                         &token, ch_id, from, to, subject, text_body, &draft, rule_name,
                     )
