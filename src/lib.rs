@@ -200,7 +200,7 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         }
         "/sitemap.txt" => {
             return serve_text(
-                "https://concierge.calculon.tech/\nhttps://concierge.calculon.tech/features\nhttps://concierge.calculon.tech/pricing\nhttps://concierge.calculon.tech/docs\nhttps://concierge.calculon.tech/terms\nhttps://concierge.calculon.tech/privacy\nhttps://ananthb.github.io/concierge-worker/\n",
+                "https://concierge.calculon.tech/\nhttps://concierge.calculon.tech/features\nhttps://concierge.calculon.tech/pricing\nhttps://concierge.calculon.tech/docs\nhttps://concierge.calculon.tech/terms\nhttps://concierge.calculon.tech/privacy\nhttps://ananthb.github.io/concierge/\n",
                 "text/plain",
             );
         }

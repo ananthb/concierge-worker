@@ -407,7 +407,7 @@ pub fn public_nav_html(active: &str) -> String {
     let features = item("features", "Features", "/features");
     let pricing = item("pricing", "Pricing", "/pricing");
     let docs = item("docs", "Docs", "/docs");
-    let github = r#"<a href="https://github.com/ananthb/concierge-worker" class="btn ghost sm" target="_blank" rel="noopener">Open source &uarr;</a>"#;
+    let github = r#"<a href="https://github.com/ananthb/concierge" class="btn ghost sm" target="_blank" rel="noopener">Open source &uarr;</a>"#;
     let signin = r#"<a href="/auth/login" class="btn primary sm">Sign in</a>"#;
     format!(
         r#"<header class="site-header">
@@ -431,7 +431,7 @@ pub fn footer() -> &'static str {
   <a href="/features" class="muted">Features</a> &middot;
   <a href="/pricing" class="muted">Pricing</a> &middot;
   <a href="/docs" class="muted">Docs</a> &middot;
-  <a href="https://github.com/ananthb/concierge-worker" class="muted">Open-source</a> &middot;
+  <a href="https://github.com/ananthb/concierge" class="muted">Open-source</a> &middot;
   <a href="https://www.gnu.org/licenses/agpl-3.0.html" class="muted">AGPL-3.0</a> &middot;
   <a href="/terms" class="muted">Terms</a> &middot;
   <a href="/privacy" class="muted">Privacy</a>

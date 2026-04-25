@@ -151,7 +151,7 @@ wrangler secret put DISCORD_BOT_TOKEN</code></pre>
   <p class="muted">After this, every tenant just clicks <em>Install</em> on <code>/admin/discord</code> (or the wizard's Channels step) — the OAuth flow handles per-tenant guild attribution and channel picking.</p>
 
   <h2>Self-hosting</h2>
-  <p>The repo at <a href="https://github.com/ananthb/concierge-worker" target="_blank" rel="noopener">github.com/ananthb/concierge-worker</a> is AGPL-3.0. Required Cloudflare bindings: D1, KV, AI, EMAIL (Email Routing + Email Service), DURABLE_OBJECTS. Required env secrets are listed in <code>wrangler.toml</code>'s comment block. The setup walkthrough lives at <a href="https://ananthb.github.io/concierge-worker/" target="_blank" rel="noopener">ananthb.github.io/concierge-worker</a>.</p>
+  <p>The repo at <a href="https://github.com/ananthb/concierge" target="_blank" rel="noopener">github.com/ananthb/concierge</a> is AGPL-3.0. Required Cloudflare bindings: D1, KV, AI, EMAIL (Email Routing + Email Service), DURABLE_OBJECTS. Required env secrets are listed in <code>wrangler.toml</code>'s comment block. The setup walkthrough lives at <a href="https://ananthb.github.io/concierge/" target="_blank" rel="noopener">ananthb.github.io/concierge</a>.</p>
 </article>
 {foot}"##,
         nav = nav,

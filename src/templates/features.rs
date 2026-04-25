@@ -64,7 +64,7 @@ pub fn features_html() -> String {
 
   <section class="mt-32">
     <h2>Open source</h2>
-    <p>The whole thing is on <a href="https://github.com/ananthb/concierge-worker" target="_blank" rel="noopener">GitHub</a> under AGPL-3.0. Self-host on your own Cloudflare account if you'd rather. Read the <a href="/docs">technical docs</a> for the full architecture.</p>
+    <p>The whole thing is on <a href="https://github.com/ananthb/concierge" target="_blank" rel="noopener">GitHub</a> under AGPL-3.0. Self-host on your own Cloudflare account if you'd rather. Read the <a href="/docs">technical docs</a> for the full architecture.</p>
   </section>
 
   <section class="card p-22 mt-32 ta-center">

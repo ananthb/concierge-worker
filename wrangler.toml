@@ -1,4 +1,4 @@
-name = "concierge-worker"
+name = "concierge"
 main = "worker-shim.mjs"
 compatibility_date = "2024-01-01"
 
@@ -10,8 +10,8 @@ command = "worker-build --release"
 # ============================================================================
 [[d1_databases]]
 binding = "DB"
-database_name = "concierge-worker"
-database_id = "332c2ee6-05c9-4293-9df3-51e61238b61a"
+database_name = "concierge"
+database_id = "95687fdd-d529-4993-8b84-e55db87159c2"
 
 # ============================================================================
 # KV Namespace for configs

@@ -68,7 +68,7 @@ body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);col
     <input type="tel" id="lf-phone" name="phone" class="lf-input" placeholder="{placeholder}" required aria-required="true">
     <button type="submit" class="lf-btn" aria-label="Submit phone number">{button}</button>
   </form>
-  <p style="margin-top:1rem;font-size:.65rem;color:{hash}777;"><a href="https://github.com/ananthb/concierge-worker" style="color:{hash}777;">Powered by Concierge</a></p>
+  <p style="margin-top:1rem;font-size:.65rem;color:{hash}777;"><a href="https://github.com/ananthb/concierge" style="color:{hash}777;">Powered by Concierge</a></p>
 </div>
 </body>
 </html>"##,

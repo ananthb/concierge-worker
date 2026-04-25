@@ -46,8 +46,6 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 <nav class="site-nav" aria-label="Documentation">
   <a href="./" class="current">Overview</a>
   <a href="how-it-works.html">How It Works</a>
-  <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/deploy.md">Deployment Guide</a>
-  <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/setup.md">Setup</a>
   <a href="configuration.html">Config</a>
   <a href="whatsapp.html">WhatsApp</a>
   <a href="instagram.html">Instagram</a>
@@ -57,16 +55,16 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
   <a href="embedding.html">Embedding</a>
   <a href="billing.html">Billing</a>
   <a href="management.html">Management</a>
-  <a href="deployment.html">Deployment</a>
+  <a href="deployment.html">Deploy</a>
   <a href="facebook-app-setup.html">Facebook App</a>
-  <a href="api/concierge_worker/">API Docs</a>
+  <a href="api/concierge/">API Docs</a>
 </nav>
 
 <h1>Concierge</h1>
 
 <p>Multi-channel messaging automation for small businesses. WhatsApp and Instagram auto-replies, email routing with smart rules, a unified Discord inbox, embeddable lead capture forms, and credit-based billing. All in one self-hosted Cloudflare Worker.</p>
 
-<a class="deploy-btn" href="https://deploy.workers.cloudflare.com/?url=https://github.com/ananthb/concierge-worker">
+<a class="deploy-btn" href="https://deploy.workers.cloudflare.com/?url=https://github.com/ananthb/concierge">
   <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare">
 </a>
 
@@ -101,18 +99,18 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
   <li>Razorpay payment gateway</li>
 </ul>
 
-<h2>Getting Started (Self-Hosted)</h2>
+<h2>Deploy your own</h2>
 
-<p>Click the deploy button above to deploy to Cloudflare Workers. The deploy flow will fork the repo and provision the Worker, D1 database, and KV namespace automatically. Then follow the <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/deploy.md">Deployment Guide</a> (or the <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/setup.md">Setup</a> guide) to configure secrets and webhooks.</p>
+<p>See the <a href="deployment.html">Deploy guide</a> for step-by-step instructions on forking and deploying your own instance to Cloudflare via GitHub Actions.</p>
 
 <h2>License</h2>
 
-<p><a href="https://github.com/ananthb/concierge-worker/blob/main/LICENSE">AGPL-3.0</a></p>
+<p><a href="https://github.com/ananthb/concierge/blob/main/LICENSE">AGPL-3.0</a></p>
 
 <footer>
-  <a href="https://github.com/ananthb/concierge-worker">Open-source</a> &middot;
+  <a href="https://github.com/ananthb/concierge">Open-source</a> &middot;
   Licensed under <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a> &middot;
-  <a href="api/concierge_worker/">API Reference</a>
+  <a href="api/concierge/">API Reference</a>
 </footer>
 
 </div>
