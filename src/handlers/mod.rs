@@ -9,6 +9,7 @@ mod admin_whatsapp;
 pub mod auth;
 mod data_deletion;
 pub mod discord_oauth;
+pub mod health;
 mod instagram_oauth;
 mod instagram_webhook;
 mod lead_form;

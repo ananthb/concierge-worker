@@ -45,7 +45,13 @@ pub async fn handle_management(
     match (method, sub) {
         (Method::Get, "" | "/") => {
             let tenant_count = crate::storage::count_tenants(&db).await.unwrap_or(0);
-            Response::from_html(tmpl::dashboard_html(&email, tenant_count, &base_url))
+            let report = crate::handlers::health::run_checks(&env, true).await;
+            Response::from_html(tmpl::dashboard_html(
+                &email,
+                tenant_count,
+                &report,
+                &base_url,
+            ))
         }
 
         (Method::Get, "audit") => {

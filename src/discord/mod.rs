@@ -20,7 +20,7 @@ use crate::types::*;
 /// three required secrets are missing or empty.
 fn bot_from_env(env: &Env) -> Option<DiscordBot> {
     let token = env.secret("DISCORD_BOT_TOKEN").ok()?.to_string();
-    let app_id = env.secret("DISCORD_APP_ID").ok()?.to_string();
+    let app_id = env.secret("DISCORD_APPLICATION_ID").ok()?.to_string();
     let public_key = env.secret("DISCORD_PUBLIC_KEY").ok()?.to_string();
     if token.is_empty() || app_id.is_empty() || public_key.is_empty() {
         return None;

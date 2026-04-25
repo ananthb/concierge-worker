@@ -41,7 +41,13 @@ fn manage_shell(title: &str, content: &str, active: &str, base_url: &str) -> Str
     base_html(title, &inner)
 }
 
-pub fn dashboard_html(email: &str, tenant_count: usize, base_url: &str) -> String {
+pub fn dashboard_html(
+    email: &str,
+    tenant_count: usize,
+    health: &crate::handlers::health::HealthReport,
+    base_url: &str,
+) -> String {
+    let health_panel = health_panel_html(health);
     let content = format!(
         r##"<div class="page-pad">
   <div class="between mb-24">
@@ -64,7 +70,10 @@ pub fn dashboard_html(email: &str, tenant_count: usize, base_url: &str) -> Strin
       <div class="mono muted fs-11">Active</div>
     </div>
   </div>
-  <div class="card p-18">
+
+  {health_panel}
+
+  <div class="card p-18 mt-16">
     <div class="between">
       <div class="eyebrow">Quick actions</div>
     </div>
@@ -76,10 +85,60 @@ pub fn dashboard_html(email: &str, tenant_count: usize, base_url: &str) -> Strin
 </div>"##,
         email = html_escape(email),
         tenant_count = tenant_count,
+        health_panel = health_panel,
         base_url = base_url,
     );
 
     manage_shell("Management - Concierge", &content, "Dashboard", base_url)
+}
+
+fn health_panel_html(report: &crate::handlers::health::HealthReport) -> String {
+    use crate::handlers::health::Status;
+    let overall_chip = match report.overall {
+        Status::Ok => r#"<span class="chip ok">All systems normal</span>"#,
+        Status::Warn => r#"<span class="chip warn">Degraded</span>"#,
+        Status::Error => {
+            r#"<span class="chip warn" style="background:#FCE8D5;border-color:#E08070;color:#8A1F0E">Issues detected</span>"#
+        }
+    };
+    let rows: String = report
+        .checks
+        .iter()
+        .map(|c| {
+            let dot = match c.status {
+                Status::Ok => r#"<span class="dot ok"></span>"#,
+                Status::Warn => r#"<span class="dot" style="background:var(--warn)"></span>"#,
+                Status::Error => {
+                    r#"<span class="dot" style="background:#C03020;box-shadow:0 0 0 3px rgba(192,48,32,.2)"></span>"#
+                }
+            };
+            format!(
+                r#"<div class="rt-row" style="grid-template-columns:auto 1.2fr 2fr">
+  <div>{dot}</div>
+  <div class="fw-600">{name}</div>
+  <div class="muted fs-13">{detail}</div>
+</div>"#,
+                dot = dot,
+                name = html_escape(&c.name),
+                detail = html_escape(&c.detail),
+            )
+        })
+        .collect();
+    format!(
+        r##"<div class="card" style="padding:0;overflow:hidden">
+  <div class="between p-18">
+    <div>
+      <div class="eyebrow">Connection status</div>
+      <p class="muted m-0 mt-4 fs-13">External providers + bindings — refreshed every 60s. Generated {ts}.</p>
+    </div>
+    {chip}
+  </div>
+  <div>{rows}</div>
+</div>"##,
+        chip = overall_chip,
+        ts = html_escape(&report.generated_at),
+        rows = rows,
+    )
 }
 
 pub fn tenants_list_html(tenants: &[Tenant], base_url: &str) -> String {

@@ -21,7 +21,7 @@ pub async fn send_reply(
         return Err(Error::from("DISCORD_BOT_TOKEN secret not set"));
     }
     let app_id = env
-        .secret("DISCORD_APP_ID")
+        .secret("DISCORD_APPLICATION_ID")
         .map(|s| s.to_string())
         .unwrap_or_default();
     let public_key = env

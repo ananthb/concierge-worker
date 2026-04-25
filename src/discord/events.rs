@@ -116,7 +116,7 @@ pub async fn handle_event(mut req: Request, env: Env) -> Result<Response> {
 
     // Tenant decides which kinds of messages we react to.
     let app_id = env
-        .secret("DISCORD_APP_ID")
+        .secret("DISCORD_APPLICATION_ID")
         .map(|s| s.to_string())
         .unwrap_or_default();
     let mentioned_us = msg.mentions.iter().any(|u| u.id == app_id);
