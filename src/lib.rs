@@ -213,7 +213,7 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         "/logo-192.png" => return serve_png(LOGO_192),
         "/logo-512.png" => return serve_png(LOGO_512),
         "/mstile-150x150.png" => return serve_png(MSTILE_150),
-        "/health" => return Response::ok("OK"),
+        "/health" => return handlers::health::handle_health(req, env).await,
         _ => {}
     }
 

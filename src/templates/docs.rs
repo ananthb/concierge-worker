@@ -144,8 +144,7 @@ pub fn docs_html() -> String {
     <li><strong>Worker secrets.</strong> Run:
       <pre class="mono"><code>wrangler secret put DISCORD_APPLICATION_ID
 wrangler secret put DISCORD_PUBLIC_KEY
-wrangler secret put DISCORD_BOT_TOKEN
-wrangler secret put DISCORD_APP_ID  # alias used by some handlers</code></pre>
+wrangler secret put DISCORD_BOT_TOKEN</code></pre>
     </li>
     <li><strong>Slash commands (optional).</strong> Register <code>/status</code>, <code>/domains list</code>, <code>/rules list &lt;domain&gt;</code> globally via <code>POST /applications/{{app_id}}/commands</code>. The interactions handler is already wired to dispatch them.</li>
   </ol>
