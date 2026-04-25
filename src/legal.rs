@@ -34,7 +34,7 @@ pub fn terms_of_service_html() -> String {
   <p>We may update these terms. Continued use after changes constitutes acceptance.</p>
 
   <h2>8. Contact</h2>
-  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge-worker">github.com/ananthb/concierge-worker</a>.</p>
+  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge">github.com/ananthb/concierge</a>.</p>
 </article>"##,
         brand = brand_mark(),
     );
@@ -89,7 +89,7 @@ pub fn privacy_policy_html() -> String {
   <p>Deletion is immediate and irreversible.</p>
 
   <h2>Contact</h2>
-  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge-worker">github.com/ananthb/concierge-worker</a>.</p>
+  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge">github.com/ananthb/concierge</a>.</p>
 </article>"##,
         brand = brand_mark(),
     );

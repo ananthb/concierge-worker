@@ -6,9 +6,9 @@
 
 Automated customer messaging for small businesses. Auto-replies across WhatsApp, Instagram DMs, and email. Managed email subdomains on `cncg.email`. Unified Discord inbox for everything that needs a human.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ananthb/concierge-worker)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ananthb/concierge)
 
-**[Hosted Service](https://concierge.calculon.tech)** · **[Documentation](https://ananthb.github.io/concierge-worker/)**
+**[Hosted Service](https://concierge.calculon.tech)** · **[Documentation](https://ananthb.github.io/concierge/)**
 
 ## Hosted Service
 
@@ -29,7 +29,7 @@ Don't want to self-host? [concierge.calculon.tech](https://concierge.calculon.te
 
 ## Deploy
 
-Click the button above to deploy to Cloudflare Workers. See the [setup guide](https://ananthb.github.io/concierge-worker/setup.html) for configuration.
+See the **[Deploy guide](https://ananthb.github.io/concierge/deployment.html)** for step-by-step instructions on forking and deploying your own instance to Cloudflare via GitHub Actions.
 
 ## Architecture
 

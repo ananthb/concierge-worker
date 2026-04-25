@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deployment | Concierge</title>
+<title>Deploy | Concierge</title>
 <link rel="icon" type="image/svg+xml" href="https://concierge.calculon.tech/logo.svg">
 <meta name="theme-color" content="#E86A2C">
+<meta name="description" content="Fork Concierge and deploy your own instance to Cloudflare Workers via GitHub Actions.">
 <style>
 :root { --bg: #fff; --fg: #1a1a1a; --muted: #555; --accent: #C55A11; --code-bg: #f5f6f8; --border: #e0e0e0; --max-w: 740px; --orange: #E86A2C; --navy: #1A1A2E; }
 @media (prefers-color-scheme: dark) { :root { --bg: #121212; --fg: #e0e0e0; --muted: #aaa; --accent: #F9A825; --code-bg: #2a2a2a; --border: #3a3a3a; } }
@@ -39,10 +40,7 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 
 <nav class="site-nav" aria-label="Documentation">
   <a href="./">Overview</a>
-
-
-  <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/deploy.md">Deployment Guide</a>
-  <a href="https://github.com/ananthb/concierge-worker/blob/main/doc/setup.md">Setup</a>
+  <a href="how-it-works.html">How It Works</a>
   <a href="configuration.html">Config</a>
   <a href="whatsapp.html">WhatsApp</a>
   <a href="instagram.html">Instagram</a>
@@ -52,104 +50,118 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
   <a href="embedding.html">Embedding</a>
   <a href="billing.html">Billing</a>
   <a href="management.html">Management</a>
-  <a href="deployment.html" class="current">Deployment</a>
+  <a href="deployment.html" class="current">Deploy</a>
   <a href="facebook-app-setup.html">Facebook App</a>
-  <a href="api/concierge_worker/">API Docs</a>
+  <a href="api/concierge/">API Docs</a>
 </nav>
 
-<h1>Deployment</h1>
+<h1>Deploy your own Concierge</h1>
+<p>Concierge is self-host first. Fork the repo, point a few GitHub Secrets at your Cloudflare account, and pushes to <code>main</code> deploy to your own Worker via GitHub Actions.</p>
+<p>If you'd rather not run it yourself, the maintainer's hosted instance at <a href="https://concierge.calculon.tech">concierge.calculon.tech</a> runs this exact codebase — sign up there and skip this page.</p>
 
-<h2>CI/CD</h2>
+<h2>1. Fork the repo</h2>
+<p>Fork <a href="https://github.com/ananthb/concierge">ananthb/concierge</a> on GitHub into your own account or org.</p>
 
+<h2>2. Adjust the deploy workflow for your domain</h2>
+<p>Open <code>.github/workflows/deploy.yml</code> in your fork. The workflow generates <code>wrangler.production.toml</code> with two custom-domain routes that point at the maintainer's domains. Replace them with routes you own — or delete the <code>[[routes]]</code> blocks entirely to deploy under <code>&lt;worker-name&gt;.&lt;your-subdomain&gt;.workers.dev</code>.</p>
+<pre><code>[[routes]]
+pattern = "your-app.example.com"
+custom_domain = true</code></pre>
+<p>Email routing requires a real zone you own; pick the domain you'll use for inbound mail here.</p>
+
+<h2>3. Create the Cloudflare resources</h2>
+<p>You need a D1 database (metadata logs, billing, audit) and a KV namespace (sessions, account configs, billing state).</p>
+<pre><code>nix develop                                       # or install wrangler manually
+wrangler d1 create concierge
+wrangler kv namespace create KV</code></pre>
+<p>Save the returned <code>database_id</code> (D1) and <code>id</code> (KV) — you'll paste them into GitHub Secrets next.</p>
+
+<h2>4. Configure GitHub Secrets</h2>
+<p>In your fork: <strong>Settings → Secrets and variables → Actions</strong>. Add:</p>
+
+<h3>Required</h3>
 <ul>
-  <li><strong>Garnix</strong> runs <code>nix flake check</code> on every push and PR (tests, clippy, formatting)</li>
-  <li><strong>GitHub Actions</strong> deploys to Cloudflare Workers on push to <code>main</code></li>
-  <li><strong>GitHub Actions</strong> builds and deploys documentation to GitHub Pages on changes to <code>docs/</code></li>
+  <li><code>CLOUDFLARE_API_TOKEN</code> — token with <em>Workers Scripts: Edit</em>, <em>Workers KV Storage: Edit</em>, <em>D1: Edit</em>, and <em>Email Routing: Edit</em>.</li>
+  <li><code>CLOUDFLARE_ACCOUNT_ID</code> — your Cloudflare Account ID (visible in the dashboard sidebar).</li>
+  <li><code>D1_DATABASE_ID</code> — the <code>database_id</code> from step 3.</li>
+  <li><code>KV_NAMESPACE_ID</code> — the <code>id</code> from step 3.</li>
+  <li><code>CF_ACCESS_TEAM</code> and <code>CF_ACCESS_AUD</code> — your Cloudflare Access team domain and the AUD tag of the Access app guarding <code>/manage</code> (set this up in step 7).</li>
 </ul>
 
-<h2>Manual Deploy</h2>
-
-<pre><code>nix develop
-wrangler deploy</code></pre>
-
-<h2>Database Migration</h2>
-
-<p>Apply the schema migration (creates all tables, safe to re-run with <code>IF NOT EXISTS</code>):</p>
-
-<pre><code>wrangler d1 execute concierge-worker --remote --file migrations/0001_create_schema.sql</code></pre>
-
-<p>This creates the following tables:</p>
-
-<table>
-  <thead>
-    <tr><th>Table</th><th>Purpose</th></tr>
-  </thead>
-  <tbody>
-    <tr><td><code>tenants</code></td><td>Tenant accounts</td></tr>
-    <tr><td><code>whatsapp_messages</code></td><td>WhatsApp message metadata log</td></tr>
-    <tr><td><code>instagram_messages</code></td><td>Instagram message metadata log</td></tr>
-    <tr><td><code>lead_form_submissions</code></td><td>Lead form submission records</td></tr>
-    <tr><td><code>email_messages</code></td><td>Email routing action log</td></tr>
-    <tr><td><code>email_metrics</code></td><td>Aggregated email routing counters by domain, rule, date, and action</td></tr>
-    <tr><td><code>messages</code></td><td>Unified message metadata log (all channels, no content stored)</td></tr>
-    <tr><td><code>credit_packs</code></td><td>Available credit pack definitions (managed via management panel)</td></tr>
-    <tr><td><code>payments</code></td><td>Razorpay payment history</td></tr>
-    <tr><td><code>audit_log</code></td><td>Management action audit trail</td></tr>
-  </tbody>
-</table>
-
-<p>The migration also seeds four default credit packs (Starter, Growth, Scale, Volume).</p>
-
-<p>To reset the database (drops all data):</p>
-
-<pre><code>wrangler d1 execute concierge-worker --remote --command "DROP TABLE IF EXISTS tenants; DROP TABLE IF EXISTS whatsapp_messages; DROP TABLE IF EXISTS instagram_messages; DROP TABLE IF EXISTS lead_form_submissions; DROP TABLE IF EXISTS email_messages; DROP TABLE IF EXISTS email_metrics; DROP TABLE IF EXISTS messages; DROP TABLE IF EXISTS credit_packs; DROP TABLE IF EXISTS payments; DROP TABLE IF EXISTS audit_log;"
-wrangler d1 execute concierge-worker --remote --file migrations/0001_create_schema.sql</code></pre>
-
-<h2>Razorpay Webhook Setup</h2>
-
-<ol>
-  <li>In the Razorpay Dashboard, go to <strong>Settings &gt; Webhooks</strong></li>
-  <li>Add a new webhook URL: <code>https://your-domain/webhook/razorpay</code></li>
-  <li>Select events: <code>payment.captured</code>, <code>payment.failed</code></li>
-  <li>Copy the webhook secret and set it: <code>wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></li>
-</ol>
-
-<h2>Cloudflare Access Setup for <code>/manage/*</code></h2>
-
-<ol>
-  <li>In the Cloudflare dashboard, go to <strong>Zero Trust &gt; Access &gt; Applications</strong></li>
-  <li>Create a <strong>Self-hosted</strong> application</li>
-  <li>Set the application domain to <code>your-domain</code> and path to <code>/manage/*</code></li>
-  <li>Copy the <strong>Application Audience (AUD) Tag</strong> and set it as <code>CF_ACCESS_AUD</code> in <code>wrangler.toml</code>. Set <code>CF_ACCESS_TEAM</code> to your team name.</li>
-  <li>Create a policy allowing the emails that should have management access</li>
-  <li>Concierge verifies the <code>Cf-Access-Jwt-Assertion</code> JWT signature and audience | no spoofable headers</li>
-</ol>
-
-<h2>Email Routing Setup</h2>
-
-<ol>
-  <li>In the Cloudflare dashboard, go to <strong>Email Routing</strong> for your domain</li>
-  <li>Enable Email Routing and verify the domain</li>
-  <li>Add a <strong>Catch-all</strong> rule that routes to your Worker (<code>concierge-worker</code>)</li>
-  <li>The Worker's <code>email()</code> handler receives all inbound emails for the domain</li>
-</ol>
-
-<h2>Pre-commit Hooks</h2>
-
-<p>The Nix dev shell installs git hooks via <code>cachix/git-hooks.nix</code>:</p>
-
+<h3>WhatsApp / Instagram (only if you'll use Meta channels)</h3>
 <ul>
-  <li><code>rustfmt</code>: code formatting</li>
-  <li><code>nixpkgs-fmt</code>: Nix formatting</li>
-  <li><code>check-toml</code>, <code>check-yaml</code>, <code>check-json</code>: config validation</li>
-  <li><code>detect-private-keys</code>: prevents accidental key commits</li>
-  <li><code>end-of-file-fixer</code>, <code>trim-trailing-whitespace</code>: file hygiene</li>
+  <li><code>WHATSAPP_WABA_ID</code> — your WhatsApp Business Account ID.</li>
+  <li><code>WHATSAPP_SIGNUP_CONFIG_ID</code> — your Embedded Signup configuration ID.</li>
 </ul>
+<p>See <a href="facebook-app-setup.html">Facebook App Setup</a> and <a href="whatsapp.html">WhatsApp</a> for how to obtain these.</p>
+
+<h2>5. Push to <code>main</code></h2>
+<p>The <code>Deploy</code> workflow generates <code>wrangler.production.toml</code> from your secrets, applies D1 migrations, and runs <code>wrangler deploy</code>. After it succeeds, your Worker is live on the route(s) you configured in step 2.</p>
+
+<h2>6. Set Worker secrets for the channels you use</h2>
+<p>The deploy workflow handles bindings and non-sensitive vars. Per-channel API keys must be uploaded as Worker secrets via <code>wrangler secret put</code> against your fork's <code>wrangler.production.toml</code>. Only set the ones for channels you actually plan to use:</p>
+<pre><code># Meta (WhatsApp + Instagram)
+wrangler secret put META_APP_ID
+wrangler secret put META_APP_SECRET
+
+# Razorpay (only if enabling paid credits / subscriptions)
+wrangler secret put RAZORPAY_KEY_ID
+wrangler secret put RAZORPAY_KEY_SECRET
+wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></pre>
+<p>Each channel doc lists the exact secrets it needs — see the <a href="#channels">Channel-specific setup</a> section below.</p>
+
+<h2>7. Protect <code>/manage</code> with Cloudflare Access</h2>
+<p>The management UI must not be public.</p>
+<ol>
+  <li>Cloudflare dashboard → <strong>Zero Trust → Access → Applications</strong>.</li>
+  <li>Create a <strong>Self-hosted</strong> application covering <code>your-app.example.com/manage/*</code>.</li>
+  <li>Copy the application's <strong>AUD tag</strong> and your team domain into the <code>CF_ACCESS_AUD</code> and <code>CF_ACCESS_TEAM</code> GitHub Secrets, then re-run the deploy workflow so the worker picks them up.</li>
+  <li>Add a policy listing the operator emails that should have management access.</li>
+</ol>
+<p>Concierge verifies the <code>Cf-Access-Jwt-Assertion</code> JWT signature and audience — there's no spoofable header path.</p>
+
+<h2>8. Enable Email Routing</h2>
+<p>Required for the email channel; safe to skip if you'll only use WhatsApp / Instagram / Discord.</p>
+<ol>
+  <li>Cloudflare dashboard → <strong>Email → Email Routing</strong> for the domain you picked in step 2.</li>
+  <li>Enable Email Routing and verify the domain.</li>
+  <li>Add a <strong>Catch-all</strong> rule that sends to your Worker (<code>concierge</code>).</li>
+</ol>
+<p>See <a href="email-routing.html">Email Routing</a> for routing rules, reverse-alias replies, and Discord relay options.</p>
+
+<h2 id="channels">9. Channel-specific setup</h2>
+<p>Per-channel webhooks, OAuth apps, and token plumbing live in their own pages:</p>
+<ul>
+  <li><a href="whatsapp.html">WhatsApp</a></li>
+  <li><a href="instagram.html">Instagram</a></li>
+  <li><a href="email-routing.html">Email Routing</a></li>
+  <li><a href="discord.html">Discord</a></li>
+  <li><a href="lead-forms.html">Lead Forms</a></li>
+  <li><a href="billing.html">Billing</a> — Razorpay setup if you're enabling paid credits</li>
+</ul>
+
+<h2>Updating</h2>
+<p>Pull from upstream into your fork's <code>main</code> branch (or merge a PR) — the deploy workflow re-runs on every push to <code>main</code> and will apply any new D1 migrations automatically.</p>
+
+<h2>Database reset</h2>
+<p>If you need to nuke and re-create the schema:</p>
+<pre><code>wrangler d1 execute concierge --remote --command "\
+  DROP TABLE IF EXISTS tenants; \
+  DROP TABLE IF EXISTS whatsapp_messages; \
+  DROP TABLE IF EXISTS instagram_messages; \
+  DROP TABLE IF EXISTS lead_form_submissions; \
+  DROP TABLE IF EXISTS email_messages; \
+  DROP TABLE IF EXISTS email_metrics; \
+  DROP TABLE IF EXISTS messages; \
+  DROP TABLE IF EXISTS credit_packs; \
+  DROP TABLE IF EXISTS payments; \
+  DROP TABLE IF EXISTS audit_log;"
+wrangler d1 migrations apply concierge --remote</code></pre>
 
 <footer>
-  <a href="https://github.com/ananthb/concierge-worker">Open-source</a> &middot;
+  <a href="https://github.com/ananthb/concierge">Open-source</a> &middot;
   Licensed under <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a> &middot;
-  <a href="api/concierge_worker/">API Reference</a>
+  <a href="api/concierge/">API Reference</a>
 </footer>
 
 </div>
