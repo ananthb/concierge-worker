@@ -5,7 +5,6 @@ use worker::*;
 use crate::management::audit;
 use crate::storage::*;
 use crate::templates::management as tmpl;
-use crate::types::*;
 
 pub async fn handle_tenants(
     mut req: Request,
@@ -40,9 +39,9 @@ pub async fn handle_tenants(
             };
             let wa = list_whatsapp_accounts(kv, id).await?;
             let ig = list_instagram_accounts(kv, id).await?;
-            let domains = get_email_subdomains(kv, id).await?;
+            let addrs = get_email_addresses(kv, id).await?;
             Response::from_html(tmpl::tenant_detail_html(
-                &tenant, &wa, &ig, &domains, base_url,
+                &tenant, &wa, &ig, &addrs, base_url,
             ))
         }
 

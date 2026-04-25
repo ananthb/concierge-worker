@@ -1,11 +1,12 @@
 //! Razorpay webhook handler — processes payment events.
-//! Idempotent: checks payment_id in D1 before granting credits.
+//! Idempotent: checks payment_id in D1 before granting credits or address packs.
 
 use wasm_bindgen::JsValue;
 use worker::*;
 
 use super::razorpay;
 use crate::helpers::generate_id;
+use crate::storage;
 
 /// Handle POST /webhook/razorpay
 pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Response> {
@@ -44,188 +45,83 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
                 .pointer("/notes/tenant_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let credits = payment
-                .pointer("/notes/credits")
+            let kind = payment
+                .pointer("/notes/kind")
                 .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<i64>().ok())
-                .unwrap_or(0);
+                .unwrap_or("reply_credits");
 
-            if tenant_id.is_empty() || credits <= 0 || payment_id.is_empty() {
-                console_log!("Webhook missing tenant_id/credits/payment_id");
+            if tenant_id.is_empty() || payment_id.is_empty() {
+                console_log!("Webhook missing tenant_id/payment_id");
                 return Response::ok("OK");
             }
 
             let db = env.d1("DB")?;
 
-            // Idempotency check: has this payment already been processed?
             if is_payment_processed(&db, payment_id).await? {
                 console_log!("Payment {payment_id} already processed, skipping");
                 return Response::ok("OK");
             }
 
-            // Record the payment first (before granting credits)
             let currency = payment
                 .get("currency")
                 .and_then(|v| v.as_str())
                 .unwrap_or("INR");
-            record_payment(&db, payment_id, tenant_id, credits, currency).await?;
 
-            // Grant credits
-            super::grant_purchased(&db, tenant_id, credits).await?;
+            match kind {
+                "address_pack" => {
+                    let packs = payment
+                        .pointer("/notes/packs")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse::<u32>().ok())
+                        .unwrap_or(1);
+                    record_payment(
+                        &db,
+                        payment_id,
+                        tenant_id,
+                        packs as i64,
+                        currency,
+                        "address_pack",
+                    )
+                    .await?;
+                    if let Some(mut tenant) = storage::get_tenant(&db, tenant_id).await? {
+                        tenant.email_address_packs_purchased += packs;
+                        tenant.updated_at = crate::helpers::now_iso();
+                        storage::save_tenant(&db, &tenant).await?;
+                        console_log!(
+                            "Granted {packs} address pack(s) to {tenant_id} (payment {payment_id})"
+                        );
+                    } else {
+                        console_log!("Tenant {tenant_id} missing — skipping address-pack grant");
+                    }
+                }
+                _ => {
+                    let credits = payment
+                        .pointer("/notes/credits")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .unwrap_or(0);
+                    if credits <= 0 {
+                        console_log!("Reply-credit payment with non-positive credits, skipping");
+                        return Response::ok("OK");
+                    }
+                    record_payment(
+                        &db,
+                        payment_id,
+                        tenant_id,
+                        credits,
+                        currency,
+                        "reply_credits",
+                    )
+                    .await?;
+                    super::grant_purchased(&db, tenant_id, credits).await?;
+                    console_log!("Granted {credits} replies to {tenant_id} (payment {payment_id})");
+                }
+            }
 
-            console_log!("Granted {credits} replies to {tenant_id} (payment {payment_id})");
             Response::ok("OK")
         }
         "payment.failed" => {
             console_log!("Razorpay payment failed: {:?}", payload.get("payload"));
-            Response::ok("OK")
-        }
-
-        // Email subdomain subscription lifecycle — provision on first payment
-        "subscription.activated" | "subscription.charged" => {
-            let subscription = match payload.pointer("/payload/subscription/entity") {
-                Some(s) => s,
-                None => return Response::ok("OK"),
-            };
-            let tenant_id = subscription
-                .pointer("/notes/tenant_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let subdomain_label = subscription
-                .pointer("/notes/subdomain")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            if tenant_id.is_empty() || subdomain_label.is_empty() {
-                return Response::ok("OK");
-            }
-
-            let kv = env.kv("KV")?;
-            let mut subdomains = crate::storage::get_email_subdomains(&kv, tenant_id).await?;
-
-            if let Some(sub) = subdomains.iter_mut().find(|s| s.label == subdomain_label) {
-                // Only provision if not already active
-                if sub.status != crate::types::SubdomainStatus::Active {
-                    let base_domain = env
-                        .var("EMAIL_BASE_DOMAIN")
-                        .map(|v| v.to_string())
-                        .unwrap_or_default();
-                    let zone_id = env
-                        .var("EMAIL_ZONE_ID")
-                        .map(|v| v.to_string())
-                        .unwrap_or_default();
-                    let api_token = env
-                        .secret("CF_DNS_API_TOKEN")
-                        .map(|s| s.to_string())
-                        .unwrap_or_default();
-
-                    if !zone_id.is_empty() && !api_token.is_empty() {
-                        match crate::cloudflare::dns::create_subdomain_records(
-                            &zone_id,
-                            subdomain_label,
-                            &base_domain,
-                            &api_token,
-                        )
-                        .await
-                        {
-                            Ok(record_ids) => {
-                                sub.dns_record_ids = record_ids;
-                                sub.status = crate::types::SubdomainStatus::Active;
-                                sub.updated_at = crate::helpers::now_iso();
-
-                                // Set domain index for inbound routing
-                                let _ = crate::storage::set_email_domain_index(
-                                    &kv,
-                                    &sub.domain,
-                                    tenant_id,
-                                )
-                                .await;
-
-                                console_log!(
-                                    "Provisioned MX for {}.{} (tenant {})",
-                                    subdomain_label,
-                                    base_domain,
-                                    tenant_id
-                                );
-                            }
-                            Err(e) => {
-                                console_log!(
-                                    "Failed to provision MX for {}: {:?}",
-                                    subdomain_label,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
-            crate::storage::save_email_subdomains(&kv, tenant_id, &subdomains).await?;
-            Response::ok("OK")
-        }
-
-        "subscription.halted" | "subscription.cancelled" => {
-            let subscription = match payload.pointer("/payload/subscription/entity") {
-                Some(s) => s,
-                None => return Response::ok("OK"),
-            };
-            let tenant_id = subscription
-                .pointer("/notes/tenant_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let subdomain_label = subscription
-                .pointer("/notes/subdomain")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            if tenant_id.is_empty() || subdomain_label.is_empty() {
-                console_log!("Subscription {event} missing tenant_id/subdomain");
-                return Response::ok("OK");
-            }
-
-            console_log!(
-                "Subscription {event} for {subdomain_label} (tenant {tenant_id}) — suspending"
-            );
-
-            let kv = env.kv("KV")?;
-            let mut subdomains = crate::storage::get_email_subdomains(&kv, tenant_id).await?;
-
-            if let Some(sub) = subdomains.iter_mut().find(|s| s.label == subdomain_label) {
-                sub.status = crate::types::SubdomainStatus::Suspended;
-                sub.updated_at = crate::helpers::now_iso();
-
-                // Delete MX records
-                if !sub.dns_record_ids.is_empty() {
-                    let zone_id = env
-                        .var("EMAIL_ZONE_ID")
-                        .map(|v| v.to_string())
-                        .unwrap_or_default();
-                    let api_token = env
-                        .secret("CF_DNS_API_TOKEN")
-                        .map(|s| s.to_string())
-                        .unwrap_or_default();
-                    if !zone_id.is_empty() && !api_token.is_empty() {
-                        let _ = crate::cloudflare::dns::delete_dns_records(
-                            &zone_id,
-                            &sub.dns_record_ids,
-                            &api_token,
-                        )
-                        .await;
-                    }
-                    sub.dns_record_ids.clear();
-                }
-            }
-
-            crate::storage::save_email_subdomains(&kv, tenant_id, &subdomains).await?;
-
-            // Remove domain index so inbound email stops routing
-            let base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-            let full_domain = format!("{subdomain_label}.{base_domain}");
-            let _ = crate::storage::delete_email_domain_index(&kv, &full_domain).await;
-
             Response::ok("OK")
         }
 
@@ -249,8 +145,9 @@ async fn record_payment(
     db: &D1Database,
     payment_id: &str,
     tenant_id: &str,
-    credits: i64,
+    amount: i64,
     currency: &str,
+    _kind: &str,
 ) -> Result<()> {
     let id = generate_id();
     let stmt = db.prepare(
@@ -261,7 +158,7 @@ async fn record_payment(
         id.as_str().into(),
         tenant_id.into(),
         payment_id.into(),
-        JsValue::from(credits as f64),
+        JsValue::from(amount as f64),
         currency.into(),
     ])?
     .run()

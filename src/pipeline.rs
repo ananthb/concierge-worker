@@ -24,17 +24,12 @@ pub async fn process_inbound(msg: &InboundMessage, env: &Env) -> Result<()> {
         console_log!("Failed to log inbound message: {:?}", e);
     }
 
-    match msg.channel {
-        Channel::WhatsApp | Channel::Instagram | Channel::Discord => {
-            let wait = lookup_wait_seconds(&kv, msg).await.unwrap_or(0);
-            if wait == 0 {
-                process_inbound_immediate(msg, env).await?;
-            } else if let Err(e) = forward_to_buffer(env, msg, wait).await {
-                console_log!("buffer route failed, falling back to immediate: {:?}", e);
-                process_inbound_immediate(msg, env).await?;
-            }
-        }
-        Channel::Email => {}
+    let wait = lookup_wait_seconds(&kv, msg).await.unwrap_or(0);
+    if wait == 0 {
+        process_inbound_immediate(msg, env).await?;
+    } else if let Err(e) = forward_to_buffer(env, msg, wait).await {
+        console_log!("buffer route failed, falling back to immediate: {:?}", e);
+        process_inbound_immediate(msg, env).await?;
     }
 
     Ok(())
@@ -60,7 +55,9 @@ async fn lookup_wait_seconds(kv: &kv::KvStore, msg: &InboundMessage) -> Result<u
         Channel::Discord => get_discord_config_by_tenant(kv, &msg.tenant_id)
             .await?
             .map(|c| c.auto_reply),
-        _ => None,
+        Channel::Email => get_email_address(kv, &msg.tenant_id, &msg.channel_account_id)
+            .await?
+            .map(|a| a.auto_reply),
     };
     Ok(cfg.map(|c| c.wait_seconds).unwrap_or(0))
 }
@@ -77,7 +74,7 @@ async fn forward_to_buffer(env: &Env, msg: &InboundMessage, wait_seconds: u32) -
     });
     let body = serde_json::to_string(&payload)?;
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     let mut init = RequestInit::new();
     init.with_method(Method::Post)
@@ -104,7 +101,13 @@ async fn handle_auto_reply(
             let account = get_instagram_account(kv, &msg.channel_account_id).await?;
             account.filter(|a| a.enabled).map(|a| a.auto_reply)
         }
-        _ => None,
+        Channel::Email => {
+            let addr = get_email_address(kv, &msg.tenant_id, &msg.channel_account_id).await?;
+            addr.map(|a| a.auto_reply)
+        }
+        Channel::Discord => get_discord_config_by_tenant(kv, &msg.tenant_id)
+            .await?
+            .map(|c| c.auto_reply),
     };
 
     let config = match config {

@@ -5,7 +5,6 @@ use crate::types::{CreditSource, TenantBilling};
 
 use super::base::{app_shell, base_html};
 use super::credit_slider::{slider_html, SliderMode};
-use super::HASH;
 
 /// Summary of credits by source, computed from the ledger.
 struct CreditSummary {
@@ -67,7 +66,14 @@ fn format_expiry(iso: &str) -> String {
     }
 }
 
-pub fn billing_overview_html(billing: &TenantBilling, currency: &str, base_url: &str) -> String {
+/// Renders the billing dashboard, including the email address-quota card.
+pub fn billing_overview_with_addresses_html(
+    billing: &TenantBilling,
+    currency: &str,
+    base_url: &str,
+    addresses_used: u32,
+    address_quota: u32,
+) -> String {
     let summary = summarize(billing);
 
     let total_class = if summary.total <= 0 { " text-warn" } else { "" };
@@ -100,11 +106,32 @@ pub fn billing_overview_html(billing: &TenantBilling, currency: &str, base_url: 
         },
     );
 
+    let pack_price_label = if currency == "USD" { "$0.50" } else { "₹49" };
+    let address_card = format!(
+        r##"<div class="card p-18 mb-24">
+            <div class="between">
+                <div>
+                    <div class="eyebrow">Email addresses</div>
+                    <div class="stat-n serif">{addresses_used} / {address_quota}</div>
+                    <div class="mono muted fs-11">used / total quota</div>
+                </div>
+                <form hx-post="{base_url}/admin/billing/address-packs" hx-target="body" hx-swap="innerHTML">
+                    <button class="btn primary" type="submit">Buy 5 more — {pack_price_label}</button>
+                </form>
+            </div>
+        </div>"##,
+        addresses_used = addresses_used,
+        address_quota = address_quota,
+        pack_price_label = pack_price_label,
+        base_url = base_url,
+    );
+
     let content = format!(
         r##"<div class="page-pad">
   <p><a href="{base_url}/admin">&larr; Back to Dashboard</a></p>
   <div class="eyebrow">Billing</div>
   <h2 class="display-sm m-0 mt-4 mb-16">AI reply credits</h2>
+  {address_card}
 
   <div class="stats-grid mb-24">
     <div class="card p-18 ta-center">
@@ -144,6 +171,7 @@ pub fn billing_overview_html(billing: &TenantBilling, currency: &str, base_url: 
         granted_detail = granted_detail,
         used = billing.replies_used,
         slider = slider,
+        address_card = address_card,
     );
 
     let page = app_shell(&content, "Billing", base_url);
@@ -217,4 +245,68 @@ document.getElementById("pay-btn").addEventListener("click", function() {{
     );
 
     base_html("Checkout - Concierge", &content)
+}
+
+/// Checkout for the email address-pack one-time purchase.
+pub fn address_pack_checkout_html(
+    order_id: &str,
+    amount: i64,
+    currency: &str,
+    razorpay_key: &str,
+    tenant_id: &str,
+    base_url: &str,
+) -> String {
+    let display_amount = if currency == "INR" {
+        format!("₹{}", amount / 100)
+    } else {
+        format!("${}.{:02}", amount / 100, amount % 100)
+    };
+    let content = format!(
+        r##"<div class="ta-center" style="max-width:480px;margin:4rem auto;padding:0 1rem">
+  <div class="card p-28">
+    <h2 class="display-sm">Email address pack</h2>
+    <p class="muted m-0 mt-8 mb-24">5 additional concierge addresses · one-time charge</p>
+    <div class="stat-n serif mb-24">{display_amount}</div>
+    <button id="pay-btn" class="btn primary lg w-full">Pay with Razorpay</button>
+    <p class="mono muted fs-11 mt-12">Secure payment via Razorpay</p>
+  </div>
+  <a href="{base_url}/admin/email" class="btn ghost sm mt-16">&larr; Cancel</a>
+</div>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+document.getElementById("pay-btn").addEventListener("click", function() {{
+  var options = {{
+    key: "{key}",
+    amount: {amount},
+    currency: "{currency}",
+    order_id: "{order_id}",
+    name: "Concierge",
+    description: "5-address pack",
+    notes: {{ tenant_id: "{tenant_id}", kind: "address_pack", packs: "1" }},
+    handler: function(response) {{
+      fetch("{base_url}/admin/billing/verify", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json"}},
+        body: JSON.stringify({{
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        }})
+      }}).then(function() {{ window.location.href = "{base_url}/admin/email"; }});
+    }},
+    theme: {{ color: "#E86A2C" }}
+  }};
+  new Razorpay(options).open();
+}});
+</script>"##,
+        display_amount = display_amount,
+        amount = amount,
+        currency = currency,
+        order_id = html_escape(order_id),
+        key = html_escape(razorpay_key),
+        tenant_id = html_escape(tenant_id),
+        base_url = base_url,
+    );
+
+    base_html("Email address pack — Concierge", &content)
 }

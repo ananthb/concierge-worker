@@ -2,8 +2,6 @@
 
 use crate::helpers::html_escape;
 
-use super::HASH;
-
 pub const CSS: &str = r##"
 :root {
   --cream: #F5EFE4; --cream-2: #EFE7D6; --paper: #FBF7EE;

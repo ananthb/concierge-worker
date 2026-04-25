@@ -15,7 +15,7 @@ pub async fn handle_billing_admin(
     base_url: &str,
     tenant_id: &str,
 ) -> Result<Response> {
-    let kv = env.kv("KV")?;
+    let _kv = env.kv("KV")?;
     let db = env.d1("DB")?;
 
     let sub = path
@@ -39,7 +39,15 @@ pub async fn handle_billing_admin(
             } else {
                 "INR"
             };
-            Response::from_html(tmpl::billing_overview_html(&bill, currency, base_url))
+            let kv = env.kv("KV")?;
+            let addrs = storage::get_email_addresses(&kv, tenant_id).await?;
+            Response::from_html(tmpl::billing_overview_with_addresses_html(
+                &bill,
+                currency,
+                base_url,
+                addrs.len() as u32,
+                tenant.email_address_quota(),
+            ))
         }
 
         // Create Razorpay order — flat per-reply rate, any quantity.
@@ -89,6 +97,43 @@ pub async fn handle_billing_admin(
 
             Response::from_html(tmpl::checkout_html(
                 order_id, amount, currency, credits, &key_id, tenant_id, &return_to, base_url,
+            ))
+        }
+
+        // Email address pack (5 addresses, one-time). Builds an order with
+        // notes.kind="address_pack" so the webhook knows to bump the
+        // tenant's address quota.
+        (Method::Post, "address-packs") => {
+            let tenant = storage::get_tenant(&db, tenant_id)
+                .await?
+                .unwrap_or_default();
+            let currency = if tenant.currency == "USD" {
+                "USD"
+            } else {
+                "INR"
+            };
+            let amount = billing::address_pack_price(currency);
+
+            let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
+            let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
+
+            let receipt = generate_id();
+            let order = razorpay::create_order_with_notes(
+                &key_id,
+                &key_secret,
+                amount,
+                currency,
+                &receipt,
+                serde_json::json!({
+                    "tenant_id": tenant_id,
+                    "kind": "address_pack",
+                    "packs": "1",
+                }),
+            )
+            .await?;
+            let order_id = order.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            Response::from_html(tmpl::address_pack_checkout_html(
+                order_id, amount, currency, &key_id, tenant_id, base_url,
             ))
         }
 

@@ -1,14 +1,30 @@
-//! Main email event handler — receives inbound emails, matches rules, executes actions.
+//! Inbound email handler. Normalises mail into an `InboundMessage` and hands
+//! it off to the unified pipeline (the same one WhatsApp/Instagram/Discord
+//! use). The pipeline buffers, generates a reply (AI or static), and sends
+//! it back via the email channel adapter.
 
 use worker::*;
 
 use super::send::OutboundEmail;
-use super::{ai_reply, discord, forward, mime, routing};
+use super::{forward, mime};
 use crate::helpers::generate_id;
+use crate::pipeline;
 use crate::storage::*;
 use crate::types::*;
 
-/// Handle an incoming email. Called from the wasm_bindgen email() export.
+/// Result of email processing.
+pub enum EmailResult {
+    /// Silently consume the message (the reply, if any, is dispatched
+    /// asynchronously through the pipeline).
+    Drop,
+    /// Reject the email at SMTP time with a message.
+    Reject(String),
+    /// Send a single outbound email immediately (used for reverse-alias
+    /// reply routing — synchronous, no buffering).
+    Send(OutboundEmail),
+}
+
+/// Handle an incoming email. Called from the wasm_bindgen `email()` export.
 pub async fn handle_email(
     from: &str,
     to: &str,
@@ -16,23 +32,31 @@ pub async fn handle_email(
     env: &Env,
 ) -> Result<EmailResult> {
     let kv = env.kv("KV")?;
-    let db = env.d1("DB")?;
 
-    // Extract domain from recipient
-    let domain = to.rsplit('@').next().unwrap_or("").to_lowercase();
+    let to_lower = to.to_lowercase();
+    let domain = to_lower.rsplit('@').next().unwrap_or("").to_string();
+    let local_part = to_lower.split('@').next().unwrap_or("").to_string();
 
-    if domain.is_empty() {
+    if domain.is_empty() || local_part.is_empty() {
         return Ok(EmailResult::Reject("Invalid recipient".into()));
     }
 
-    // Loop detection: check for our forwarding header in the raw email headers.
-    // Only search up to the first blank line (header/body boundary) to avoid false positives.
+    let base_domain = env
+        .var("EMAIL_BASE_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if domain != base_domain {
+        console_log!("Mail to non-platform domain {domain} — rejecting");
+        return Ok(EmailResult::Reject("Unknown domain".into()));
+    }
+
+    // Loop detection: search the header section (up to first blank line) for
+    // our forwarding marker.
     let header_end = raw_bytes
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
         .unwrap_or(raw_bytes.len().min(8192));
-    let header_section = &raw_bytes[..header_end];
-    let header_lower: Vec<u8> = header_section
+    let header_lower: Vec<u8> = raw_bytes[..header_end]
         .iter()
         .map(|b| b.to_ascii_lowercase())
         .collect();
@@ -44,245 +68,91 @@ pub async fn handle_email(
         return Ok(EmailResult::Reject("Forwarding loop detected".into()));
     }
 
-    // Look up tenant by domain
-    let tenant_id = match get_tenant_by_domain(&kv, &domain).await? {
-        Some(id) => id,
-        None => {
-            console_log!("No tenant for domain: {domain}");
-            return Ok(EmailResult::Reject("Unknown domain".into()));
-        }
-    };
-
-    // Parse the email
     let parsed = mime::parse_email(raw_bytes);
-    let subject = parsed.as_ref().map(|p| p.subject.as_str()).unwrap_or("");
-    let text_body = parsed
-        .as_ref()
-        .and_then(|p| p.text_body.as_deref())
-        .unwrap_or("");
-    let has_attachment = parsed.as_ref().map(|p| p.has_attachment).unwrap_or(false);
 
-    // Check if this is a reverse alias reply
-    if forward::is_reverse_alias(to) {
-        return handle_reverse_alias(from, to, &parsed, &kv, &db, &domain, &tenant_id).await;
+    // Reply that arrived at a reverse alias — route it back to the original
+    // human via the saved alias mapping.
+    if forward::is_reverse_alias(&to_lower) {
+        return handle_reverse_alias(&to_lower, &parsed, &kv).await;
     }
 
-    // Load and match routing rules
-    let rules = get_email_rules(&kv, &tenant_id, &domain).await?;
-    let matched_rule =
-        routing::find_matching_rule(&rules, from, to, subject, has_attachment, text_body);
-
-    let (rule_id, rule_name, action) = match matched_rule {
-        Some(rule) => (Some(rule.id.as_str()), rule.name.as_str(), &rule.action),
+    let tenant_id = match get_tenant_by_address(&kv, &local_part).await? {
+        Some(id) => id,
         None => {
-            // Use domain default action
-            let domains = get_email_subdomains(&kv, &tenant_id).await?;
-            let domain_config = domains.iter().find(|d| d.domain == domain);
-            let default = domain_config
-                .map(|d| d.default_action.clone())
-                .unwrap_or(EmailAction::Drop);
-            // Store temporarily to extend lifetime
-            return execute_action(
-                &default, None, "default", from, to, subject, text_body, &parsed, &kv, &db,
-                &domain, &tenant_id, env,
-            )
-            .await;
+            console_log!("No tenant for address: {local_part}@{base_domain}");
+            return Ok(EmailResult::Reject("Unknown address".into()));
         }
     };
 
-    execute_action(
-        action, rule_id, rule_name, from, to, subject, text_body, &parsed, &kv, &db, &domain,
-        &tenant_id, env,
-    )
-    .await
+    // Pick the best "real" sender. For forwarded mail this is in
+    // Reply-To / X-Forwarded-For / X-Original-From; otherwise envelope From.
+    let sender = forward::extract_original_sender(parsed.as_ref(), from);
+
+    let subject = parsed
+        .as_ref()
+        .map(|p| p.subject.clone())
+        .unwrap_or_default();
+    let body = parsed
+        .as_ref()
+        .and_then(|p| p.text_body.clone())
+        .unwrap_or_default();
+    let has_attachment = parsed.as_ref().map(|p| p.has_attachment).unwrap_or(false);
+
+    let message_id = parsed.as_ref().and_then(|p| p.message_id.clone());
+    let references = parsed.as_ref().and_then(|p| p.references.clone());
+
+    let msg = InboundMessage {
+        id: generate_id(),
+        channel: Channel::Email,
+        sender,
+        sender_name: None,
+        recipient: format!("{local_part}@{base_domain}"),
+        body,
+        subject: Some(subject.clone()),
+        has_attachment,
+        tenant_id: tenant_id.clone(),
+        // For email the "channel account" is the local-part — uniquely
+        // identifies the address that received the message.
+        channel_account_id: local_part.clone(),
+        raw_metadata: serde_json::json!({
+            "local_part": local_part,
+            "base_domain": base_domain,
+            "tenant_id": tenant_id,
+            "envelope_from": from,
+            "original_subject": subject,
+            "message_id": message_id,
+            "references": references,
+        }),
+    };
+
+    if let Err(e) = pipeline::process_inbound(&msg, env).await {
+        console_log!("Email pipeline error: {:?}", e);
+    }
+
+    // Reply (if any) was dispatched async through the pipeline.
+    Ok(EmailResult::Drop)
 }
 
-/// Execute a matched action.
-async fn execute_action(
-    action: &EmailAction,
-    rule_id: Option<&str>,
-    rule_name: &str,
-    from: &str,
-    to: &str,
-    subject: &str,
-    text_body: &str,
-    parsed: &Option<mime::ParsedEmail>,
-    kv: &kv::KvStore,
-    db: &D1Database,
-    domain: &str,
-    tenant_id: &str,
-    env: &Env,
-) -> Result<EmailResult> {
-    let log_id = generate_id();
-    let action_name = match action {
-        EmailAction::Drop => "dropped",
-        EmailAction::Spam { .. } => "spam",
-        EmailAction::ForwardEmail { .. } => "forwarded",
-        EmailAction::ForwardDiscord { .. } => "discord",
-        EmailAction::AiReply { .. } => "ai_reply",
-    };
-
-    let result = match action {
-        EmailAction::Drop => {
-            console_log!("Dropping email from {from} to {to} (rule: {rule_name})");
-            Ok(EmailResult::Drop)
-        }
-
-        EmailAction::Spam { message } => {
-            let msg = message.as_deref().unwrap_or("Rejected");
-            console_log!("Rejecting as spam from {from} to {to} (rule: {rule_name})");
-            Ok(EmailResult::Reject(msg.to_string()))
-        }
-
-        EmailAction::ForwardEmail { destination } => {
-            if let Some(ref parsed) = parsed {
-                let reverse_addr = forward::generate_reverse_address(domain);
-
-                // Save reverse alias for reply routing
-                let reverse_alias = EmailReverseAlias {
-                    alias: to.to_string(),
-                    original_sender: from.to_string(),
-                    tenant_id: tenant_id.to_string(),
-                    domain: domain.to_string(),
-                };
-                save_email_reverse_alias(kv, &reverse_addr, &reverse_alias).await?;
-
-                console_log!(
-                    "Forwarding from {from} to {destination} via {to} (rule: {rule_name})"
-                );
-                Ok(EmailResult::Send(forwarded_email(
-                    parsed,
-                    &reverse_addr,
-                    destination,
-                    from,
-                )))
-            } else {
-                Ok(EmailResult::Reject("Failed to parse email".into()))
-            }
-        }
-
-        EmailAction::ForwardDiscord { channel_id } => {
-            let token = env
-                .secret("DISCORD_BOT_TOKEN")
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-            if token.is_empty() {
-                console_log!("DISCORD_BOT_TOKEN secret not set — skipping forward");
-            } else {
-                discord::post_email_to_discord(
-                    &token, channel_id, from, to, subject, text_body, rule_name,
-                )
-                .await?;
-                console_log!("Forwarded to Discord channel {channel_id} (rule: {rule_name})");
-            }
-            Ok(EmailResult::Drop)
-        }
-
-        EmailAction::AiReply {
-            system_prompt,
-            approval_channel_id,
-            approval_email: _,
-        } => {
-            let draft = ai_reply::generate_email_reply(
-                env,
-                system_prompt.as_deref(),
-                from,
-                subject,
-                text_body,
-            )
-            .await?;
-
-            // Post draft to Discord for approval
-            if let Some(ch_id) = approval_channel_id {
-                let token = env
-                    .secret("DISCORD_BOT_TOKEN")
-                    .map(|s| s.to_string())
-                    .unwrap_or_default();
-                if !token.is_empty() {
-                    discord::post_ai_draft_for_approval(
-                        &token, ch_id, from, to, subject, text_body, &draft, rule_name,
-                    )
-                    .await?;
-                    console_log!("AI draft posted to Discord for approval (rule: {rule_name})");
-                }
-            }
-
-            // For now, AI replies are always held for approval — not auto-sent
-            Ok(EmailResult::Drop)
-        }
-    };
-
-    // Log the email
-    let _ = save_email_message(
-        db,
-        &EmailLogEntry {
-            id: &log_id,
-            tenant_id,
-            domain,
-            rule_id,
-            direction: "inbound",
-            from_email: from,
-            to_email: to,
-            action_taken: action_name,
-            error_msg: None,
-        },
-    )
-    .await;
-
-    // Increment metrics
-    let _ = increment_email_metric(db, domain, rule_id, action_name, tenant_id).await;
-
-    result
-}
-
-/// Handle a reply arriving at a reverse alias.
+/// Route a reply that arrived at a reverse alias back to the original
+/// recipient. This is synchronous because there's no rule/AI step — the
+/// alias mapping tells us exactly where to send.
 async fn handle_reverse_alias(
-    from: &str,
-    to: &str,
+    to_lower: &str,
     parsed: &Option<mime::ParsedEmail>,
     kv: &kv::KvStore,
-    db: &D1Database,
-    domain: &str,
-    tenant_id: &str,
 ) -> Result<EmailResult> {
-    let log_id = generate_id();
-
-    let reverse = match get_email_reverse_alias(kv, to).await? {
+    let reverse = match get_email_reverse_alias(kv, to_lower).await? {
         Some(r) => r,
         None => {
-            console_log!("Unknown reverse alias: {to}");
+            console_log!("Unknown reverse alias: {to_lower}");
             return Ok(EmailResult::Reject("Unknown reverse alias".into()));
         }
     };
 
     let parsed = match parsed {
         Some(p) => p,
-        None => {
-            return Ok(EmailResult::Reject("Failed to parse reply".into()));
-        }
+        None => return Ok(EmailResult::Reject("Failed to parse reply".into())),
     };
-
-    let _ = save_email_message(
-        db,
-        &EmailLogEntry {
-            id: &log_id,
-            tenant_id,
-            domain,
-            rule_id: None,
-            direction: "reply",
-            from_email: &reverse.alias,
-            to_email: &reverse.original_sender,
-            action_taken: "forwarded",
-            error_msg: None,
-        },
-    )
-    .await;
-
-    console_log!(
-        "Reply routing: {from} -> {} -> {}",
-        reverse.alias,
-        reverse.original_sender
-    );
 
     let mut headers: Vec<(String, String)> =
         vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())];
@@ -300,45 +170,8 @@ async fn handle_reverse_alias(
         text: parsed.text_body.clone(),
         html: parsed.html_body.clone(),
         reply_to: Some(reverse.alias),
+        cc: vec![],
+        bcc: vec![],
         headers,
     }))
-}
-
-/// Build the structured outbound message for a forwarded email.
-fn forwarded_email(
-    parsed: &mime::ParsedEmail,
-    reverse_addr: &str,
-    destination: &str,
-    original_from: &str,
-) -> OutboundEmail {
-    let mut headers: Vec<(String, String)> = vec![
-        ("X-EmailProxy-Forwarded".to_string(), "1".to_string()),
-        ("X-Original-From".to_string(), original_from.to_string()),
-    ];
-    if let Some(msg_id) = &parsed.message_id {
-        headers.push(("In-Reply-To".to_string(), msg_id.clone()));
-    }
-    if let Some(refs) = &parsed.references {
-        headers.push(("References".to_string(), refs.clone()));
-    }
-
-    OutboundEmail {
-        from: reverse_addr.to_string(),
-        to: destination.to_string(),
-        subject: parsed.subject.clone(),
-        text: parsed.text_body.clone(),
-        html: parsed.html_body.clone(),
-        reply_to: Some(reverse_addr.to_string()),
-        headers,
-    }
-}
-
-/// Result of email processing.
-pub enum EmailResult {
-    /// Silently drop the email.
-    Drop,
-    /// Reject the email with a message.
-    Reject(String),
-    /// Send a new email via the send_email binding.
-    Send(OutboundEmail),
 }

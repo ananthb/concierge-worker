@@ -1,13 +1,18 @@
-//! Admin handlers for email routing: domain + rule CRUD
+//! Admin handlers for the email feature: addresses, auto-reply config,
+//! notification recipients (with verification email).
+//!
+//! Per-customer subdomains and the legacy routing-rule engine are gone — see
+//! `doc/architecture.html` for the new model.
 
 use worker::*;
 
+use crate::email::{send::OutboundEmail, validate_local_part};
 use crate::helpers::*;
 use crate::storage::*;
 use crate::templates::admin_email::*;
 use crate::types::*;
 
-/// Handle /admin/email routes
+/// Handle `/admin/email/*` routes.
 pub async fn handle_email_admin(
     mut req: Request,
     env: Env,
@@ -27,443 +32,274 @@ pub async fn handle_email_admin(
         .collect();
 
     let method = req.method();
+    let base_domain = env
+        .var("EMAIL_BASE_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
 
     match (method, path_parts.as_slice()) {
-        // Dashboard: list subdomains + metrics
+        // Dashboard.
         (Method::Get, []) => {
-            let subdomains = get_email_subdomains(&kv, tenant_id).await?;
-            let metrics = get_email_metrics(&db, tenant_id, None).await?;
-            let email_base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-            let currency = get_tenant(&db, tenant_id)
-                .await?
-                .map(|t| t.currency)
-                .unwrap_or_else(|| "INR".to_string());
+            let addrs = get_email_addresses(&kv, tenant_id).await?;
+            let tenant = get_tenant(&db, tenant_id).await?.unwrap_or_default();
             Response::from_html(email_dashboard_html(
-                &subdomains,
-                &metrics,
-                &email_base_domain,
-                &currency,
+                &addrs,
+                &tenant,
+                &base_domain,
                 base_url,
             ))
         }
 
-        // Log viewer
-        (Method::Get, ["log"]) => {
-            let log = get_email_log(&db, tenant_id, 100).await?;
-            Response::from_html(email_log_html(&log, base_url))
-        }
-
-        // Add or subscribe to a subdomain. The wizard's "channels" step can
-        // pre-create a subdomain with no subscription yet — so if a row for
-        // this label already exists without a subscription, resume it here
-        // instead of erroring.
-        (Method::Post, ["subdomains"]) => {
+        // Add an address. Body: { local_part: "support" }
+        (Method::Post, ["addresses"]) => {
             let form: serde_json::Value = req.json().await?;
             let label = form
-                .get("subdomain")
+                .get("local_part")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .trim()
                 .to_lowercase();
 
-            let base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-
-            if let Err(e) = crate::cloudflare::dns::validate_subdomain_label(&label) {
+            if let Err(e) = validate_local_part(&label) {
                 return Response::from_html(format!(
-                    "<div class=\"error\">{}</div>",
-                    crate::helpers::html_escape(e)
+                    r#"<div class="error">{}</div>"#,
+                    html_escape(e)
                 ));
             }
 
-            let domain = format!("{label}.{base_domain}");
-
-            let mut subdomains = get_email_subdomains(&kv, tenant_id).await?;
-            let existing_idx = subdomains.iter().position(|d| d.domain == domain);
-            if let Some(idx) = existing_idx {
-                if subdomains[idx].subscription_id.is_some() {
-                    return Response::from_html(
-                        "<div class=\"error\">Subdomain already subscribed</div>".to_string(),
-                    );
-                }
-            } else if get_tenant_by_domain(&kv, &domain).await?.is_some() {
-                // Only check global uniqueness when creating fresh
+            // Quota check.
+            let tenant = get_tenant(&db, tenant_id).await?.unwrap_or_default();
+            let addrs = get_email_addresses(&kv, tenant_id).await?;
+            if (addrs.len() as u32) >= tenant.email_address_quota() {
                 return Response::from_html(
-                    "<div class=\"error\">Subdomain is already taken</div>".to_string(),
-                );
-            }
-
-            // Get or create a Razorpay plan for this tenant's total subdomain count
-            let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
-            let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
-
-            // Price per subdomain: ₹199 (19900 paise) or $2 (200 cents)
-            let tenant =
-                get_tenant(&db, tenant_id)
-                    .await?
-                    .unwrap_or_else(|| crate::types::Tenant {
-                        id: tenant_id.to_string(),
-                        currency: "INR".to_string(),
-                        ..Default::default()
-                    });
-            let new_count = (subdomains.len() + 1) as i64;
-            let (per_unit, currency): (i64, &str) = if tenant.currency == "USD" {
-                (200, "USD")
-            } else {
-                (19900, "INR")
-            };
-            let amount = per_unit * new_count;
-
-            let plan_key = format!("razorpay_plan:email:{currency}:{amount}");
-            let plan_id = match kv.get(&plan_key).text().await? {
-                Some(id) => id,
-                None => {
-                    let name = format!("Email {} subdomain(s)", new_count);
-                    let plan = crate::billing::razorpay::create_plan(
-                        &key_id,
-                        &key_secret,
-                        amount,
-                        currency,
-                        "monthly",
-                        1,
-                        &name,
-                    )
-                    .await?;
-                    let id = plan
-                        .get("id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    if id.is_empty() {
-                        return Response::from_html(
-                            "<div class=\"error\">Failed to create billing plan</div>".to_string(),
-                        );
-                    }
-                    kv.put(&plan_key, &id)?.execute().await?;
-                    console_log!("Created Razorpay plan {id} for {currency} {amount}");
-                    id
-                }
-            };
-
-            let subscription = crate::billing::razorpay::create_subscription(
-                &key_id,
-                &key_secret,
-                &plan_id,
-                tenant_id,
-                &label,
-            )
-            .await?;
-
-            let subscription_id = subscription
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let short_url = subscription
-                .get("short_url")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            if subscription_id.is_empty() || short_url.is_empty() {
-                return Response::from_html(
-                    "<div class=\"error\">Failed to create subscription. Please try again.</div>"
+                    r#"<div class="error">Address quota reached. <a href="/admin/billing">Buy more</a> to add additional addresses.</div>"#
                         .to_string(),
                 );
             }
 
-            // Record the subscription against an existing pending row, or
-            // create a fresh Suspended row. MX records are provisioned by the
-            // Razorpay webhook on payment confirmation.
-            let now = now_iso();
-            match existing_idx {
-                Some(idx) => {
-                    subdomains[idx].subscription_id = Some(subscription_id);
-                    subdomains[idx].updated_at = now.clone();
-                }
-                None => {
-                    subdomains.push(EmailSubdomain {
-                        label: label.clone(),
-                        domain: domain.clone(),
-                        tenant_id: tenant_id.to_string(),
-                        default_action: EmailAction::Drop,
-                        dns_record_ids: vec![],
-                        subscription_id: Some(subscription_id),
-                        status: SubdomainStatus::Suspended,
-                        created_at: now.clone(),
-                        updated_at: now,
-                    });
-                }
+            // Global uniqueness — local-parts are shared across the platform.
+            if get_tenant_by_address(&kv, &label).await?.is_some() {
+                return Response::from_html(
+                    r#"<div class="error">That address is already taken.</div>"#.to_string(),
+                );
             }
-            save_email_subdomains(&kv, tenant_id, &subdomains).await?;
 
-            // Redirect to Razorpay payment page
+            // Create with the owner email pre-listed as a verified Cc
+            // recipient. We don't need a verification round-trip for the
+            // tenant's own login email.
+            let now = now_iso();
+            let owner = NotificationRecipient {
+                id: generate_id(),
+                address: tenant.email.to_lowercase(),
+                kind: RecipientKind::Cc,
+                status: RecipientStatus::Verified,
+                is_owner: true,
+                created_at: now.clone(),
+                verified_at: Some(now.clone()),
+            };
+            let new_addr = EmailAddress {
+                local_part: label.clone(),
+                tenant_id: tenant_id.to_string(),
+                auto_reply: AutoReplyConfig::default(),
+                notification_recipients: vec![owner],
+                created_at: now.clone(),
+                updated_at: now,
+            };
+            save_email_address(&kv, tenant_id, &new_addr).await?;
+            set_email_address_index(&kv, &label, tenant_id).await?;
+
             let headers = Headers::new();
-            headers.set("HX-Redirect", &short_url)?;
+            headers.set("HX-Redirect", &format!("{base_url}/admin/email"))?;
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
-        // Delete subdomain
-        (Method::Delete, ["subdomains", label]) => {
-            let mut subdomains = get_email_subdomains(&kv, tenant_id).await?;
-            let removed = subdomains.iter().find(|d| d.label == *label).cloned();
-            subdomains.retain(|d| d.label != *label);
-            save_email_subdomains(&kv, tenant_id, &subdomains).await?;
-
-            if let Some(sub) = removed {
-                delete_email_domain_index(&kv, &sub.domain).await?;
-                save_email_rules(&kv, tenant_id, &sub.domain, &[]).await?;
-
-                // Cancel Razorpay subscription
-                if let Some(ref sub_id) = sub.subscription_id {
-                    let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
-                    let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
-                    let _ =
-                        crate::billing::razorpay::cancel_subscription(&key_id, &key_secret, sub_id)
-                            .await;
-                }
-
-                // Delete MX records from Cloudflare
-                if !sub.dns_record_ids.is_empty() {
-                    let zone_id = env
-                        .var("EMAIL_ZONE_ID")
-                        .map(|v| v.to_string())
-                        .unwrap_or_default();
-                    let api_token = env.secret("CF_DNS_API_TOKEN")?.to_string();
-                    let _ = crate::cloudflare::dns::delete_dns_records(
-                        &zone_id,
-                        &sub.dns_record_ids,
-                        &api_token,
-                    )
-                    .await;
-                }
+        // Delete an address.
+        (Method::Delete, ["addresses", label]) => {
+            let removed = delete_email_address(&kv, tenant_id, label).await?;
+            if removed {
+                delete_email_address_index(&kv, label).await?;
             }
-
             Ok(Response::empty()?.with_status(200))
         }
 
-        // List rules for a domain
-        (Method::Get, ["domains", domain, "rules"]) => {
-            let rules = get_email_rules(&kv, tenant_id, domain).await?;
-            Response::from_html(email_rules_html(domain, &rules, base_url))
+        // Per-address edit page.
+        (Method::Get, ["addresses", label]) => {
+            let addr = match get_email_address(&kv, tenant_id, label).await? {
+                Some(a) => a,
+                None => return Response::error("Not found", 404),
+            };
+            Response::from_html(email_address_html(&addr, &base_domain, base_url))
         }
 
-        // Add rule
-        (Method::Post, ["domains", domain, "rules"]) => {
+        // Update auto-reply config.
+        (Method::Put, ["addresses", label, "auto-reply"]) => {
             let form: serde_json::Value = req.json().await?;
-            let mut rules = get_email_rules(&kv, tenant_id, domain).await?;
-
-            let rule = parse_rule_from_json(domain, &form)?;
-            rules.push(rule);
-            rules.sort_by_key(|r| r.priority);
-            save_email_rules(&kv, tenant_id, domain, &rules).await?;
-
-            let headers = Headers::new();
-            headers.set(
-                "HX-Redirect",
-                &format!("{base_url}/admin/email/domains/{domain}/rules"),
-            )?;
-            Ok(Response::empty()?.with_status(200).with_headers(headers))
-        }
-
-        // Bulk replace rules from a pasted JSON array (power-user text mode).
-        (Method::Put, ["domains", domain, "rules-bulk"]) => {
-            let form: serde_json::Value = req.json().await?;
-            let rules_json = form
-                .get("rules_json")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let parsed: Vec<RoutingRule> = match serde_json::from_str(rules_json) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Response::from_html(format!(
-                        "<div class=\"error\">Invalid JSON: {}</div>",
-                        crate::helpers::html_escape(&e.to_string())
-                    ));
-                }
+            let mut addr = match get_email_address(&kv, tenant_id, label).await? {
+                Some(a) => a,
+                None => return Response::error("Not found", 404),
             };
 
-            // Detect duplicate ids (empty ids are treated as "new" so we
-            // only flag explicit duplicates).
-            let mut seen = std::collections::HashSet::new();
-            for r in &parsed {
-                if !r.id.is_empty() && !seen.insert(r.id.clone()) {
-                    return Response::from_html(format!(
-                        "<div class=\"error\">Duplicate rule id: {}</div>",
-                        crate::helpers::html_escape(&r.id)
-                    ));
+            addr.auto_reply.enabled = form
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let mode_str = form
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("static");
+            addr.auto_reply.mode = if mode_str == "ai" {
+                AutoReplyMode::Ai
+            } else {
+                AutoReplyMode::Static
+            };
+            addr.auto_reply.prompt = form
+                .get("prompt")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            addr.auto_reply.wait_seconds = form
+                .get("wait_seconds")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(5) as u32;
+            addr.updated_at = now_iso();
+
+            save_email_address(&kv, tenant_id, &addr).await?;
+
+            let headers = Headers::new();
+            headers.set(
+                "HX-Redirect",
+                &format!("{base_url}/admin/email/addresses/{label}"),
+            )?;
+            Ok(Response::empty()?.with_status(200).with_headers(headers))
+        }
+
+        // Add a notification recipient (Cc or Bcc). Sends a verification
+        // email unless the address matches the tenant's owner login.
+        (Method::Post, ["addresses", label, "recipients"]) => {
+            let form: serde_json::Value = req.json().await?;
+            let address = form
+                .get("address")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
+            let kind_str = form.get("kind").and_then(|v| v.as_str()).unwrap_or("cc");
+
+            if !address.contains('@') || address.len() < 3 {
+                return Response::from_html(
+                    r#"<div class="error">Enter a valid email address.</div>"#.to_string(),
+                );
+            }
+            let kind = if kind_str == "bcc" {
+                RecipientKind::Bcc
+            } else {
+                RecipientKind::Cc
+            };
+
+            let mut addr = match get_email_address(&kv, tenant_id, label).await? {
+                Some(a) => a,
+                None => return Response::error("Not found", 404),
+            };
+
+            if addr
+                .notification_recipients
+                .iter()
+                .any(|r| r.address == address && r.kind == kind)
+            {
+                return Response::from_html(
+                    r#"<div class="error">Already in the list.</div>"#.to_string(),
+                );
+            }
+
+            let tenant = get_tenant(&db, tenant_id).await?.unwrap_or_default();
+            let owner_email = tenant.email.to_lowercase();
+            let is_owner = address == owner_email;
+            let now = now_iso();
+            let recipient_id = generate_id();
+            let status = if is_owner {
+                RecipientStatus::Verified
+            } else {
+                RecipientStatus::Pending
+            };
+            let verified_at = if is_owner { Some(now.clone()) } else { None };
+
+            let recipient = NotificationRecipient {
+                id: recipient_id.clone(),
+                address: address.clone(),
+                kind,
+                status: status.clone(),
+                is_owner,
+                created_at: now.clone(),
+                verified_at,
+            };
+            addr.notification_recipients.push(recipient);
+            addr.updated_at = now;
+            save_email_address(&kv, tenant_id, &addr).await?;
+
+            // Send verification email for non-owner additions.
+            if !is_owner {
+                let token = generate_id();
+                let payload = EmailVerificationPayload {
+                    tenant_id: tenant_id.to_string(),
+                    local_part: label.to_string(),
+                    recipient_id,
+                };
+                set_email_verification_token(&kv, &token, &payload).await?;
+
+                let from = format!("noreply@{base_domain}");
+                let concierge_addr = format!("{label}@{base_domain}");
+                let verify_url = format!("{base_url}/email/verify/{token}");
+                let body = format!(
+                    "Concierge sends customer replies from {concierge_addr}. To start receiving notifications, confirm this address by opening:\n\n{verify_url}\n\nIf you weren't expecting this, you can ignore the message — the request will expire in 7 days.\n",
+                );
+                let outbound = OutboundEmail {
+                    from,
+                    to: address,
+                    subject: format!("Confirm notifications from {concierge_addr}"),
+                    text: Some(body),
+                    html: None,
+                    reply_to: None,
+                    cc: vec![],
+                    bcc: vec![],
+                    headers: vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())],
+                };
+                if let Err(e) = crate::email::send::send_outbound(&env, &outbound).await {
+                    console_log!("Failed to send verification email: {:?}", e);
                 }
             }
 
-            let existing = get_email_rules(&kv, tenant_id, domain).await?;
-            let existing_by_id: std::collections::HashMap<String, &RoutingRule> =
-                existing.iter().map(|r| (r.id.clone(), r)).collect();
-            let now = now_iso();
-            let mut normalized: Vec<RoutingRule> = parsed
-                .into_iter()
-                .map(|mut r| {
-                    r.domain = domain.to_string();
-                    if r.id.is_empty() {
-                        r.id = generate_id();
-                    }
-                    r.created_at = existing_by_id
-                        .get(&r.id)
-                        .map(|e| e.created_at.clone())
-                        .unwrap_or_else(|| now.clone());
-                    r.updated_at = now.clone();
-                    r
-                })
-                .collect();
-            normalized.sort_by_key(|r| r.priority);
-            save_email_rules(&kv, tenant_id, domain, &normalized).await?;
-
             let headers = Headers::new();
             headers.set(
                 "HX-Redirect",
-                &format!("{base_url}/admin/email/domains/{domain}/rules"),
+                &format!("{base_url}/admin/email/addresses/{label}"),
             )?;
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
-        // Edit rule page
-        (Method::Get, ["domains", domain, "rules", rule_id]) => {
-            let rules = get_email_rules(&kv, tenant_id, domain).await?;
-            match rules.iter().find(|r| r.id == *rule_id) {
-                Some(rule) => Response::from_html(email_rule_edit_html(domain, rule, base_url)),
-                None => Response::error("Rule not found", 404),
+        // Delete a notification recipient. Owner cannot be deleted.
+        (Method::Delete, ["addresses", label, "recipients", id]) => {
+            let mut addr = match get_email_address(&kv, tenant_id, label).await? {
+                Some(a) => a,
+                None => return Response::error("Not found", 404),
+            };
+            let id = id.to_string();
+            let was_owner = addr
+                .notification_recipients
+                .iter()
+                .find(|r| r.id == id)
+                .map(|r| r.is_owner)
+                .unwrap_or(false);
+            if was_owner {
+                return Response::from_html(
+                    r#"<div class="error">The owner email can't be removed.</div>"#.to_string(),
+                );
             }
-        }
-
-        // Update rule
-        (Method::Put, ["domains", domain, "rules", rule_id]) => {
-            let form: serde_json::Value = req.json().await?;
-            let mut rules = get_email_rules(&kv, tenant_id, domain).await?;
-
-            if let Some(existing) = rules.iter_mut().find(|r| r.id == *rule_id) {
-                let updated = parse_rule_from_json(domain, &form)?;
-                existing.name = updated.name;
-                existing.priority = updated.priority;
-                existing.enabled = updated.enabled;
-                existing.criteria = updated.criteria;
-                existing.action = updated.action;
-                existing.updated_at = now_iso();
-            }
-
-            rules.sort_by_key(|r| r.priority);
-            save_email_rules(&kv, tenant_id, domain, &rules).await?;
-
-            Response::from_html("<div class=\"success\">Rule updated</div>".to_string())
-        }
-
-        // Delete rule
-        (Method::Delete, ["domains", domain, "rules", rule_id]) => {
-            let mut rules = get_email_rules(&kv, tenant_id, domain).await?;
-            rules.retain(|r| r.id != *rule_id);
-            save_email_rules(&kv, tenant_id, domain, &rules).await?;
-
+            addr.notification_recipients.retain(|r| r.id != id);
+            addr.updated_at = now_iso();
+            save_email_address(&kv, tenant_id, &addr).await?;
             Ok(Response::empty()?.with_status(200))
         }
 
-        // Toggle rule enabled/disabled
-        (Method::Post, ["domains", domain, "rules", rule_id, "toggle"]) => {
-            let mut rules = get_email_rules(&kv, tenant_id, domain).await?;
-            if let Some(rule) = rules.iter_mut().find(|r| r.id == *rule_id) {
-                rule.enabled = !rule.enabled;
-                rule.updated_at = now_iso();
-            }
-            save_email_rules(&kv, tenant_id, domain, &rules).await?;
-
-            let headers = Headers::new();
-            headers.set(
-                "HX-Redirect",
-                &format!("{base_url}/admin/email/domains/{domain}/rules"),
-            )?;
-            Ok(Response::empty()?.with_status(200).with_headers(headers))
-        }
-
-        _ => Response::error("Not Found", 404),
+        _ => Response::error("Not found", 404),
     }
-}
-
-/// Parse a routing rule from JSON form data.
-fn parse_rule_from_json(domain: &str, form: &serde_json::Value) -> Result<RoutingRule> {
-    let name = form
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Unnamed rule")
-        .to_string();
-    let priority = form
-        .get("priority")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(0);
-    let enabled = form.get("enabled").and_then(|v| v.as_str()) == Some("true");
-
-    let criteria = MatchCriteria {
-        from_pattern: non_empty_str(form, "from_pattern"),
-        to_pattern: non_empty_str(form, "to_pattern"),
-        subject_pattern: non_empty_str(form, "subject_pattern"),
-        has_attachment: form
-            .get("has_attachment")
-            .and_then(|v| v.as_str())
-            .map(|v| v == "true"),
-        body_pattern: non_empty_str(form, "body_pattern"),
-    };
-
-    let action_type = form
-        .get("action_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("drop");
-
-    let action = match action_type {
-        "drop" => EmailAction::Drop,
-        "spam" => EmailAction::Spam {
-            message: non_empty_str(form, "spam_message"),
-        },
-        "forward_email" => EmailAction::ForwardEmail {
-            destination: form
-                .get("destination")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-        },
-        "forward_discord" => EmailAction::ForwardDiscord {
-            channel_id: form
-                .get("channel_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-        },
-        "ai_reply" => EmailAction::AiReply {
-            system_prompt: non_empty_str(form, "system_prompt"),
-            approval_channel_id: non_empty_str(form, "approval_channel_id"),
-            approval_email: non_empty_str(form, "approval_email"),
-        },
-        _ => EmailAction::Drop,
-    };
-
-    let now = now_iso();
-    Ok(RoutingRule {
-        id: generate_id(),
-        domain: domain.to_string(),
-        name,
-        priority,
-        enabled,
-        criteria,
-        action,
-        created_at: now.clone(),
-        updated_at: now,
-    })
-}
-
-fn non_empty_str(form: &serde_json::Value, key: &str) -> Option<String> {
-    form.get(key)
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.trim().to_string())
 }

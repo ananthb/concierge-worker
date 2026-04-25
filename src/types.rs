@@ -14,8 +14,18 @@ pub struct Tenant {
     pub plan: String,
     #[serde(default = "default_currency")]
     pub currency: String,
+    /// Each pack adds 5 to the tenant's email-address quota. Quota = 1 + 5 *
+    /// this. Packs are purchased one-time via Razorpay.
+    #[serde(default)]
+    pub email_address_packs_purchased: u32,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl Tenant {
+    pub fn email_address_quota(&self) -> u32 {
+        1 + 5 * self.email_address_packs_purchased
+    }
 }
 
 fn default_currency() -> String {
@@ -269,97 +279,55 @@ pub struct InstagramDm {
 }
 
 // ============================================================================
-// Email Routing Types
+// Email Address Types
 // ============================================================================
+
+/// One concierge email address owned by a tenant. The full address is
+/// `{local_part}@{EMAIL_BASE_DOMAIN}` (the platform's single email domain).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EmailAddress {
+    pub local_part: String,
+    pub tenant_id: String,
+    #[serde(default)]
+    pub auto_reply: AutoReplyConfig,
+    #[serde(default)]
+    pub notification_recipients: Vec<NotificationRecipient>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NotificationRecipient {
+    pub id: String,
+    pub address: String,
+    pub kind: RecipientKind,
+    pub status: RecipientStatus,
+    /// True for the tenant owner's auth-login email; auto-verified, can't be
+    /// deleted by the user.
+    #[serde(default)]
+    pub is_owner: bool,
+    pub created_at: String,
+    #[serde(default)]
+    pub verified_at: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum SubdomainStatus {
-    Active,
-    Suspended,
+pub enum RecipientKind {
+    Cc,
+    Bcc,
 }
 
-impl Default for SubdomainStatus {
-    fn default() -> Self {
-        Self::Active
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipientStatus {
+    Pending,
+    Verified,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct EmailSubdomain {
-    pub label: String,
-    pub domain: String,
-    pub tenant_id: String,
-    pub default_action: EmailAction,
-    #[serde(default)]
-    pub dns_record_ids: Vec<String>,
-    #[serde(default)]
-    pub subscription_id: Option<String>,
-    #[serde(default)]
-    pub status: SubdomainStatus,
-    pub created_at: String,
-    #[serde(default)]
-    pub updated_at: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct RoutingRule {
-    pub id: String,
-    pub domain: String,
-    pub name: String,
-    pub priority: i32,
-    pub enabled: bool,
-    pub criteria: MatchCriteria,
-    pub action: EmailAction,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct MatchCriteria {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from_pattern: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub to_pattern: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subject_pattern: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub has_attachment: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body_pattern: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum EmailAction {
-    Drop,
-    Spam {
-        #[serde(default)]
-        message: Option<String>,
-    },
-    ForwardEmail {
-        destination: String,
-    },
-    ForwardDiscord {
-        channel_id: String,
-    },
-    AiReply {
-        #[serde(default)]
-        system_prompt: Option<String>,
-        #[serde(default)]
-        approval_channel_id: Option<String>,
-        #[serde(default)]
-        approval_email: Option<String>,
-    },
-}
-
-impl Default for EmailAction {
-    fn default() -> Self {
-        Self::Drop
-    }
-}
-
-/// Reverse alias mapping for reply routing.
+/// Reverse alias mapping for reply routing — when Concierge forwards a
+/// message out of the platform, the recipient's `Reply-To` is set to a
+/// short-lived alias so their reply lands back here and can be re-routed.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EmailReverseAlias {
     pub alias: String,
@@ -658,22 +626,6 @@ mod tests {
         assert_eq!(serde_json::to_string(&Channel::Email).unwrap(), "\"email\"");
         let ch: Channel = serde_json::from_str("\"instagram\"").unwrap();
         assert_eq!(ch, Channel::Instagram);
-    }
-
-    #[test]
-    fn test_email_action_serialization() {
-        let action = EmailAction::ForwardDiscord {
-            channel_id: "123".to_string(),
-        };
-        let json = serde_json::to_string(&action).unwrap();
-        assert!(json.contains("\"type\":\"forward_discord\""));
-        assert!(json.contains("\"channel_id\":\"123\""));
-
-        let parsed: EmailAction = serde_json::from_str(&json).unwrap();
-        match parsed {
-            EmailAction::ForwardDiscord { channel_id } => assert_eq!(channel_id, "123"),
-            _ => panic!("wrong variant"),
-        }
     }
 
     #[test]

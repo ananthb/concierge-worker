@@ -1,38 +1,18 @@
 use worker::*;
 
-use crate::email::mime;
 use crate::email::send::{self, OutboundEmail};
-use crate::helpers::generate_id;
+use crate::storage::*;
 use crate::types::*;
 
-/// Parse an inbound email into an InboundMessage.
-pub fn parse_inbound(
-    from: &str,
-    to: &str,
-    parsed: &mime::ParsedEmail,
-    tenant_id: &str,
-    domain: &str,
-) -> InboundMessage {
-    InboundMessage {
-        id: generate_id(),
-        channel: Channel::Email,
-        sender: from.to_string(),
-        sender_name: None,
-        recipient: to.to_string(),
-        body: parsed.text_body.clone().unwrap_or_default(),
-        subject: Some(parsed.subject.clone()),
-        has_attachment: parsed.has_attachment,
-        tenant_id: tenant_id.to_string(),
-        channel_account_id: domain.to_string(),
-        raw_metadata: serde_json::json!({
-            "domain": domain,
-            "original_from": from,
-            "original_to": to,
-        }),
-    }
-}
-
 /// Send a reply via email through the EMAIL binding.
+///
+/// `metadata` carries inbound context (from `InboundMessage.raw_metadata`):
+/// - `local_part`: the concierge address that received the inbound mail.
+/// - `base_domain`: the platform email domain.
+/// - `original_subject`, `message_id`, `references`: for thread headers.
+///
+/// CC and BCC recipients come from the address's verified
+/// `notification_recipients` list — owner is always present.
 pub async fn send_reply(
     env: &Env,
     metadata: &serde_json::Value,
@@ -40,75 +20,119 @@ pub async fn send_reply(
     body: &str,
     subject: Option<&str>,
 ) -> Result<()> {
-    let domain = metadata
-        .get("domain")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let kv = env.kv("KV")?;
 
-    let original_to = metadata
-        .get("original_to")
+    let local_part = metadata
+        .get("local_part")
         .and_then(|v| v.as_str())
-        .unwrap_or(domain);
+        .unwrap_or_default()
+        .to_string();
+    let base_domain = metadata
+        .get("base_domain")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let tenant_id = metadata
+        .get("tenant_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
 
-    let subject = subject.unwrap_or("Re: your message");
+    let from_addr = if !local_part.is_empty() && !base_domain.is_empty() {
+        format!("{local_part}@{base_domain}")
+    } else {
+        // Fallback for callers that don't set these (won't happen in the
+        // unified pipeline, but keeps reverse-alias replies working).
+        metadata
+            .get("original_to")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
+
+    // Load verified recipients for CC/BCC. Owner is always Verified.
+    let mut cc_list: Vec<String> = Vec::new();
+    let mut bcc_list: Vec<String> = Vec::new();
+    if !tenant_id.is_empty() && !local_part.is_empty() {
+        if let Some(addr) = get_email_address(&kv, &tenant_id, &local_part).await? {
+            for r in &addr.notification_recipients {
+                if r.status != RecipientStatus::Verified {
+                    continue;
+                }
+                match r.kind {
+                    RecipientKind::Cc => cc_list.push(r.address.clone()),
+                    RecipientKind::Bcc => bcc_list.push(r.address.clone()),
+                }
+            }
+        }
+    }
+
+    let original_subject = metadata
+        .get("original_subject")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let subject = match subject {
+        Some(s) if !s.is_empty() => s.to_string(),
+        _ => reply_subject(original_subject),
+    };
+
+    let mut headers: Vec<(String, String)> =
+        vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())];
+    if let Some(msg_id) = metadata.get("message_id").and_then(|v| v.as_str()) {
+        if !msg_id.is_empty() {
+            headers.push(("In-Reply-To".to_string(), msg_id.to_string()));
+        }
+    }
+    if let Some(refs) = metadata.get("references").and_then(|v| v.as_str()) {
+        if !refs.is_empty() {
+            headers.push(("References".to_string(), refs.to_string()));
+        }
+    }
 
     let outbound = OutboundEmail {
-        from: original_to.to_string(),
+        from: from_addr.clone(),
         to: to.to_string(),
-        subject: subject.to_string(),
+        subject,
         text: Some(body.to_string()),
         html: None,
-        reply_to: Some(original_to.to_string()),
-        headers: vec![("X-EmailProxy-Forwarded".to_string(), "1".to_string())],
+        reply_to: Some(from_addr),
+        cc: cc_list,
+        bcc: bcc_list,
+        headers,
     };
 
     send::send_outbound(env, &outbound).await
 }
 
+fn reply_subject(original: &str) -> String {
+    let trimmed = original.trim();
+    if trimmed.is_empty() {
+        return "Re: your message".to_string();
+    }
+    if trimmed.len() >= 3 && trimmed[..3].eq_ignore_ascii_case("re:") {
+        trimmed.to_string()
+    } else {
+        format!("Re: {trimmed}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::reply_subject;
 
     #[test]
-    fn parse_inbound_sets_fields() {
-        let parsed = mime::ParsedEmail {
-            subject: "Test subject".into(),
-            message_id: Some("msg-id-1".into()),
-            references: None,
-            text_body: Some("Hello world".into()),
-            html_body: None,
-            has_attachment: true,
-        };
-
-        let msg = parse_inbound(
-            "alice@example.com",
-            "support@proxy.com",
-            &parsed,
-            "t1",
-            "proxy.com",
-        );
-        assert_eq!(msg.channel, Channel::Email);
-        assert_eq!(msg.sender, "alice@example.com");
-        assert_eq!(msg.recipient, "support@proxy.com");
-        assert_eq!(msg.body, "Hello world");
-        assert_eq!(msg.subject.as_deref(), Some("Test subject"));
-        assert!(msg.has_attachment);
-        assert_eq!(msg.tenant_id, "t1");
-        assert_eq!(msg.channel_account_id, "proxy.com");
+    fn empty_subject_falls_back() {
+        assert_eq!(reply_subject(""), "Re: your message");
     }
 
     #[test]
-    fn parse_inbound_empty_body() {
-        let parsed = mime::ParsedEmail {
-            subject: String::new(),
-            message_id: None,
-            references: None,
-            text_body: None,
-            html_body: None,
-            has_attachment: false,
-        };
+    fn prefixes_re_when_missing() {
+        assert_eq!(reply_subject("Order #1234"), "Re: Order #1234");
+    }
 
-        let msg = parse_inbound("a@b.com", "c@d.com", &parsed, "t1", "d.com");
-        assert_eq!(msg.body, "");
+    #[test]
+    fn does_not_double_prefix() {
+        assert_eq!(reply_subject("Re: hello"), "Re: hello");
+        assert_eq!(reply_subject("RE: hello"), "RE: hello");
     }
 }

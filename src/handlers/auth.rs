@@ -149,6 +149,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                         facebook_id: None,
                         plan: "free".to_string(),
                         currency: currency.to_string(),
+                        email_address_packs_purchased: 0,
                         created_at: now.clone(),
                         updated_at: now,
                     };
@@ -270,6 +271,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                         facebook_id: Some(fb_id),
                         plan: "free".to_string(),
                         currency: currency.to_string(),
+                        email_address_packs_purchased: 0,
                         created_at: now.clone(),
                         updated_at: now,
                     };
@@ -366,7 +368,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
 }
 
 async fn create_session_and_redirect(
-    req: &Request,
+    _req: &Request,
     kv: &kv::KvStore,
     tenant_id: &str,
     provider: &str,

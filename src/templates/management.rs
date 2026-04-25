@@ -3,7 +3,7 @@
 use crate::helpers::html_escape;
 use crate::types::*;
 
-use super::base::{base_html, brand_mark, LOGO_INLINE};
+use super::base::{base_html, brand_mark};
 use super::HASH;
 
 fn manage_shell(title: &str, content: &str, active: &str, base_url: &str) -> String {
@@ -199,7 +199,7 @@ pub fn tenant_detail_html(
     tenant: &Tenant,
     wa: &[WhatsAppAccount],
     ig: &[InstagramAccount],
-    domains: &[EmailSubdomain],
+    addrs: &[EmailAddress],
     base_url: &str,
 ) -> String {
     let wa_list: String = wa
@@ -223,12 +223,12 @@ pub fn tenant_detail_html(
         })
         .collect();
 
-    let domain_list: String = domains
+    let domain_list: String = addrs
         .iter()
-        .map(|d| {
+        .map(|a| {
             format!(
-                r##"<div class="side-row"><div class="flex-1 fs-13">{domain}</div></div>"##,
-                domain = html_escape(&d.domain),
+                r##"<div class="side-row"><div class="flex-1 fs-13">{local}</div></div>"##,
+                local = html_escape(&a.local_part),
             )
         })
         .collect();
@@ -303,7 +303,7 @@ pub fn tenant_detail_html(
         },
         wa_count = wa.len(),
         ig_count = ig.len(),
-        domain_count = domains.len(),
+        domain_count = addrs.len(),
         wa_list = if wa_list.is_empty() {
             r#"<div class="muted fs-13">None</div>"#.to_string()
         } else {

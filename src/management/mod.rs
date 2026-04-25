@@ -8,8 +8,6 @@ pub mod tenants;
 use wasm_bindgen::JsCast;
 use worker::*;
 
-use crate::helpers::generate_id;
-use crate::storage;
 use crate::templates::management as tmpl;
 
 /// Handle /manage/* routes. Requires Cloudflare Access.

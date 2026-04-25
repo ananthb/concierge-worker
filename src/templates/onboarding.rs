@@ -250,15 +250,14 @@ pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> Str
 pub fn connect_html(
     ig_connected: bool,
     wa_connected: bool,
-    email_subdomains: &[crate::types::EmailSubdomain],
+    email_addresses: &[crate::types::EmailAddress],
     suggested_slug: &str,
     email_base_domain: &str,
-    currency: &str,
+    _currency: &str,
     tenant_id: &str,
     discord: Option<&crate::types::DiscordConfig>,
     base_url: &str,
 ) -> String {
-    let subdomain_price = if currency == "USD" { "$2" } else { "₹199" };
     let ig_card = channel_card(
         "ig",
         "Instagram DMs",
@@ -294,28 +293,23 @@ pub fn connect_html(
         base_url,
     );
 
-    let email_rows: String = email_subdomains
+    let email_rows: String = email_addresses
         .iter()
-        .map(|d| {
+        .map(|a| {
+            let full = format!("{}@{}", a.local_part, email_base_domain);
             format!(
                 r#"<div class="side-row" style="padding:10px 14px">
   <span>{mail_icon}</span>
-  <div class="flex-1"><span class="mono fs-13">{domain}</span></div>
+  <div class="flex-1"><span class="mono fs-13">{full}</span></div>
   <button class="btn ghost sm text-warn" hx-post="{base_url}/admin/wizard/email/remove" hx-vals='{{"label":"{label}"}}' hx-target="body" hx-swap="innerHTML">Remove</button>
 </div>"#,
                 mail_icon = channel_icon("mail"),
-                domain = html_escape(&d.domain),
-                label = html_escape(&d.label),
+                full = html_escape(&full),
+                label = html_escape(&a.local_part),
                 base_url = base_url,
             )
         })
         .collect();
-
-    let email_empty = if email_subdomains.is_empty() && email_base_domain.is_empty() {
-        ""
-    } else {
-        ""
-    };
 
     let email_section = if email_base_domain.is_empty() {
         String::new()
@@ -327,15 +321,15 @@ pub fn connect_html(
     <div><div class="channel-name">Email</div></div>
   </div>
   <div class="channel-body">
-    <p class="muted m-0 mb-12">Get a dedicated email domain. Route, forward, or auto-reply with AI.</p>
+    <p class="muted m-0 mb-12">Pick a name to receive mail at <code>name@{base_domain}</code>. Replies go to the sender; you and your team get a copy via Cc/Bcc.</p>
     {email_rows}
     <form hx-post="{base_url}/admin/wizard/email/add" hx-target="body" hx-swap="innerHTML"
           class="row gap-8 mt-8">
       <input class="input fs-13" type="text" name="label" value="{slug}" placeholder="your-name" style="max-width:160px">
-      <span class="mono muted fs-13">.{base_domain}</span>
+      <span class="mono muted fs-13">@{base_domain}</span>
       <button type="submit" class="btn sm ml-auto">Add</button>
     </form>
-    <div class="mono muted fs-11 mt-6">{price} per month per subdomain. Billed at the end.</div>
+    <div class="mono muted fs-11 mt-6">First address is free. Need more? Buy a 5-pack later for ₹49 / 50¢.</div>
   </div>
 </div>"#,
             mail_icon = channel_icon("mail"),
@@ -343,11 +337,10 @@ pub fn connect_html(
             base_url = base_url,
             slug = html_escape(suggested_slug),
             base_domain = html_escape(email_base_domain),
-            price = subdomain_price,
         )
     };
 
-    let has_anything = ig_connected || wa_connected || !email_subdomains.is_empty();
+    let has_anything = ig_connected || wa_connected || !email_addresses.is_empty();
     let continue_label = if has_anything {
         "Continue &rarr;"
     } else {
@@ -373,13 +366,13 @@ pub fn connect_html(
         continue_label = continue_label,
     );
 
-    // Progress: 30% Instagram, 30% WhatsApp, 20% Discord, 20% any email subdomain.
+    // Progress: 30% Instagram, 30% WhatsApp, 20% Discord, 20% any email address.
     let x_data = format!(
         "{{ ig: {}, wa: {}, dc: {}, emails: {} }}",
         ig_connected,
         wa_connected,
         dc_connected,
-        email_subdomains.len(),
+        email_addresses.len(),
     );
     let progress_expr =
         "((ig ? 0.3 : 0) + (wa ? 0.3 : 0) + (dc ? 0.2 : 0) + (emails > 0 ? 0.2 : 0))";
@@ -768,54 +761,33 @@ pub fn replies_html(persona: &PersonaConfig, canned: &[CannedReply], base_url: &
 }
 
 pub fn launch_html(
-    email_subdomains: &[crate::types::EmailSubdomain],
+    email_addresses: &[crate::types::EmailAddress],
+    base_domain: &str,
     currency: &str,
     base_url: &str,
 ) -> String {
-    let subdomain_price = if currency == "USD" { "$2" } else { "₹199" };
-
-    let unpaid_subdomains: Vec<&crate::types::EmailSubdomain> = email_subdomains
+    let email_rows: String = email_addresses
         .iter()
-        .filter(|s| s.status != crate::types::SubdomainStatus::Active)
-        .collect();
-
-    let email_rows: String = unpaid_subdomains
-        .iter()
-        .map(|s| {
-            let label_text = if s.subscription_id.is_some() {
-                "Awaiting payment"
-            } else {
-                "Not subscribed"
-            };
+        .map(|a| {
+            let full = format!("{}@{}", a.local_part, base_domain);
             format!(
                 r#"<div class="side-row" style="padding:10px 14px">
   <span>{mail_icon}</span>
-  <div class="flex-1">
-    <span class="mono fs-13">{domain}</span>
-    <div class="mono muted fs-11">{label_text}</div>
-  </div>
-  <form hx-post="{base_url}/admin/email/subdomains" hx-target="body" class="inline" hx-ext="json-enc">
-    <input type="hidden" name="subdomain" value="{label}">
-    <button type="submit" class="btn sm primary">Subscribe {price}/mo</button>
-  </form>
+  <div class="flex-1"><span class="mono fs-13">{full}</span></div>
 </div>"#,
                 mail_icon = channel_icon("mail"),
-                domain = html_escape(&s.domain),
-                label = html_escape(&s.label),
-                base_url = base_url,
-                price = subdomain_price,
-                label_text = label_text,
+                full = html_escape(&full),
             )
         })
         .collect();
 
-    let email_section = if unpaid_subdomains.is_empty() {
+    let email_section = if email_addresses.is_empty() {
         String::new()
     } else {
         format!(
             r#"<div class="card p-22 mb-16">
-  <div class="eyebrow mb-8">Email subdomains</div>
-  <p class="muted mb-12 fs-14">These addresses won't receive mail until you subscribe. You can pay now, or skip and subscribe later from Email Routing on the dashboard.</p>
+  <div class="eyebrow mb-8">Email addresses</div>
+  <p class="muted mb-12 fs-14">These addresses are live. Inbound mail will be auto-replied if you turn on auto-reply for them in Email.</p>
   {email_rows}
 </div>"#
         )
@@ -867,20 +839,12 @@ pub fn launch_html(
         base_url = base_url,
     );
 
-    // Progress: on the launch page, any subdomain that's still Suspended
-    // pulls progress below 1. If nothing was selected to pay for, we're
-    // "done" — progress 1.
-    let total_emails = email_subdomains.len();
-    let paid_emails = email_subdomains
-        .iter()
-        .filter(|s| s.status == crate::types::SubdomainStatus::Active)
-        .count();
-    let x_data = format!(
-        "{{ paid: {paid_emails}, totalEmails: {total_emails} }}",
-        paid_emails = paid_emails,
-        total_emails = total_emails,
-    );
-    let progress_expr = "(totalEmails > 0 ? (paid / totalEmails) : 1)";
+    // Progress on the launch step is always full: addresses are live the
+    // moment they're added (no payment gate any more).
+    let _ = email_addresses;
+    let _ = currency;
+    let x_data = "{}".to_string();
+    let progress_expr = "1";
 
     wizard_shell("launch", base_url, &x_data, progress_expr, &content)
 }

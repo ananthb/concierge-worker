@@ -16,6 +16,10 @@ pub struct OutboundEmail {
     pub text: Option<String>,
     pub html: Option<String>,
     pub reply_to: Option<String>,
+    /// Recipients placed in the visible Cc header.
+    pub cc: Vec<String>,
+    /// Recipients placed in the Bcc header (not exposed to other recipients).
+    pub bcc: Vec<String>,
     /// Extra headers to set on the outbound message (e.g. In-Reply-To,
     /// References, X-EmailProxy-Forwarded). Iterated in order.
     pub headers: Vec<(String, String)>,
@@ -49,6 +53,12 @@ pub async fn send_outbound(env: &Env, outbound: &OutboundEmail) -> Result<()> {
     if let Some(reply_to) = &outbound.reply_to {
         set_str(&obj, "replyTo", reply_to)?;
     }
+    if !outbound.cc.is_empty() {
+        set_addr_list(&obj, "cc", &outbound.cc)?;
+    }
+    if !outbound.bcc.is_empty() {
+        set_addr_list(&obj, "bcc", &outbound.bcc)?;
+    }
     if !outbound.headers.is_empty() {
         let headers = js_sys::Object::new();
         for (name, value) in &outbound.headers {
@@ -67,6 +77,16 @@ pub async fn send_outbound(env: &Env, outbound: &OutboundEmail) -> Result<()> {
 
 fn set_str(obj: &js_sys::Object, key: &str, value: &str) -> Result<()> {
     js_sys::Reflect::set(obj, &key.into(), &JsValue::from_str(value))
+        .map_err(|_| Error::from(format!("set {key}")))?;
+    Ok(())
+}
+
+fn set_addr_list(obj: &js_sys::Object, key: &str, addrs: &[String]) -> Result<()> {
+    let arr = js_sys::Array::new();
+    for a in addrs {
+        arr.push(&JsValue::from_str(a));
+    }
+    js_sys::Reflect::set(obj, &key.into(), &arr.into())
         .map_err(|_| Error::from(format!("set {key}")))?;
     Ok(())
 }
