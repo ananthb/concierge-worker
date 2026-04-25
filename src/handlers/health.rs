@@ -38,13 +38,27 @@ pub struct HealthReport {
     pub checks: Vec<Check>,
 }
 
+/// Public health endpoint. Returns ONLY the rollup — no per-check detail,
+/// no secret names. Detailed status lives on /manage (Cloudflare Access
+/// protected). Operators who need more from a public endpoint can lock
+/// /health down further with Access on their own zone.
+#[derive(Serialize)]
+struct PublicHealth {
+    overall: Status,
+    generated_at: String,
+}
+
 pub async fn handle_health(_req: Request, env: Env) -> Result<Response> {
     let report = run_checks(&env, false).await;
-    let body = serde_json::to_string(&report)?;
+    let public = PublicHealth {
+        overall: report.overall,
+        generated_at: report.generated_at,
+    };
+    let body = serde_json::to_string(&public)?;
     let mut headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     headers.set("Cache-Control", "no-store")?;
-    let status = match report.overall {
+    let status = match public.overall {
         Status::Ok => 200,
         Status::Warn => 200,
         Status::Error => 503,
