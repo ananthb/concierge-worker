@@ -708,11 +708,26 @@ pub fn replies_html(persona: &PersonaConfig, canned: &[CannedReply], base_url: &
     </div>
   </div>
 
+  <div class="card p-22 mt-16">
+    <div class="eyebrow mb-8">Wait before replying</div>
+    <p class="muted fs-13 m-0 mb-12">If a customer fires a few messages in a row, hold off until they pause so the AI sees the whole burst at once. Default applies to every WhatsApp / Instagram / Discord channel; override per account in Settings.</p>
+    <div class="row gap-12">
+      <input type="range" min="0" max="30" step="1"
+             x-model.number="waitSeconds"
+             class="flex-1"
+             style="accent-color:var(--accent)">
+      <div class="mono ta-right" style="min-width:80px">
+        <span x-text="waitSeconds === 0 ? 'instant' : waitSeconds + 's'"></span>
+      </div>
+    </div>
+  </div>
+
   <form hx-post="{base_url}/admin/wizard/replies/save" hx-target="body" hx-swap="innerHTML">
     <input type="hidden" name="biz_type" value="{biz_type}">
     <input type="hidden" name="city" value="{city}">
     <input type="hidden" name="tone" value="{tone_raw}">
     <input type="hidden" name="never" value="{never_raw}">
+    <input type="hidden" name="default_wait_seconds" :value="waitSeconds">
     <div class="card replies-card">
       <div class="eyebrow" style="padding:14px 20px 0">Canned replies <span class="muted">(optional)</span></div>
       <p class="muted fs-13" style="padding:4px 20px 0">These fire before the AI. Glob patterns work &mdash; <span class="mono">*</span> matches anything.</p>
@@ -746,11 +761,12 @@ pub fn replies_html(persona: &PersonaConfig, canned: &[CannedReply], base_url: &
     );
 
     let x_data = format!(
-        "{{ bizType: '{}', city: '{}', tone: '{}', never: '{}' }}",
+        "{{ bizType: '{}', city: '{}', tone: '{}', never: '{}', waitSeconds: {} }}",
         js_attr_escape(&persona.biz_type),
         js_attr_escape(&persona.city),
         js_attr_escape(&persona.tone),
         js_attr_escape(&persona.never),
+        persona.default_wait_seconds,
     );
     let progress_expr =
         "((bizType ? 0.35 : 0) + (tone ? 0.35 : 0) + (city ? 0.15 : 0) + (never ? 0.15 : 0))";

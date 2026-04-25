@@ -264,6 +264,14 @@ pub async fn handle_wizard(
             if let Some(v) = form.get("never").and_then(|v| v.as_str()) {
                 state.persona.never = v.to_string();
             }
+            // Default wait_seconds applies to every channel account this
+            // tenant connects later. Range 0..=30.
+            if let Some(n) = form.get("default_wait_seconds").and_then(|v| {
+                v.as_i64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            }) {
+                state.persona.default_wait_seconds = (n as u32).min(30);
+            }
 
             state.step = "launch".to_string();
             save_onboarding(&kv, tenant_id, &state).await?;

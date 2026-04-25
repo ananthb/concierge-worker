@@ -38,11 +38,31 @@ pub struct WhatsAppAccount {
     pub updated_at: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AutoReplyConfig {
     pub enabled: bool,
     pub mode: AutoReplyMode,
     pub prompt: String,
+    /// Seconds to wait after the latest inbound message before replying.
+    /// Lets users finish typing and groups multi-message bursts into one
+    /// AI call. 0 = reply immediately (no buffering).
+    #[serde(default = "default_wait_seconds")]
+    pub wait_seconds: u32,
+}
+
+impl Default for AutoReplyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: AutoReplyMode::default(),
+            prompt: String::new(),
+            wait_seconds: default_wait_seconds(),
+        }
+    }
+}
+
+pub fn default_wait_seconds() -> u32 {
+    5
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -373,7 +393,7 @@ impl Channel {
 }
 
 /// Unified inbound message from any channel.
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InboundMessage {
     pub id: String,
     pub channel: Channel,
@@ -478,7 +498,7 @@ pub struct OnboardingState {
     pub completed: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PersonaConfig {
     #[serde(default)]
     pub biz_type: String,
@@ -488,6 +508,23 @@ pub struct PersonaConfig {
     pub tone: String,
     #[serde(default)]
     pub never: String,
+    /// Default wait_seconds applied to AutoReplyConfig on every channel
+    /// account this tenant connects in the future. Existing accounts can
+    /// override per-account on their settings page.
+    #[serde(default = "default_wait_seconds")]
+    pub default_wait_seconds: u32,
+}
+
+impl Default for PersonaConfig {
+    fn default() -> Self {
+        Self {
+            biz_type: String::new(),
+            city: String::new(),
+            tone: String::new(),
+            never: String::new(),
+            default_wait_seconds: default_wait_seconds(),
+        }
+    }
 }
 
 impl PersonaConfig {
@@ -540,6 +577,15 @@ pub struct DiscordConfig {
     pub digest_channel_id: Option<String>,
     #[serde(default)]
     pub relay_channel_id: Option<String>,
+    /// Reply when the bot is @mentioned in any channel of the guild.
+    #[serde(default)]
+    pub inbound_mentions: bool,
+    /// Reply to every message in these channels (regardless of mention).
+    #[serde(default)]
+    pub inbound_channel_ids: Vec<String>,
+    /// AI auto-reply configuration for inbound Discord messages.
+    #[serde(default)]
+    pub auto_reply: AutoReplyConfig,
 }
 
 #[cfg(test)]

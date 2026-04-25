@@ -74,6 +74,23 @@ pub fn manage_html(
     let digest_opts = options_html(cfg.digest_channel_id.as_deref());
     let relay_opts = options_html(cfg.relay_channel_id.as_deref());
 
+    let inbound_channel_opts: String = channels
+        .iter()
+        .map(|ch| {
+            let sel = if cfg.inbound_channel_ids.contains(&ch.id) {
+                " selected"
+            } else {
+                ""
+            };
+            format!(
+                r#"<option value="{id}"{sel}>#{name}</option>"#,
+                id = html_escape(&ch.id),
+                sel = sel,
+                name = html_escape(&ch.name),
+            )
+        })
+        .collect();
+
     let empty_note = if channels.is_empty() {
         r#"<p class="muted mt-8 fs-13">No text channels found. The bot may not have access yet — check the server's permissions.</p>"#
     } else {
@@ -94,7 +111,9 @@ pub fn manage_html(
     </div>
   </div>
 
-  <form class="card p-22" hx-put="{base_url}/admin/discord/config" hx-ext="json-enc" hx-target="{hash}dc-toast" hx-swap="innerHTML">
+  <form class="card p-22" hx-put="{base_url}/admin/discord/config" hx-ext="json-enc" hx-target="{hash}dc-toast" hx-swap="innerHTML"
+        x-data="{{ ar_enabled: {ar_enabled}, ar_mode: '{ar_mode}', wait_seconds: {wait}, mentions: {inbound_mentions}, channels: {inbound_channels_json} }}">
+    <h3 class="m-0 mb-12">Outbound channels</h3>
     <p class="muted m-0 mb-16 fs-14">Pick where we should post to. Per-rule overrides still win over these defaults.</p>
 
     <div class="form-group">
@@ -115,6 +134,45 @@ pub fn manage_html(
       <small class="muted fs-12">Default for <code>forward_discord</code> rules when none is set on the rule.</small>
     </div>
 
+    <h3 class="m-0 mt-24 mb-12">Inbound triggers</h3>
+    <p class="muted m-0 mb-16 fs-14">Choose when the bot replies. DMs aren't supported with the shared bot.</p>
+
+    <div class="form-group">
+      <label><input type="checkbox" name="inbound_mentions" value="true" x-model="mentions"> Reply when @mentioned</label>
+      <input type="hidden" name="inbound_mentions_present" value="true">
+    </div>
+
+    <div class="form-group">
+      <label class="eyebrow lbl">Always reply in these channels</label>
+      <select class="select" name="inbound_channel_ids" multiple size="6" x-model="channels">{channel_opts}</select>
+      <small class="muted fs-12">Hold Cmd/Ctrl to multi-select. The bot will respond to every message in each chosen channel.</small>
+    </div>
+
+    <h3 class="m-0 mt-24 mb-12">AI auto-reply</h3>
+
+    <div class="form-group">
+      <label><input type="checkbox" name="auto_reply_enabled" value="true" x-model="ar_enabled"> Enabled</label>
+    </div>
+
+    <div class="form-group" x-show="ar_enabled" x-cloak>
+      <label class="eyebrow lbl">Mode</label>
+      <select class="select" name="auto_reply_mode" x-model="ar_mode">
+        <option value="static">Static (canned text — free)</option>
+        <option value="ai">AI (uses 1 credit per reply)</option>
+      </select>
+    </div>
+
+    <div class="form-group" x-show="ar_enabled" x-cloak>
+      <label class="eyebrow lbl"><span x-text="ar_mode === 'ai' ? 'System prompt' : 'Reply text'"></span></label>
+      <textarea class="textarea" name="auto_reply_prompt" rows="3">{ar_prompt}</textarea>
+    </div>
+
+    <div class="form-group" x-show="ar_enabled" x-cloak>
+      <label class="eyebrow lbl">Wait before replying — <span x-text="wait_seconds === 0 ? 'instant' : wait_seconds + 's'"></span></label>
+      <input type="range" min="0" max="30" step="1" name="wait_seconds" x-model.number="wait_seconds" style="accent-color:var(--accent)">
+      <small class="muted fs-12">0 = reply immediately. Higher values let users send a burst of messages and get one combined reply.</small>
+    </div>
+
     {empty_note}
 
     <div class="row gap-8 mt-16" style="justify-content:flex-end">
@@ -130,8 +188,27 @@ pub fn manage_html(
         approval_opts = approval_opts,
         digest_opts = digest_opts,
         relay_opts = relay_opts,
+        channel_opts = inbound_channel_opts,
         empty_note = empty_note,
         hash = HASH,
+        ar_enabled = if cfg.auto_reply.enabled {
+            "true"
+        } else {
+            "false"
+        },
+        ar_mode = match cfg.auto_reply.mode {
+            crate::types::AutoReplyMode::Ai => "ai",
+            crate::types::AutoReplyMode::Static => "static",
+        },
+        ar_prompt = html_escape(&cfg.auto_reply.prompt),
+        wait = cfg.auto_reply.wait_seconds,
+        inbound_mentions = if cfg.inbound_mentions {
+            "true"
+        } else {
+            "false"
+        },
+        inbound_channels_json =
+            serde_json::to_string(&cfg.inbound_channel_ids).unwrap_or_else(|_| "[]".into()),
     );
 
     let page = app_shell(&content, "Settings", base_url);

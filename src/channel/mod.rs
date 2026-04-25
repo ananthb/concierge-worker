@@ -1,3 +1,4 @@
+pub mod discord;
 pub mod email;
 pub mod instagram;
 pub mod whatsapp;
@@ -19,6 +20,6 @@ pub async fn send_reply(
         Channel::WhatsApp => whatsapp::send_reply(env, metadata, to, body).await,
         Channel::Instagram => instagram::send_reply(env, metadata, to, body).await,
         Channel::Email => email::send_reply(env, metadata, to, body, subject).await,
-        Channel::Discord => Ok(()), // Discord replies handled by interaction handler
+        Channel::Discord => discord::send_reply(env, metadata, to, body).await,
     }
 }
