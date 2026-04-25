@@ -674,6 +674,11 @@ pub fn admin_whatsapp_edit_html(account: &WhatsAppAccount, base_url: &str) -> St
                     <label for=\"wa-prompt\">Prompt / Message</label>
                     <textarea id=\"wa-prompt\" name=\"auto_reply_prompt\" rows=\"3\">{prompt}</textarea>
                 </div>
+                <div class=\"form-group\">
+                    <label for=\"wa-wait\">Wait before replying ({wait}s)</label>
+                    <input id=\"wa-wait\" type=\"range\" min=\"0\" max=\"30\" step=\"1\" name=\"wait_seconds\" value=\"{wait}\" oninput=\"this.previousElementSibling.textContent='Wait before replying (' + this.value + 's)'\">
+                    <small class=\"muted fs-12\">0 = reply immediately. Higher values let customers send a burst of messages and get one combined reply.</small>
+                </div>
                 <div style=\"display: flex; justify-content: flex-end; gap: 0.5rem;\">
                     <button type=\"submit\" class=\"btn\">Save</button>
                 </div>
@@ -690,6 +695,7 @@ pub fn admin_whatsapp_edit_html(account: &WhatsAppAccount, base_url: &str) -> St
         mode_static_sel = mode_static_sel,
         mode_ai_sel = mode_ai_sel,
         hash = HASH,
+        wait = account.auto_reply.wait_seconds,
     );
 
     let page = super::base::app_shell(&content, "Channels", base_url);
@@ -802,6 +808,11 @@ pub fn admin_instagram_edit_html(account: &InstagramAccount, base_url: &str) -> 
                     <label>Prompt / Message</label>
                     <textarea name=\"auto_reply_prompt\" rows=\"3\">{prompt}</textarea>
                 </div>
+                <div class=\"form-group\">
+                    <label>Wait before replying ({wait}s)</label>
+                    <input type=\"range\" min=\"0\" max=\"30\" step=\"1\" name=\"wait_seconds\" value=\"{wait}\" oninput=\"this.previousElementSibling.textContent='Wait before replying (' + this.value + 's)'\">
+                    <small class=\"muted fs-12\">0 = reply immediately. Higher values let customers send a burst of messages and get one combined reply.</small>
+                </div>
                 <div style=\"display: flex; justify-content: flex-end;\">
                     <button type=\"submit\" class=\"btn\">Save</button>
                 </div>
@@ -816,6 +827,7 @@ pub fn admin_instagram_edit_html(account: &InstagramAccount, base_url: &str) -> 
         mode_static_sel = mode_static_sel,
         mode_ai_sel = mode_ai_sel,
         prompt = html_escape(&account.auto_reply.prompt),
+        wait = account.auto_reply.wait_seconds,
         hash = HASH,
     );
 

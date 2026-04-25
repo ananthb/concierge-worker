@@ -4,6 +4,7 @@
 
 pub mod commands;
 pub mod components;
+pub mod events;
 
 use botrelay::discord::{
     parse_interaction, ActionRow, Component, CreateMessage, DiscordBot, Embed, EmbedField,

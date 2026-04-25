@@ -70,6 +70,11 @@ pub async fn handle_instagram_admin(
             if let Some(FormEntry::Field(prompt)) = form.get("auto_reply_prompt") {
                 account.auto_reply.prompt = truncate(&prompt, 2000);
             }
+            if let Some(FormEntry::Field(w)) = form.get("wait_seconds") {
+                if let Ok(n) = w.parse::<u32>() {
+                    account.auto_reply.wait_seconds = n.min(30);
+                }
+            }
 
             account.updated_at = crate::helpers::now_iso();
             save_instagram_account(&kv, &account).await?;

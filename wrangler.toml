@@ -21,6 +21,17 @@ binding = "KV"
 id = "2c2f474d22e04d1f8a4d12b37810390b"
 
 # ============================================================================
+# Durable Objects — buffer inbound messages so we can reply to a batch
+# ============================================================================
+[[durable_objects.bindings]]
+name = "REPLY_BUFFER"
+class_name = "ReplyBufferDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ReplyBufferDO"]
+
+# ============================================================================
 # AI Binding for auto-reply generation
 # ============================================================================
 [ai]

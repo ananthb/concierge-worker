@@ -124,6 +124,11 @@ pub async fn handle_whatsapp_admin(
             if let Some(FormEntry::Field(prompt)) = form.get("auto_reply_prompt") {
                 account.auto_reply.prompt = truncate(&prompt, 2000);
             }
+            if let Some(FormEntry::Field(w)) = form.get("wait_seconds") {
+                if let Ok(n) = w.parse::<u32>() {
+                    account.auto_reply.wait_seconds = n.min(30);
+                }
+            }
 
             account.updated_at = now_iso();
             save_whatsapp_account(&kv, &account).await?;

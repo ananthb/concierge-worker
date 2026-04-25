@@ -128,6 +128,9 @@ pub async fn handle_discord_callback(req: Request, env: Env) -> Result<Response>
         approval_channel_id: None,
         digest_channel_id: None,
         relay_channel_id: None,
+        inbound_mentions: false,
+        inbound_channel_ids: Vec::new(),
+        auto_reply: AutoReplyConfig::default(),
     };
     save_discord_config(&kv, &config).await?;
 
@@ -246,6 +249,40 @@ async fn save_channels(req: &mut Request, kv: &kv::KvStore, tenant_id: &str) -> 
     cfg.approval_channel_id = opt_str("approval_channel_id");
     cfg.digest_channel_id = opt_str("digest_channel_id");
     cfg.relay_channel_id = opt_str("relay_channel_id");
+
+    // Inbound triggers + AI auto-reply config
+    cfg.inbound_mentions = form
+        .get("inbound_mentions")
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() == Some("true")))
+        .unwrap_or(false);
+    cfg.inbound_channel_ids = match form.get("inbound_channel_ids") {
+        Some(serde_json::Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
+        Some(serde_json::Value::String(s)) if !s.is_empty() => vec![s.clone()],
+        _ => Vec::new(),
+    };
+    cfg.auto_reply.enabled = form
+        .get("auto_reply_enabled")
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() == Some("true")))
+        .unwrap_or(false);
+    if let Some(mode) = form.get("auto_reply_mode").and_then(|v| v.as_str()) {
+        cfg.auto_reply.mode = match mode {
+            "ai" => AutoReplyMode::Ai,
+            _ => AutoReplyMode::Static,
+        };
+    }
+    if let Some(p) = form.get("auto_reply_prompt").and_then(|v| v.as_str()) {
+        cfg.auto_reply.prompt = p.chars().take(2000).collect();
+    }
+    if let Some(n) = form.get("wait_seconds").and_then(|v| {
+        v.as_i64()
+            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    }) {
+        cfg.auto_reply.wait_seconds = (n as u32).min(30);
+    }
+
     save_discord_config(kv, &cfg).await?;
     Response::from_html(r#"<div class="success">Channels saved.</div>"#.to_string())
 }

@@ -10,7 +10,11 @@ use crate::helpers::generate_id;
 use crate::storage::*;
 use crate::types::*;
 
-/// Process an inbound message from WhatsApp or Instagram.
+/// Process an inbound message from WhatsApp, Instagram, or Discord.
+///
+/// Routes through the ReplyBufferDO so quick-fire messages from the same
+/// sender batch into one AI call. wait_seconds=0 (or DO unreachable) falls
+/// back to immediate processing.
 pub async fn process_inbound(msg: &InboundMessage, env: &Env) -> Result<()> {
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;
@@ -20,15 +24,67 @@ pub async fn process_inbound(msg: &InboundMessage, env: &Env) -> Result<()> {
         console_log!("Failed to log inbound message: {:?}", e);
     }
 
-    // 2. Channel-specific routing
     match msg.channel {
-        Channel::WhatsApp | Channel::Instagram => {
-            handle_auto_reply(msg, &kv, &db, env).await?;
+        Channel::WhatsApp | Channel::Instagram | Channel::Discord => {
+            let wait = lookup_wait_seconds(&kv, msg).await.unwrap_or(0);
+            if wait == 0 {
+                process_inbound_immediate(msg, env).await?;
+            } else if let Err(e) = forward_to_buffer(env, msg, wait).await {
+                console_log!("buffer route failed, falling back to immediate: {:?}", e);
+                process_inbound_immediate(msg, env).await?;
+            }
         }
         Channel::Email => {}
-        Channel::Discord => {}
     }
 
+    Ok(())
+}
+
+/// Process a single (possibly already-batched) message immediately, no
+/// further buffering. Called both from `process_inbound` (when wait=0)
+/// and from `ReplyBufferDO::alarm` after the wait window closes.
+pub async fn process_inbound_immediate(msg: &InboundMessage, env: &Env) -> Result<()> {
+    let kv = env.kv("KV")?;
+    let db = env.d1("DB")?;
+    handle_auto_reply(msg, &kv, &db, env).await
+}
+
+async fn lookup_wait_seconds(kv: &kv::KvStore, msg: &InboundMessage) -> Result<u32> {
+    let cfg = match msg.channel {
+        Channel::WhatsApp => get_whatsapp_account(kv, &msg.channel_account_id)
+            .await?
+            .map(|a| a.auto_reply),
+        Channel::Instagram => get_instagram_account(kv, &msg.channel_account_id)
+            .await?
+            .map(|a| a.auto_reply),
+        Channel::Discord => get_discord_config_by_tenant(kv, &msg.tenant_id)
+            .await?
+            .map(|c| c.auto_reply),
+        _ => None,
+    };
+    Ok(cfg.map(|c| c.wait_seconds).unwrap_or(0))
+}
+
+async fn forward_to_buffer(env: &Env, msg: &InboundMessage, wait_seconds: u32) -> Result<()> {
+    let ns = env.durable_object("REPLY_BUFFER")?;
+    // One DO per conversation: tenant + channel + sender.
+    let id_name = format!("{}:{}:{}", msg.tenant_id, msg.channel.as_str(), msg.sender);
+    let stub = ns.id_from_name(&id_name)?.get_stub()?;
+
+    let payload = serde_json::json!({
+        "msg": msg,
+        "wait_seconds": wait_seconds,
+    });
+    let body = serde_json::to_string(&payload)?;
+
+    let mut headers = Headers::new();
+    headers.set("Content-Type", "application/json")?;
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post)
+        .with_headers(headers)
+        .with_body(Some(wasm_bindgen::JsValue::from_str(&body)));
+    let req = Request::new_with_init("https://buffer.do/push", &init)?;
+    let _ = stub.fetch_with_request(req).await?;
     Ok(())
 }
 

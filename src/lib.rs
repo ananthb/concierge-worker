@@ -30,6 +30,7 @@ mod channel;
 pub mod cloudflare;
 mod crypto;
 mod discord;
+mod durable_objects;
 mod email;
 mod handlers;
 mod helpers;
@@ -43,6 +44,7 @@ mod templates;
 mod types;
 mod whatsapp;
 
+pub use durable_objects::ReplyBufferDO;
 pub use types::*;
 
 /// Meta Graph API version used across all Facebook/WhatsApp/Instagram API calls.
@@ -283,6 +285,11 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     // Discord interaction endpoint
     if path == "/discord/interactions" && method == Method::Post {
         return discord::handle_interaction(req, env).await;
+    }
+
+    // Discord webhook events (MESSAGE_CREATE, etc.) — inbound channel for AI auto-reply.
+    if path == "/discord/events" && method == Method::Post {
+        return discord::events::handle_event(req, env).await;
     }
 
     // Razorpay payment webhook
