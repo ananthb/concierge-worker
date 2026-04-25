@@ -55,7 +55,7 @@ pub async fn handle_health(_req: Request, env: Env) -> Result<Response> {
         generated_at: report.generated_at,
     };
     let body = serde_json::to_string(&public)?;
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
     headers.set("Cache-Control", "no-store")?;
     let status = match public.overall {
@@ -118,11 +118,6 @@ pub async fn run_checks(env: &Env, deep: bool) -> HealthReport {
         env,
         &["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     ));
-    checks.push(secrets_check(
-        "Cloudflare DNS API",
-        env,
-        &["CF_DNS_API_TOKEN"],
-    ));
     checks.push(secrets_check("Encryption key", env, &["ENCRYPTION_KEY"]));
 
     // ---- Deep checks (cached) ----------------------------------------
@@ -137,7 +132,6 @@ pub async fn run_checks(env: &Env, deep: bool) -> HealthReport {
             }
         }
         checks.push(deep_discord(env).await);
-        checks.push(deep_cf_dns(env).await);
 
         let report = finalize(checks, deep);
         if let Some(kv) = kv_ok {
@@ -336,60 +330,6 @@ async fn deep_discord(env: &Env) -> Check {
         },
         Err(e) => Check {
             name: "Discord bot reachable".into(),
-            status: Status::Error,
-            detail: format!("fetch failed: {e}"),
-        },
-    }
-}
-
-async fn deep_cf_dns(env: &Env) -> Check {
-    let token = env
-        .secret("CF_DNS_API_TOKEN")
-        .map(|s| s.to_string())
-        .unwrap_or_default();
-    if token.is_empty() {
-        return Check {
-            name: "Cloudflare DNS API reachable".into(),
-            status: Status::Warn,
-            detail: "CF_DNS_API_TOKEN not set, skipped".into(),
-        };
-    }
-    let url = "https://api.cloudflare.com/client/v4/user/tokens/verify";
-    let headers = match Headers::new().with_set("Authorization", &format!("Bearer {token}")) {
-        Ok(h) => h,
-        Err(_) => {
-            return Check {
-                name: "Cloudflare DNS API reachable".into(),
-                status: Status::Error,
-                detail: "couldn't build auth header".into(),
-            }
-        }
-    };
-    let mut init = RequestInit::new();
-    init.with_method(Method::Get).with_headers(headers);
-    let req = match Request::new_with_init(url, &init) {
-        Ok(r) => r,
-        Err(e) => {
-            return Check {
-                name: "Cloudflare DNS API reachable".into(),
-                status: Status::Error,
-                detail: format!("request build: {e}"),
-            }
-        }
-    };
-    match Fetch::Request(req).send().await {
-        Ok(r) if r.status_code() == 200 => Check {
-            name: "Cloudflare DNS API reachable".into(),
-            status: Status::Ok,
-            detail: "token verified".into(),
-        },
-        Ok(r) => Check {
-            name: "Cloudflare DNS API reachable".into(),
-            status: Status::Error,
-            detail: format!("Cloudflare returned HTTP {}", r.status_code()),
-        },
-        Err(e) => Check {
-            name: "Cloudflare DNS API reachable".into(),
             status: Status::Error,
             detail: format!("fetch failed: {e}"),
         },

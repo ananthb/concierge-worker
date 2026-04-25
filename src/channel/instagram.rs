@@ -3,7 +3,6 @@ use worker::*;
 use crate::crypto;
 use crate::helpers::generate_id;
 use crate::instagram;
-use crate::storage;
 use crate::types::*;
 
 /// Parse Instagram webhook messaging entry into an InboundMessage.

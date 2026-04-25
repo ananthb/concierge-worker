@@ -9,7 +9,7 @@ use super::HASH;
 pub fn auth_login_html(
     base_url: &str,
     google_client_id: &str,
-    meta_app_id: &str,
+    _meta_app_id: &str,
     last_provider: Option<&str>,
 ) -> String {
     let redirect_uri = format!("{}/auth/callback", base_url);
@@ -283,41 +283,13 @@ pub fn admin_dashboard_html(
     instagram_accounts: &[InstagramAccount],
     lead_forms: &[LeadCaptureForm],
     billing: &TenantBilling,
-    email_domains: &[EmailSubdomain],
+    email_addrs: &[EmailAddress],
     base_url: &str,
 ) -> String {
     use super::base::app_shell;
-    use super::base::LOGO_INLINE;
 
-    let has_email_domains = !email_domains.is_empty();
-    let suspended: Vec<&EmailSubdomain> = email_domains
-        .iter()
-        .filter(|d| d.status != SubdomainStatus::Active)
-        .collect();
-
-    let suspended_banner = if suspended.is_empty() {
-        String::new()
-    } else {
-        let list: String = suspended
-            .iter()
-            .map(|d| format!("<code>{}</code>", html_escape(&d.domain)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!(
-            r#"<div class="card card-warn card-soft mb-16" style="padding:16px 20px">
-  <div class="row gap-12" style="align-items:flex-start">
-    <span class="dot mt-6" style="background:var(--warn)"></span>
-    <div class="flex-1">
-      <div class="fw-600">Email subdomains awaiting subscription</div>
-      <p class="muted fs-13 m-0 mt-4">{list} won't receive mail until you subscribe.</p>
-    </div>
-    <a href="{base_url}/admin/email" class="btn sm">Subscribe</a>
-  </div>
-</div>"#,
-            list = list,
-            base_url = base_url,
-        )
-    };
+    let has_email_domains = !email_addrs.is_empty();
+    let suspended_banner = String::new();
 
     // Sidebar: connected channels
     let ig_icon = r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-label="Instagram"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/></svg>"#;

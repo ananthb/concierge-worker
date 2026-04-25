@@ -14,6 +14,7 @@ pub async fn handle_wizard(
     tenant_id: &str,
 ) -> Result<Response> {
     let kv = env.kv("KV")?;
+    let db = env.d1("DB")?;
     let mut state = get_onboarding(&kv, tenant_id).await?;
 
     let sub = path
@@ -95,7 +96,8 @@ pub async fn handle_wizard(
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
-        // Add email subdomain in wizard (no billing yet — deferred to Ship it)
+        // Add an email address in the wizard. No payment gate — every tenant
+        // gets one free address; later additions go through Billing.
         "email/add" => {
             let form: serde_json::Value = req.json().await?;
             let label = form
@@ -105,40 +107,40 @@ pub async fn handle_wizard(
                 .trim()
                 .to_lowercase();
 
-            let base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-
-            if !base_domain.is_empty() && !label.is_empty() {
-                if crate::cloudflare::dns::validate_subdomain_label(&label).is_ok() {
-                    let domain = format!("{label}.{base_domain}");
-                    let mut subs = get_email_subdomains(&kv, tenant_id).await?;
-
-                    // Check uniqueness
-                    if !subs.iter().any(|s| s.domain == domain)
-                        && get_tenant_by_domain(&kv, &domain).await?.is_none()
-                    {
-                        subs.push(EmailSubdomain {
-                            label: label.clone(),
-                            domain,
-                            tenant_id: tenant_id.to_string(),
-                            default_action: EmailAction::Drop,
-                            dns_record_ids: vec![],
-                            subscription_id: None,
-                            status: SubdomainStatus::Suspended,
-                            created_at: crate::helpers::now_iso(),
-                            updated_at: crate::helpers::now_iso(),
-                        });
-                        save_email_subdomains(&kv, tenant_id, &subs).await?;
-                    }
+            if crate::email::validate_local_part(&label).is_ok() {
+                let tenant = get_tenant(&db, tenant_id).await?.unwrap_or_default();
+                let addrs = get_email_addresses(&kv, tenant_id).await?;
+                let at_quota = (addrs.len() as u32) >= tenant.email_address_quota();
+                let already_owned = addrs.iter().any(|a| a.local_part == label);
+                let globally_taken = get_tenant_by_address(&kv, &label).await?.is_some();
+                if !at_quota && !already_owned && !globally_taken {
+                    let now = crate::helpers::now_iso();
+                    let owner = NotificationRecipient {
+                        id: crate::helpers::generate_id(),
+                        address: tenant.email.to_lowercase(),
+                        kind: RecipientKind::Cc,
+                        status: RecipientStatus::Verified,
+                        is_owner: true,
+                        created_at: now.clone(),
+                        verified_at: Some(now.clone()),
+                    };
+                    let new_addr = EmailAddress {
+                        local_part: label.clone(),
+                        tenant_id: tenant_id.to_string(),
+                        auto_reply: AutoReplyConfig::default(),
+                        notification_recipients: vec![owner],
+                        created_at: now.clone(),
+                        updated_at: now,
+                    };
+                    save_email_address(&kv, tenant_id, &new_addr).await?;
+                    set_email_address_index(&kv, &label, tenant_id).await?;
                 }
             }
 
             render_step("channels", &state, &kv, &env, tenant_id, base_url).await
         }
 
-        // Remove email subdomain (only if not yet subscribed)
+        // Remove an email address while in the wizard.
         "email/remove" => {
             let form: serde_json::Value = req.json().await?;
             let label = form
@@ -148,9 +150,11 @@ pub async fn handle_wizard(
                 .trim()
                 .to_lowercase();
 
-            let mut subs = get_email_subdomains(&kv, tenant_id).await?;
-            subs.retain(|s| !(s.label == label && s.subscription_id.is_none()));
-            save_email_subdomains(&kv, tenant_id, &subs).await?;
+            if !label.is_empty() {
+                if delete_email_address(&kv, tenant_id, &label).await? {
+                    delete_email_address_index(&kv, &label).await?;
+                }
+            }
 
             render_step("channels", &state, &kv, &env, tenant_id, base_url).await
         }
@@ -335,7 +339,7 @@ async fn render_step(
         "channels" => {
             let wa = list_whatsapp_accounts(kv, tenant_id).await?;
             let ig = list_instagram_accounts(kv, tenant_id).await?;
-            let email_subs = get_email_subdomains(kv, tenant_id).await?;
+            let email_addrs = get_email_addresses(kv, tenant_id).await?;
             let slug = crate::helpers::generate_slug().unwrap_or_else(|_| "my-biz".into());
             let base_domain = env
                 .var("EMAIL_BASE_DOMAIN")
@@ -350,7 +354,7 @@ async fn render_step(
             Response::from_html(connect_html(
                 !ig.is_empty(),
                 !wa.is_empty(),
-                &email_subs,
+                &email_addrs,
                 &slug,
                 &base_domain,
                 &currency,
@@ -373,13 +377,17 @@ async fn render_step(
             base_url,
         )),
         "launch" => {
-            let email_subs = get_email_subdomains(kv, tenant_id).await?;
+            let email_addrs = get_email_addresses(kv, tenant_id).await?;
+            let base_domain = env
+                .var("EMAIL_BASE_DOMAIN")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
             let db = env.d1("DB")?;
             let currency = crate::storage::get_tenant(&db, tenant_id)
                 .await?
                 .map(|t| t.currency)
                 .unwrap_or_else(|| "INR".to_string());
-            Response::from_html(launch_html(&email_subs, &currency, base_url))
+            Response::from_html(launch_html(&email_addrs, &base_domain, &currency, base_url))
         }
         _ => Response::from_html(basics_html(&state.business, base_url)),
     }

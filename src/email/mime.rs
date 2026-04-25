@@ -1,4 +1,4 @@
-use mail_parser::MessageParser;
+use mail_parser::{HeaderValue, MessageParser};
 
 /// Parsed representation of an inbound email — only the fields we need to
 /// reconstruct an outbound message via Cloudflare Email Service.
@@ -9,12 +9,46 @@ pub struct ParsedEmail {
     pub text_body: Option<String>,
     pub html_body: Option<String>,
     pub has_attachment: bool,
+    /// Reply-To header (first address) — preferred for routing replies back
+    /// to the real human when an inbound is forwarded mail.
+    pub reply_to: Option<String>,
+    /// X-Forwarded-For / X-Original-From — set by some mail forwarders to
+    /// preserve the original sender when the From address gets rewritten.
+    pub x_forwarded_for: Option<String>,
+    pub x_original_from: Option<String>,
+}
+
+fn first_address(value: &HeaderValue<'_>) -> Option<String> {
+    match value {
+        HeaderValue::Address(addr) => addr
+            .first()
+            .and_then(|a| a.address.as_ref())
+            .map(|s| s.to_string()),
+        HeaderValue::Text(s) => Some(s.to_string()),
+        _ => None,
+    }
+}
+
+fn header_text<'a>(message: &'a mail_parser::Message<'a>, name: &str) -> Option<String> {
+    let v = message.header(name)?;
+    match v {
+        HeaderValue::Text(s) => Some(s.to_string()),
+        HeaderValue::Address(addr) => addr
+            .first()
+            .and_then(|a| a.address.as_ref())
+            .map(|s| s.to_string()),
+        _ => None,
+    }
 }
 
 /// Parse raw MIME bytes into a structured email.
 pub fn parse_email(raw: &[u8]) -> Option<ParsedEmail> {
     let message = MessageParser::default().parse(raw)?;
     let has_attachment = message.attachment_count() > 0;
+
+    let reply_to = message.header("Reply-To").and_then(first_address);
+    let x_forwarded_for = header_text(&message, "X-Forwarded-For");
+    let x_original_from = header_text(&message, "X-Original-From");
 
     Some(ParsedEmail {
         subject: message.subject().unwrap_or("").to_string(),
@@ -23,6 +57,9 @@ pub fn parse_email(raw: &[u8]) -> Option<ParsedEmail> {
         text_body: message.body_text(0).map(|s| s.to_string()),
         html_body: message.body_html(0).map(|s| s.to_string()),
         has_attachment,
+        reply_to,
+        x_forwarded_for,
+        x_original_from,
     })
 }
 

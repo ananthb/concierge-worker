@@ -1,604 +1,266 @@
-//! Admin templates for email routing
+//! Admin templates for the email feature: address list and per-address
+//! edit (auto-reply config + notification recipients).
 
 use crate::helpers::html_escape;
 use crate::types::*;
 
-use super::base::base_html;
+use super::base::{app_shell, base_html};
 use super::HASH;
 
-fn action_label(action: &EmailAction) -> &'static str {
-    match action {
-        EmailAction::Drop => "Drop",
-        EmailAction::Spam { .. } => "Spam",
-        EmailAction::ForwardEmail { .. } => "Forward Email",
-        EmailAction::ForwardDiscord { .. } => "Forward Discord",
-        EmailAction::AiReply { .. } => "AI Reply",
-    }
-}
-
-fn action_detail(action: &EmailAction) -> String {
-    match action {
-        EmailAction::Drop => String::new(),
-        EmailAction::Spam { message } => message.clone().unwrap_or_default(),
-        EmailAction::ForwardEmail { destination } => html_escape(destination),
-        EmailAction::ForwardDiscord { channel_id } => {
-            format!("Channel: {}", html_escape(channel_id))
-        }
-        EmailAction::AiReply {
-            approval_channel_id,
-            approval_email,
-            ..
-        } => {
-            let mut parts = Vec::new();
-            if let Some(ch) = approval_channel_id {
-                parts.push(format!("Discord: {}", html_escape(ch)));
-            }
-            if let Some(em) = approval_email {
-                parts.push(format!("Email: {}", html_escape(em)));
-            }
-            parts.join(", ")
-        }
-    }
-}
-
-fn criteria_summary(c: &MatchCriteria) -> String {
-    let mut parts = Vec::new();
-    if let Some(ref p) = c.from_pattern {
-        parts.push(format!("From: {}", html_escape(p)));
-    }
-    if let Some(ref p) = c.to_pattern {
-        parts.push(format!("To: {}", html_escape(p)));
-    }
-    if let Some(ref p) = c.subject_pattern {
-        parts.push(format!("Subject: {}", html_escape(p)));
-    }
-    if let Some(true) = c.has_attachment {
-        parts.push("Has attachment".into());
-    }
-    if let Some(ref p) = c.body_pattern {
-        parts.push(format!("Body: {}", html_escape(p)));
-    }
-    if parts.is_empty() {
-        "Catch-all".into()
-    } else {
-        parts.join("; ")
-    }
-}
-
+/// Top-level email dashboard.
 pub fn email_dashboard_html(
-    subdomains: &[EmailSubdomain],
-    metrics: &[serde_json::Value],
-    email_base_domain: &str,
-    currency: &str,
+    addrs: &[EmailAddress],
+    tenant: &Tenant,
+    base_domain: &str,
     base_url: &str,
 ) -> String {
-    let subdomain_price = if currency == "USD" { "$2" } else { "₹199" };
-    let subdomain_rows: String = subdomains
+    let used = addrs.len() as u32;
+    let quota = tenant.email_address_quota();
+    let at_limit = used >= quota;
+
+    let address_rows: String = addrs
         .iter()
-        .map(|d| {
-            let status_badge = match d.status {
-                SubdomainStatus::Active => r#"<span class="chip ok">Active</span>"#,
-                SubdomainStatus::Suspended => r#"<span class="chip warn">Suspended</span>"#,
+        .map(|a| {
+            let full = format!("{}@{}", a.local_part, base_domain);
+            let mode_label = match a.auto_reply.mode {
+                AutoReplyMode::Static => "Static",
+                AutoReplyMode::Ai => "AI",
             };
-            let action_cell = if d.status == SubdomainStatus::Active {
-                format!(
-                    r#"<a href="{base_url}/admin/email/domains/{domain}/rules" class="btn ghost sm">Rules</a>"#,
-                    base_url = base_url,
-                    domain = html_escape(&d.domain),
-                )
+            let on_off = if a.auto_reply.enabled {
+                r#"<span class="chip ok">on</span>"#
             } else {
-                format!(
-                    r#"<form hx-post="{base_url}/admin/email/subdomains" hx-ext="json-enc" hx-target="body" hx-swap="innerHTML" class="inline">
-  <input type="hidden" name="subdomain" value="{label}">
-  <button type="submit" class="btn sm primary">Subscribe {price}/mo</button>
-</form>"#,
-                    base_url = base_url,
-                    label = html_escape(&d.label),
-                    price = subdomain_price,
-                )
+                r#"<span class="chip">off</span>"#
             };
             format!(
-                r#"<div class="rt-row" style="grid-template-columns:1fr 1fr auto auto">
-  <div><a href="{base_url}/admin/email/domains/{domain}/rules"><strong>{domain}</strong></a></div>
-  <div>{status}</div>
-  <div>{action_cell}</div>
-  <div><button class="btn ghost sm text-warn" hx-delete="{base_url}/admin/email/subdomains/{label}" hx-confirm="Delete {domain} and all its rules?" hx-target="closest .rt-row" hx-swap="outerHTML">Delete</button></div>
-</div>"#,
-                base_url = base_url,
-                domain = html_escape(&d.domain),
-                label = html_escape(&d.label),
-                status = status_badge,
-                action_cell = action_cell,
-            )
-        })
-        .collect();
-
-    let empty_state = if subdomains.is_empty() {
-        r#"<div class="muted p-24 ta-center">No email subdomains yet. Add one below.</div>"#
-    } else {
-        ""
-    };
-
-    let metrics_html: String = metrics
-        .iter()
-        .map(|m| {
-            let action = m.get("action_type").and_then(|v| v.as_str()).unwrap_or("?");
-            let total = m.get("total").and_then(|v| v.as_f64()).unwrap_or(0.0) as i64;
-            format!(
-                r#"<div class="stat-row"><span class="mono muted">{action}</span><span class="stat-n serif">{total}</span></div>"#
-            )
-        })
-        .collect();
-
-    let content = format!(
-        r#"<div class="page-pad">
-  <div class="between mb-24">
-    <div>
-      <a href="{base_url}/admin" class="btn ghost sm mb-8">&larr; Dashboard</a>
-      <h2 class="display-sm">Email Routing</h2>
-    </div>
-    <div class="row gap-8">
-      <a href="{base_url}/admin/email/log" class="btn ghost sm">Log</a>
-    </div>
-  </div>
-
-  <div class="card p-18 mb-16">
-    <div class="eyebrow mb-8">Last 7 days</div>
-    {metrics_section}
-  </div>
-
-  <div class="card" style="padding:0;overflow:hidden">
-    <div class="rt-head" style="grid-template-columns:1fr 1fr auto auto">
-      <div>Subdomain</div><div>Status</div><div></div><div></div>
-    </div>
-    {subdomain_rows}{empty_state}
-  </div>
-
-  <div class="card p-22 mt-16" hx-ext="json-enc">
-    <div class="between mb-12">
-      <div class="eyebrow">Add subdomain</div>
-      <span class="mono muted fs-11">{subdomain_price} per month</span>
-    </div>
-    <form hx-post="{base_url}/admin/email/subdomains" hx-target="body" hx-swap="innerHTML"
-          class="row gap-8" style="align-items:center">
-      <input class="input" type="text" name="subdomain" placeholder="acme" required style="max-width:200px">
-      <span class="mono muted">.{base_domain}</span>
-      <button type="submit" class="btn primary sm ml-auto">Add &rarr;</button>
-    </form>
-    <div id="toast" class="mt-8"></div>
-  </div>
-</div>"#,
-        base_url = base_url,
-        base_domain = html_escape(email_base_domain),
-        subdomain_rows = subdomain_rows,
-        empty_state = empty_state,
-        metrics_section = if metrics_html.is_empty() {
-            r#"<span class="muted">No email activity yet.</span>"#.to_string()
-        } else {
-            metrics_html
-        },
-    );
-
-    let page = super::base::app_shell(&content, "Email Routing", base_url);
-    base_html("Email Routing - Concierge", &page)
-}
-
-pub fn email_rules_html(domain: &str, rules: &[RoutingRule], base_url: &str) -> String {
-    let rule_rows: String = rules
-        .iter()
-        .map(|r| {
-            let enabled_badge = if r.enabled {
-                "<span class=\"text-ok\">On</span>"
-            } else {
-                "<span class=\"text-muted\">Off</span>"
-            };
-            format!(
-                "<tr>
-                    <td>{priority}</td>
-                    <td><a href=\"{base_url}/admin/email/domains/{domain}/rules/{id}\">{name}</a></td>
-                    <td><small>{criteria}</small></td>
-                    <td>{action} <small class=\"text-muted\">{detail}</small></td>
-                    <td>{enabled_badge}</td>
-                    <td>
-                        <button class=\"btn btn-sm\" hx-post=\"{base_url}/admin/email/domains/{domain}/rules/{id}/toggle\">Toggle</button>
-                        <button class=\"btn btn-sm btn-danger\" hx-delete=\"{base_url}/admin/email/domains/{domain}/rules/{id}\" hx-confirm=\"Delete this rule?\" hx-target=\"closest tr\" hx-swap=\"outerHTML\">Delete</button>
+                r#"<tr>
+                    <td><a href="{base_url}/admin/email/addresses/{label}" class="link-reset"><strong>{full}</strong></a></td>
+                    <td>{mode_label} {on_off}</td>
+                    <td>{count} recipient(s)</td>
+                    <td class="ta-right">
+                        <a href="{base_url}/admin/email/addresses/{label}" class="btn ghost sm">Edit</a>
+                        <button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}" hx-confirm="Delete this address? Inbound mail will be rejected.">Delete</button>
                     </td>
-                </tr>",
+                </tr>"#,
                 base_url = base_url,
-                domain = html_escape(domain),
-                id = html_escape(&r.id),
-                name = html_escape(&r.name),
-                priority = r.priority,
-                criteria = criteria_summary(&r.criteria),
-                action = action_label(&r.action),
-                detail = action_detail(&r.action),
-                enabled_badge = enabled_badge,
+                label = html_escape(&a.local_part),
+                full = html_escape(&full),
+                mode_label = mode_label,
+                on_off = on_off,
+                count = a.notification_recipients.len(),
             )
         })
         .collect();
 
-    let empty = if rules.is_empty() {
-        "<tr><td colspan=\"6\" class=\"text-muted\">No rules configured. Add one below.</td></tr>"
+    let address_table = if addrs.is_empty() {
+        r#"<p class="muted">No email addresses yet. Pick a name below — you can use it like <code>name@domain</code> from the moment you save.</p>"#.to_string()
     } else {
-        ""
+        format!(
+            r#"<div class="card p-0" style="overflow:hidden">
+                <table>
+                    <thead><tr><th>Address</th><th>Auto-reply</th><th>Notify</th><th></th></tr></thead>
+                    <tbody>{address_rows}</tbody>
+                </table>
+            </div>"#,
+            address_rows = address_rows,
+        )
     };
 
-    let templates_section = if rules.is_empty() {
+    let add_form = if at_limit {
         format!(
-            r#"<div class="card p-22 mb-16" style="border-color:var(--accent);background:linear-gradient(135deg,var(--paper),var(--accent-soft))">
-            <div class="eyebrow mb-12">Quick start</div>
-            <p class="muted mb-14">No rules yet. Pick a template to get started:</p>
-            <div class="row gap-8 wrap" hx-ext="json-enc">
-                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"Forward all to inbox","priority":"0","enabled":"true","action_type":"forward_email","destination":"you@example.com"}}' hx-target="body" hx-swap="innerHTML">Forward all to inbox</button>
-                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"Relay to Discord","priority":"0","enabled":"true","action_type":"forward_discord","channel_id":""}}' hx-target="body" hx-swap="innerHTML">Relay to Discord</button>
-                <button class="btn sm" hx-post="{base_url}/admin/email/domains/{domain}/rules" hx-vals='{{"name":"AI auto-reply","priority":"0","enabled":"true","action_type":"ai_reply"}}' hx-target="body" hx-swap="innerHTML">AI auto-reply</button>
-            </div>
-        </div>"#,
+            r#"<div class="card p-18 mt-16 card-warn">
+                <p class="m-0"><strong>You've used your {quota} address slot(s).</strong> Buy a 5-pack from <a href="{base_url}/admin/billing">Billing</a> to add more.</p>
+            </div>"#,
             base_url = base_url,
-            domain = html_escape(domain),
+            quota = quota,
         )
     } else {
-        String::new()
-    };
-
-    let rules_json_pretty =
-        serde_json::to_string_pretty(rules).unwrap_or_else(|_| "[]".to_string());
-
-    let content = format!(
-        "<div class=\"page-pad\" x-data=\"{{ mode: 'gui' }}\">
-        <p><a href=\"{base_url}/admin/email\" class=\"btn ghost sm\">&larr; Email Routing</a></p>
-        <div class=\"between mt-8 mb-16\">
-            <h1 class=\"display-sm m-0\">Rules for {domain}</h1>
-            <div class=\"row gap-8\">
-                <button type=\"button\" class=\"btn sm\" :class=\"mode === 'gui' ? 'primary' : 'ghost'\" @click=\"mode = 'gui'\">GUI</button>
-                <button type=\"button\" class=\"btn sm\" :class=\"mode === 'text' ? 'primary' : 'ghost'\" @click=\"mode = 'text'\">Text (JSON)</button>
-            </div>
-        </div>
-
-        <div x-show=\"mode === 'gui'\" x-cloak>
-            {templates_section}
-
-            <div class=\"card\" style=\"padding:0;overflow:hidden\">
-                <div class=\"table-wrap\"><table>
-                    <thead><tr><th>Priority</th><th>Name</th><th>Criteria</th><th>Action</th><th>Status</th><th></th></tr></thead>
-                    <tbody>{rule_rows}{empty}</tbody>
-                </table></div>
-            </div>
-
-            <div class=\"card p-22 mt-16\">
-                <h2>Add Rule</h2>
-                <div id=\"toast\"></div>
-                {rule_form}
-            </div>
-        </div>
-
-        <div x-show=\"mode === 'text'\" x-cloak>
-            <div class=\"card p-22\">
-                <p class=\"muted mb-12\">Edit every rule for <code>{domain}</code> as JSON. Saving replaces the whole set. Omit or leave <code>id</code> empty to generate a fresh one.</p>
-                <form hx-put=\"{base_url}/admin/email/domains/{domain}/rules-bulk\" hx-ext=\"json-enc\" hx-target=\"{hash}bulk-toast\" hx-swap=\"innerHTML\">
-                    <textarea name=\"rules_json\" class=\"input mono w-full\" rows=\"24\" spellcheck=\"false\">{rules_json_pretty}</textarea>
-                    <div class=\"row gap-12 mt-12\">
-                        <button type=\"submit\" class=\"btn primary\">Save all</button>
+        format!(
+            r##"<div class="card p-18 mt-16">
+                <h2 class="display-sm m-0 mb-8">Add an address</h2>
+                <p class="muted mb-12">{used} of {quota} addresses used. Pick a memorable local-part — it can use a-z, 0-9, dot, dash, underscore.</p>
+                <form hx-post="{base_url}/admin/email/addresses" hx-ext="json-enc" hx-target="{HASH}toast" hx-swap="innerHTML">
+                    <div class="row gap-8 wrap">
+                        <input class="input" name="local_part" placeholder="support" required style="max-width:240px">
+                        <span class="muted">@{base_domain}</span>
+                        <button class="btn primary" type="submit">Add</button>
                     </div>
-                    <div id=\"bulk-toast\" class=\"mt-8\"></div>
                 </form>
-            </div>
-        </div>
-        </div>",
-        base_url = base_url,
-        domain = html_escape(domain),
-        templates_section = templates_section,
-        rule_rows = rule_rows,
-        empty = empty,
-        rule_form = rule_form_html(domain, None, base_url),
-        rules_json_pretty = html_escape(&rules_json_pretty),
-        hash = HASH,
-    );
-
-    let page = super::base::app_shell(&content, "Email Routing", base_url);
-    base_html(&format!("Rules: {} - Concierge", domain), &page)
-}
-
-pub fn email_rule_edit_html(domain: &str, rule: &RoutingRule, base_url: &str) -> String {
-    let content = format!(
-        "<div class=\"page-pad\">
-        <p><a href=\"{base_url}/admin/email/domains/{domain}/rules\" class=\"btn ghost sm\">&larr; Rules</a></p>
-        <h1 class=\"display-sm mt-8 mb-16\">Edit Rule: {name}</h1>
-        <div class=\"card p-22\">
-            <div id=\"toast\"></div>
-            {form}
-        </div>
-        </div>",
-        base_url = base_url,
-        domain = html_escape(domain),
-        name = html_escape(&rule.name),
-        form = rule_form_html(domain, Some(rule), base_url),
-    );
-
-    let page = super::base::app_shell(&content, "Email Routing", base_url);
-    base_html(&format!("Edit Rule - Concierge"), &page)
-}
-
-fn rule_form_html(domain: &str, rule: Option<&RoutingRule>, base_url: &str) -> String {
-    let (method, url) = match rule {
-        Some(r) => (
-            "hx-put",
-            format!(
-                "{base_url}/admin/email/domains/{}/rules/{}",
-                html_escape(domain),
-                html_escape(&r.id)
-            ),
-        ),
-        None => (
-            "hx-post",
-            format!(
-                "{base_url}/admin/email/domains/{}/rules",
-                html_escape(domain)
-            ),
-        ),
+                <div id="toast" class="mt-8"></div>
+            </div>"##,
+            HASH = HASH,
+            base_url = base_url,
+            base_domain = html_escape(base_domain),
+            used = used,
+            quota = quota,
+        )
     };
 
-    let name = rule.map(|r| html_escape(&r.name)).unwrap_or_default();
-    let priority = rule.map(|r| r.priority.to_string()).unwrap_or("0".into());
-    let enabled_checked = if rule.map(|r| r.enabled).unwrap_or(true) {
-        " checked"
+    let body = format!(
+        r#"<div class="page-pad">
+            <h1 class="display-sm mb-4">Email</h1>
+            <p class="muted mb-16">Each address you add at <code>@{base_domain}</code> can auto-reply to incoming mail. Replies go to the sender; you and your team get a copy via Cc/Bcc.</p>
+            {address_table}
+            {add_form}
+        </div>"#,
+        base_domain = html_escape(base_domain),
+        address_table = address_table,
+        add_form = add_form,
+    );
+
+    let page = app_shell(&body, "Email", base_url);
+    base_html("Email — Concierge", &page)
+}
+
+/// Per-address edit page.
+pub fn email_address_html(addr: &EmailAddress, base_domain: &str, base_url: &str) -> String {
+    let full = format!("{}@{}", addr.local_part, base_domain);
+
+    let static_selected = matches!(addr.auto_reply.mode, AutoReplyMode::Static);
+    let ai_selected = matches!(addr.auto_reply.mode, AutoReplyMode::Ai);
+    let enabled_attr = if addr.auto_reply.enabled {
+        "checked"
     } else {
         ""
     };
 
-    let from_pattern = rule
-        .and_then(|r| r.criteria.from_pattern.as_deref())
-        .map(html_escape)
-        .unwrap_or_default();
-    let to_pattern = rule
-        .and_then(|r| r.criteria.to_pattern.as_deref())
-        .map(html_escape)
-        .unwrap_or_default();
-    let subject_pattern = rule
-        .and_then(|r| r.criteria.subject_pattern.as_deref())
-        .map(html_escape)
-        .unwrap_or_default();
-    let body_pattern = rule
-        .and_then(|r| r.criteria.body_pattern.as_deref())
-        .map(html_escape)
-        .unwrap_or_default();
-    let has_attachment_checked = if rule
-        .and_then(|r| r.criteria.has_attachment)
-        .unwrap_or(false)
-    {
-        " checked"
-    } else {
-        ""
-    };
+    let auto_reply_form = format!(
+        r##"<form hx-put="{base_url}/admin/email/addresses/{label}/auto-reply" hx-ext="json-enc" hx-target="{HASH}auto-toast" hx-swap="innerHTML">
+            <div class="form-group">
+                <label class="row gap-8">
+                    <span class="toggle">
+                        <input type="checkbox" name="enabled" {enabled_attr}>
+                        <span></span>
+                    </span>
+                    <span>Reply automatically to inbound mail</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label>Mode</label>
+                <select class="select" name="mode">
+                    <option value="static" {static_sel}>Static — same canned reply every time</option>
+                    <option value="ai" {ai_sel}>AI — generate a reply for each message (uses 1 credit)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Reply text / AI prompt</label>
+                <textarea class="textarea" name="prompt" rows="6" placeholder="In static mode this exact text is sent. In AI mode, this is the system prompt for the model.">{prompt}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Wait before replying ({wait}s)</label>
+                <input class="input" name="wait_seconds" type="number" min="0" max="120" value="{wait}">
+                <p class="muted fs-12 mt-4">Lets clusters of forwarded messages collapse into one reply. 0 = reply immediately.</p>
+            </div>
+            <div class="row gap-8">
+                <button class="btn primary" type="submit">Save</button>
+            </div>
+            <div id="auto-toast" class="mt-8"></div>
+        </form>"##,
+        HASH = HASH,
+        base_url = base_url,
+        label = html_escape(&addr.local_part),
+        enabled_attr = enabled_attr,
+        static_sel = if static_selected { "selected" } else { "" },
+        ai_sel = if ai_selected { "selected" } else { "" },
+        prompt = html_escape(&addr.auto_reply.prompt),
+        wait = addr.auto_reply.wait_seconds,
+    );
 
-    let (
-        action_type,
-        destination,
-        channel_id,
-        spam_message,
-        system_prompt,
-        approval_channel_id,
-        approval_email,
-    ) = match rule.map(|r| &r.action) {
-        Some(EmailAction::Drop) | None => ("drop", "", "", "", "", "", ""),
-        Some(EmailAction::Spam { message }) => {
-            ("spam", "", "", message.as_deref().unwrap_or(""), "", "", "")
-        }
-        Some(EmailAction::ForwardEmail { destination }) => {
-            ("forward_email", destination.as_str(), "", "", "", "", "")
-        }
-        Some(EmailAction::ForwardDiscord { channel_id }) => {
-            ("forward_discord", "", channel_id.as_str(), "", "", "", "")
-        }
-        Some(EmailAction::AiReply {
-            system_prompt,
-            approval_channel_id,
-            approval_email,
-        }) => (
-            "ai_reply",
-            "",
-            "",
-            "",
-            system_prompt.as_deref().unwrap_or(""),
-            approval_channel_id.as_deref().unwrap_or(""),
-            approval_email.as_deref().unwrap_or(""),
-        ),
-    };
-
-    let action_options = [
-        ("drop", "Drop"),
-        ("spam", "Reject (Spam)"),
-        ("forward_email", "Forward to Email"),
-        ("forward_discord", "Forward to Discord"),
-        ("ai_reply", "AI Reply"),
-    ];
-
-    let action_select: String = action_options
+    let recipient_rows: String = addr
+        .notification_recipients
         .iter()
-        .map(|(val, label)| {
-            let selected = if *val == action_type { " selected" } else { "" };
-            format!("<option value=\"{val}\"{selected}>{label}</option>")
-        })
-        .collect();
-
-    format!(
-        "<form {method}=\"{url}\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\" x-data=\"{{ action: '{action_type}' }}\">
-            <div class=\"form-group\">
-                <label>Name</label>
-                <input type=\"text\" name=\"name\" value=\"{name}\" placeholder=\"Newsletter filter\" required>
-            </div>
-            <div class=\"row gap-16\">
-                <div class=\"form-group flex-1\">
-                    <label>Priority</label>
-                    <input type=\"number\" name=\"priority\" value=\"{priority}\" class=\"w-full\">
-                </div>
-                <div class=\"form-group flex-1\">
-                    <label><input type=\"checkbox\" name=\"enabled\" value=\"true\"{enabled_checked}> Enabled</label>
-                </div>
-            </div>
-
-            <h3 class=\"mt-16 mb-8\">Match Criteria</h3>
-            <p class=\"muted mb-12\"><small>Patterns: <code>*</code> matches anything, <code>?</code> matches one character. Example: <code>*@newsletter.com</code> matches all emails from newsletter.com</small></p>
-            <div class=\"form-group\">
-                <label>From</label>
-                <input type=\"text\" name=\"from_pattern\" value=\"{from_pattern}\" placeholder=\"*@newsletter.com\">
-            </div>
-            <div class=\"form-group\">
-                <label>To</label>
-                <input type=\"text\" name=\"to_pattern\" value=\"{to_pattern}\" placeholder=\"support+*@example.com\">
-            </div>
-            <div class=\"form-group\">
-                <label>Subject</label>
-                <input type=\"text\" name=\"subject_pattern\" value=\"{subject_pattern}\" placeholder=\"*invoice*\">
-            </div>
-            <div class=\"form-group\">
-                <label>Body contains</label>
-                <input type=\"text\" name=\"body_pattern\" value=\"{body_pattern}\" placeholder=\"*unsubscribe*\">
-            </div>
-            <div class=\"form-group\">
-                <label><input type=\"checkbox\" name=\"has_attachment\" value=\"true\"{has_attachment_checked}> Has attachment</label>
-            </div>
-
-            <h3 class=\"mt-16 mb-8\">Action</h3>
-            <div class=\"form-group\">
-                <label>Action type</label>
-                <select name=\"action_type\" x-model=\"action\">{action_select}</select>
-            </div>
-
-            <div class=\"action-fields\" x-show=\"action === 'spam'\" x-cloak>
-                <div class=\"form-group\">
-                    <label>Reject message</label>
-                    <input type=\"text\" name=\"spam_message\" value=\"{spam_message}\" placeholder=\"Rejected as spam\">
-                </div>
-            </div>
-            <div class=\"action-fields\" x-show=\"action === 'forward_email'\" x-cloak>
-                <div class=\"form-group\">
-                    <label>Destination email</label>
-                    <input type=\"email\" name=\"destination\" value=\"{destination}\" placeholder=\"me@gmail.com\">
-                </div>
-            </div>
-            <div class=\"action-fields\" x-show=\"action === 'forward_discord'\" x-cloak>
-                <div class=\"form-group\">
-                    <label>Discord channel ID</label>
-                    <input type=\"text\" name=\"channel_id\" value=\"{channel_id}\" placeholder=\"123456789012345678\">
-                </div>
-            </div>
-            <div class=\"action-fields\" x-show=\"action === 'ai_reply'\" x-cloak>
-                <div class=\"form-group\">
-                    <label>System prompt</label>
-                    <textarea name=\"system_prompt\" rows=\"3\" placeholder=\"You are a helpful assistant...\">{system_prompt}</textarea>
-                </div>
-                <div class=\"form-group\">
-                    <label>Approval Discord channel ID</label>
-                    <input type=\"text\" name=\"approval_channel_id\" value=\"{approval_channel_id}\" placeholder=\"Channel for approval\">
-                </div>
-                <div class=\"form-group\">
-                    <label>Approval email</label>
-                    <input type=\"email\" name=\"approval_email\" value=\"{approval_email}\" placeholder=\"Or send approval to email\">
-                </div>
-            </div>
-
-            <div class=\"row gap-8 mt-16\" style=\"justify-content: flex-end\">
-                <button type=\"submit\" class=\"btn\">Save</button>
-            </div>
-        </form>",
-        method = method,
-        url = url,
-        hash = HASH,
-        action_type = action_type,
-        name = name,
-        priority = priority,
-        enabled_checked = enabled_checked,
-        from_pattern = from_pattern,
-        to_pattern = to_pattern,
-        subject_pattern = subject_pattern,
-        body_pattern = body_pattern,
-        has_attachment_checked = has_attachment_checked,
-        action_select = action_select,
-        destination = html_escape(destination),
-        channel_id = html_escape(channel_id),
-        spam_message = html_escape(spam_message),
-        system_prompt = html_escape(system_prompt),
-        approval_channel_id = html_escape(approval_channel_id),
-        approval_email = html_escape(approval_email),
-    )
-}
-
-pub fn email_log_html(log: &[serde_json::Value], base_url: &str) -> String {
-    let rows: String = log
-        .iter()
-        .map(|entry| {
-            let from = entry
-                .get("from_email")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let to = entry.get("to_email").and_then(|v| v.as_str()).unwrap_or("");
-            let subject = entry.get("subject").and_then(|v| v.as_str()).unwrap_or("");
-            let action = entry
-                .get("action_taken")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let domain = entry.get("domain").and_then(|v| v.as_str()).unwrap_or("");
-            let created = entry
-                .get("created_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let error = entry
-                .get("error_msg")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            let status = if error.is_empty() {
-                format!("<span class=\"text-ok\">{action}</span>")
+        .map(|r| {
+            let kind_chip = match r.kind {
+                RecipientKind::Cc => r#"<span class="chip">Cc</span>"#,
+                RecipientKind::Bcc => r#"<span class="chip">Bcc</span>"#,
+            };
+            let status_chip = if r.is_owner {
+                r#"<span class="chip ok">Owner</span>"#.to_string()
+            } else if matches!(r.status, RecipientStatus::Verified) {
+                r#"<span class="chip ok">Verified</span>"#.to_string()
+            } else {
+                r#"<span class="chip warn">Pending</span>"#.to_string()
+            };
+            let delete_btn = if r.is_owner {
+                String::new()
             } else {
                 format!(
-                    "<span class=\"text-warn\">{action}: {error}</span>",
-                    action = html_escape(action),
-                    error = html_escape(error)
+                    r#"<button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}/recipients/{id}" hx-confirm="Remove this recipient?" hx-target="closest tr" hx-swap="outerHTML">Remove</button>"#,
+                    base_url = base_url,
+                    label = html_escape(&addr.local_part),
+                    id = html_escape(&r.id),
                 )
             };
-
             format!(
-                "<tr>
-                    <td><small>{created}</small></td>
-                    <td>{domain}</td>
-                    <td><small>{from}</small></td>
-                    <td><small>{to}</small></td>
-                    <td><small>{subject}</small></td>
-                    <td>{status}</td>
-                </tr>",
-                created = html_escape(created),
-                domain = html_escape(domain),
-                from = html_escape(from),
-                to = html_escape(to),
-                subject = html_escape(subject),
-                status = status,
+                r#"<tr>
+                    <td><strong>{address}</strong></td>
+                    <td>{kind_chip}</td>
+                    <td>{status_chip}</td>
+                    <td class="ta-right">{delete_btn}</td>
+                </tr>"#,
+                address = html_escape(&r.address),
+                kind_chip = kind_chip,
+                status_chip = status_chip,
+                delete_btn = delete_btn,
             )
         })
         .collect();
 
-    let empty = if log.is_empty() {
-        "<tr><td colspan=\"6\" class=\"text-muted\">No emails logged yet.</td></tr>"
-    } else {
-        ""
-    };
-
-    let content = format!(
-        "<div class=\"page-pad\">
-        <p><a href=\"{base_url}/admin/email\" class=\"btn ghost sm\">&larr; Email Routing</a></p>
-        <h1 class=\"display-sm mt-8 mb-16\">Email Log</h1>
-        <div class=\"card\" style=\"padding:0;overflow:hidden\">
-            <div class=\"table-wrap\" style=\"overflow-x:auto\"><table>
-                <thead><tr><th>Time</th><th>Domain</th><th>From</th><th>To</th><th>Subject</th><th>Status</th></tr></thead>
-                <tbody>{rows}{empty}</tbody>
-            </table></div>
+    let recipients_section = format!(
+        r##"<div class="card p-0" style="overflow:hidden">
+            <table>
+                <thead><tr><th>Address</th><th>Kind</th><th>Status</th><th></th></tr></thead>
+                <tbody>{recipient_rows}</tbody>
+            </table>
         </div>
-        </div>",
+        <form class="card p-18 mt-12" hx-post="{base_url}/admin/email/addresses/{label}/recipients" hx-ext="json-enc" hx-target="{HASH}rec-toast" hx-swap="innerHTML">
+            <div class="row gap-8 wrap">
+                <input class="input" name="address" type="email" placeholder="team@example.com" required style="flex:1;max-width:340px">
+                <select class="select" name="kind" style="max-width:120px">
+                    <option value="cc">Cc</option>
+                    <option value="bcc">Bcc</option>
+                </select>
+                <button class="btn primary" type="submit">Add &amp; verify</button>
+            </div>
+            <p class="muted fs-12 mt-8">We'll send a one-click verification link to confirm ownership before notifications start arriving.</p>
+            <div id="rec-toast" class="mt-8"></div>
+        </form>"##,
+        HASH = HASH,
         base_url = base_url,
-        rows = rows,
-        empty = empty,
+        label = html_escape(&addr.local_part),
+        recipient_rows = recipient_rows,
     );
 
-    let page = super::base::app_shell(&content, "Email Routing", base_url);
-    base_html("Email Log - Concierge", &page)
+    let body = format!(
+        r#"<div class="page-pad">
+            <p><a href="{base_url}/admin/email" class="btn ghost sm">&larr; Email</a></p>
+            <h1 class="display-sm mt-8 mb-4">{full}</h1>
+            <p class="muted mb-24">Replies are sent from this address. Cc/Bcc recipients listed below get a copy of every reply.</p>
+            <h2 class="display-sm mb-8">Auto-reply</h2>
+            <div class="card p-22 mb-24">{auto_reply_form}</div>
+            <h2 class="display-sm mb-8">Notify on every reply</h2>
+            {recipients_section}
+        </div>"#,
+        base_url = base_url,
+        full = html_escape(&full),
+        auto_reply_form = auto_reply_form,
+        recipients_section = recipients_section,
+    );
+
+    let page = app_shell(&body, "Email", base_url);
+    base_html(&format!("{full} — Concierge"), &page)
+}
+
+/// Public verification page rendered when a recipient clicks the link
+/// from the verification email. The handler decides which variant to
+/// show (success / already / expired).
+pub fn email_verify_result_html(message: &str) -> String {
+    let body = format!(
+        r#"<div class="page-pad ta-center">
+            <h1 class="display-md mb-12">Email verification</h1>
+            <p class="lead">{message}</p>
+            <p class="mt-16"><a class="btn ghost sm" href="/">Back to Concierge</a></p>
+        </div>"#,
+        message = html_escape(message),
+    );
+    base_html("Email verification — Concierge", &body)
 }

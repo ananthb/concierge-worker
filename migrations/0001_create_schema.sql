@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     facebook_id TEXT,
     plan TEXT DEFAULT 'free',
     currency TEXT NOT NULL DEFAULT 'INR',
+    email_address_packs_purchased INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -62,33 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_instagram_messages_account
 CREATE INDEX IF NOT EXISTS idx_instagram_messages_tenant
     ON instagram_messages(tenant_id, created_at);
 
--- Email message log
-CREATE TABLE IF NOT EXISTS email_messages (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL,
-    domain TEXT NOT NULL,
-    rule_id TEXT,
-    direction TEXT NOT NULL,
-    from_email TEXT NOT NULL,
-    to_email TEXT NOT NULL,
-    action_taken TEXT NOT NULL,
-    error_msg TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_email_msg_tenant ON email_messages(tenant_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_email_msg_domain ON email_messages(domain, created_at);
-
--- Email metrics counters
-CREATE TABLE IF NOT EXISTS email_metrics (
-    domain TEXT NOT NULL,
-    rule_id TEXT,
-    date TEXT NOT NULL,
-    action_type TEXT NOT NULL,
-    count INTEGER NOT NULL DEFAULT 0,
-    tenant_id TEXT NOT NULL,
-    UNIQUE(domain, rule_id, date, action_type)
-);
-CREATE INDEX IF NOT EXISTS idx_email_metrics_domain_date ON email_metrics(domain, date);
+-- (Email logging now lives in the unified `messages` table.)
 
 -- Unified message log (all channels)
 CREATE TABLE IF NOT EXISTS messages (

@@ -1,10 +1,10 @@
-//! Discord slash command handlers (/domains, /rules, /status).
+//! Discord slash command handlers — currently just `/status`. The
+//! domain/rule commands disappeared with the rule-engine rewrite.
 
 use botrelay::discord::{Interaction, InteractionResponse};
 use worker::*;
 
 use crate::storage::*;
-use crate::types::*;
 
 /// Dispatch a slash command.
 pub async fn handle_command(interaction: &Interaction, env: &Env) -> Result<Response> {
@@ -22,7 +22,6 @@ pub async fn handle_command(interaction: &Interaction, env: &Env) -> Result<Resp
     let guild_id = interaction.guild_id.as_deref().unwrap_or("");
     let kv = env.kv("KV")?;
 
-    // Resolve tenant from guild
     let tenant_id = match get_discord_config_by_guild(&kv, guild_id).await? {
         Some(config) => config.tenant_id,
         None => {
@@ -34,8 +33,6 @@ pub async fn handle_command(interaction: &Interaction, env: &Env) -> Result<Resp
 
     match name {
         "status" => handle_status(&kv, env, &tenant_id).await,
-        "domains" => handle_domains(interaction, &kv, &tenant_id).await,
-        "rules" => handle_rules(interaction, &kv, &tenant_id).await,
         _ => ephemeral(&format!("Unknown command: {name}")),
     }
 }
@@ -43,140 +40,29 @@ pub async fn handle_command(interaction: &Interaction, env: &Env) -> Result<Resp
 async fn handle_status(kv: &kv::KvStore, env: &Env, tenant_id: &str) -> Result<Response> {
     let wa_accounts = list_whatsapp_accounts(kv, tenant_id).await?;
     let ig_accounts = list_instagram_accounts(kv, tenant_id).await?;
-    let domains = get_email_subdomains(kv, tenant_id).await?;
+    let addrs = get_email_addresses(kv, tenant_id).await?;
+    let base_domain = env
+        .var("EMAIL_BASE_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
 
-    let db = env.d1("DB")?;
-    let metrics = get_email_metrics(&db, tenant_id, None).await?;
-
-    let metrics_str: String = metrics
-        .iter()
-        .map(|m| {
-            let action = m.get("action_type").and_then(|v| v.as_str()).unwrap_or("?");
-            let total = m.get("total").and_then(|v| v.as_f64()).unwrap_or(0.0) as i64;
-            format!("  {action}: {total}")
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    let addr_list: String = if addrs.is_empty() {
+        "  (none)".to_string()
+    } else {
+        addrs
+            .iter()
+            .map(|a| format!("  - {}@{}", a.local_part, base_domain))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
 
     let msg = format!(
-        "**Concierge Status**\n\
-        \n**WhatsApp**: {} account(s)\n\
-        **Instagram**: {} account(s)\n\
-        **Email domains**: {}\n\
-        \n**Email metrics (7d)**:\n{}",
+        "**Concierge Status**\n\n**WhatsApp**: {} account(s)\n**Instagram**: {} account(s)\n**Email addresses**:\n{}",
         wa_accounts.len(),
         ig_accounts.len(),
-        domains
-            .iter()
-            .map(|d| d.domain.as_str())
-            .collect::<Vec<_>>()
-            .join(", "),
-        if metrics_str.is_empty() {
-            "  No activity".to_string()
-        } else {
-            metrics_str
-        },
+        addr_list,
     );
-
     ephemeral(&msg)
-}
-
-async fn handle_domains(
-    interaction: &Interaction,
-    kv: &kv::KvStore,
-    tenant_id: &str,
-) -> Result<Response> {
-    let subcommand = interaction
-        .data
-        .as_ref()
-        .and_then(|d| d.options.as_ref())
-        .and_then(|opts| opts.first())
-        .map(|o| o.name.as_str())
-        .unwrap_or("list");
-
-    match subcommand {
-        "list" => {
-            let subdomains = get_email_subdomains(kv, tenant_id).await?;
-            if subdomains.is_empty() {
-                return ephemeral("No email subdomains configured. Add one from the admin panel.");
-            }
-            let list: String = subdomains
-                .iter()
-                .map(|d| format!("- **{}** ({:?})", d.domain, d.status))
-                .collect::<Vec<_>>()
-                .join("\n");
-            ephemeral(&format!("**Email Subdomains**\n{list}"))
-        }
-        "add" | "remove" => {
-            ephemeral("Email subdomains are managed from the admin panel (billing required).")
-        }
-        _ => {
-            ephemeral("Usage: `/domains list`, `/domains add <domain>`, `/domains remove <domain>`")
-        }
-    }
-}
-
-async fn handle_rules(
-    interaction: &Interaction,
-    kv: &kv::KvStore,
-    tenant_id: &str,
-) -> Result<Response> {
-    let first_option = interaction
-        .data
-        .as_ref()
-        .and_then(|d| d.options.as_ref())
-        .and_then(|opts| opts.first());
-
-    let subcommand = first_option.map(|o| o.name.as_str()).unwrap_or("list");
-
-    let domain = first_option
-        .and_then(|o| o.options.first())
-        .and_then(|o| o.value.as_ref())
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
-    if domain.is_empty() {
-        return ephemeral("Please provide a domain. Usage: `/rules list <domain>`");
-    }
-
-    match subcommand {
-        "list" => {
-            let rules = get_email_rules(kv, tenant_id, domain).await?;
-            if rules.is_empty() {
-                return ephemeral(&format!("No rules for `{domain}`."));
-            }
-            let list: String = rules
-                .iter()
-                .map(|r| {
-                    let status = if r.enabled { "on" } else { "off" };
-                    let action = match &r.action {
-                        EmailAction::Drop => "drop".into(),
-                        EmailAction::Spam { .. } => "spam".into(),
-                        EmailAction::ForwardEmail { destination } => {
-                            format!("fwd:{destination}")
-                        }
-                        EmailAction::ForwardDiscord { channel_id } => {
-                            format!("discord:<#{channel_id}>")
-                        }
-                        EmailAction::AiReply { .. } => "ai_reply".into(),
-                    };
-                    format!(
-                        "- [{}] **{}** (p:{}) → {} `{}`",
-                        status,
-                        r.name,
-                        r.priority,
-                        action,
-                        r.id.chars().take(8).collect::<String>()
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            ephemeral(&format!("**Rules for {domain}**\n{list}"))
-        }
-        _ => ephemeral(
-            "Usage: `/rules list <domain>`\nFor complex rule management, use the web admin.",
-        ),
-    }
 }
 
 fn ephemeral(content: &str) -> Result<Response> {

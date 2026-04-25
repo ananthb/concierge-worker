@@ -39,6 +39,10 @@ fn row_to_tenant(row: &serde_json::Value) -> Tenant {
             .and_then(|v| v.as_str())
             .unwrap_or("INR")
             .to_string(),
+        email_address_packs_purchased: row
+            .get("email_address_packs_purchased")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32,
         created_at: row
             .get("created_at")
             .and_then(|v| v.as_str())
@@ -92,14 +96,15 @@ pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
         None => JsValue::NULL,
     };
     db.prepare(
-        "INSERT INTO tenants (id, email, name, facebook_id, plan, currency, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        "INSERT INTO tenants (id, email, name, facebook_id, plan, currency, email_address_packs_purchased, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            email = excluded.email,
            name = excluded.name,
            facebook_id = excluded.facebook_id,
            plan = excluded.plan,
            currency = excluded.currency,
+           email_address_packs_purchased = excluded.email_address_packs_purchased,
            updated_at = excluded.updated_at",
     )
     .bind(&[
@@ -109,6 +114,7 @@ pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
         fb_val,
         tenant.plan.as_str().into(),
         tenant.currency.as_str().into(),
+        JsValue::from(tenant.email_address_packs_purchased as f64),
         tenant.created_at.as_str().into(),
         tenant.updated_at.as_str().into(),
     ])?
@@ -467,13 +473,12 @@ pub async fn delete_tenant_data(kv: &kv::KvStore, db: &D1Database, tenant_id: &s
         console_log!("Failed to nullify tenant in payments: {:?}", e);
     }
 
-    // Delete email domains and rules (KV)
-    if let Ok(domains) = get_email_subdomains(kv, tenant_id).await {
-        for domain in &domains {
-            let _ = delete_email_domain_index(kv, &domain.domain).await;
-            let _ = save_email_rules(kv, tenant_id, &domain.domain, &[]).await;
+    // Delete email addresses + indices (KV)
+    if let Ok(addrs) = get_email_addresses(kv, tenant_id).await {
+        for a in &addrs {
+            let _ = delete_email_address_index(kv, &a.local_part).await;
         }
-        let _ = save_email_subdomains(kv, tenant_id, &[]).await;
+        let _ = save_email_addresses(kv, tenant_id, &[]).await;
     }
 
     // Delete discord config (KV)
@@ -593,95 +598,152 @@ pub async fn save_instagram_message(
 }
 
 // ============================================================================
-// Email Routing Storage
+// Email Address Storage
 // ============================================================================
 
-use crate::types::{EmailReverseAlias, EmailSubdomain, RoutingRule};
+use crate::types::{EmailAddress, EmailReverseAlias};
 
-/// Get all email subdomains for a tenant.
-pub async fn get_email_subdomains(
-    kv: &kv::KvStore,
-    tenant_id: &str,
-) -> Result<Vec<EmailSubdomain>> {
-    let key = format!("email_domains:{tenant_id}");
+/// Get all email addresses owned by a tenant.
+pub async fn get_email_addresses(kv: &kv::KvStore, tenant_id: &str) -> Result<Vec<EmailAddress>> {
+    let key = format!("email_addrs:{tenant_id}");
     match kv
         .get(&key)
-        .json::<Vec<EmailSubdomain>>()
+        .json::<Vec<EmailAddress>>()
         .await
         .map_err(|e| Error::from(e.to_string()))?
     {
-        Some(domains) => Ok(domains),
+        Some(addrs) => Ok(addrs),
         None => Ok(vec![]),
     }
 }
 
-/// Save all email subdomains for a tenant.
-pub async fn save_email_subdomains(
+/// Save the full address list for a tenant.
+pub async fn save_email_addresses(
     kv: &kv::KvStore,
     tenant_id: &str,
-    subdomains: &[EmailSubdomain],
+    addrs: &[EmailAddress],
 ) -> Result<()> {
-    let key = format!("email_domains:{tenant_id}");
-    kv.put(&key, serde_json::to_string(subdomains)?)?
+    let key = format!("email_addrs:{tenant_id}");
+    kv.put(&key, serde_json::to_string(addrs)?)?
         .execute()
         .await?;
     Ok(())
 }
 
-/// Set the domain→tenant reverse index.
-pub async fn set_email_domain_index(kv: &kv::KvStore, domain: &str, tenant_id: &str) -> Result<()> {
-    let key = format!("email_domain:{domain}");
+/// Look up a single address by local-part within a tenant. Returns None if
+/// the tenant doesn't own that local-part.
+pub async fn get_email_address(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    local_part: &str,
+) -> Result<Option<EmailAddress>> {
+    let addrs = get_email_addresses(kv, tenant_id).await?;
+    Ok(addrs.into_iter().find(|a| a.local_part == local_part))
+}
+
+/// Insert-or-replace one address by local-part. Persists the full list.
+pub async fn save_email_address(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    addr: &EmailAddress,
+) -> Result<()> {
+    let mut addrs = get_email_addresses(kv, tenant_id).await?;
+    if let Some(existing) = addrs.iter_mut().find(|a| a.local_part == addr.local_part) {
+        *existing = addr.clone();
+    } else {
+        addrs.push(addr.clone());
+    }
+    save_email_addresses(kv, tenant_id, &addrs).await
+}
+
+/// Drop an address from the tenant's list. Returns true if it existed.
+pub async fn delete_email_address(
+    kv: &kv::KvStore,
+    tenant_id: &str,
+    local_part: &str,
+) -> Result<bool> {
+    let mut addrs = get_email_addresses(kv, tenant_id).await?;
+    let before = addrs.len();
+    addrs.retain(|a| a.local_part != local_part);
+    if addrs.len() == before {
+        return Ok(false);
+    }
+    save_email_addresses(kv, tenant_id, &addrs).await?;
+    Ok(true)
+}
+
+/// Set the local-part → tenant_id reverse index. Local-parts are unique
+/// across the platform since every tenant shares one email domain.
+pub async fn set_email_address_index(
+    kv: &kv::KvStore,
+    local_part: &str,
+    tenant_id: &str,
+) -> Result<()> {
+    let key = format!("email_addr:{local_part}");
     kv.put(&key, tenant_id)?.execute().await?;
     Ok(())
 }
 
-/// Look up tenant_id by domain.
-pub async fn get_tenant_by_domain(kv: &kv::KvStore, domain: &str) -> Result<Option<String>> {
-    let key = format!("email_domain:{domain}");
+/// Look up tenant_id by local-part.
+pub async fn get_tenant_by_address(kv: &kv::KvStore, local_part: &str) -> Result<Option<String>> {
+    let key = format!("email_addr:{local_part}");
     kv.get(&key)
         .text()
         .await
         .map_err(|e| Error::from(e.to_string()))
 }
 
-/// Delete the domain→tenant reverse index.
-pub async fn delete_email_domain_index(kv: &kv::KvStore, domain: &str) -> Result<()> {
-    let key = format!("email_domain:{domain}");
+/// Delete the local-part → tenant index.
+pub async fn delete_email_address_index(kv: &kv::KvStore, local_part: &str) -> Result<()> {
+    let key = format!("email_addr:{local_part}");
     kv.delete(&key).await?;
     Ok(())
 }
 
-/// Get routing rules for a domain.
-pub async fn get_email_rules(
-    kv: &kv::KvStore,
-    tenant_id: &str,
-    domain: &str,
-) -> Result<Vec<RoutingRule>> {
-    let key = format!("email_rules:{tenant_id}:{domain}");
-    match kv
-        .get(&key)
-        .json::<Vec<RoutingRule>>()
-        .await
-        .map_err(|e| Error::from(e.to_string()))?
-    {
-        Some(rules) => Ok(rules),
-        None => Ok(vec![]),
-    }
+// --- Verification tokens for notification recipients --------------------
+
+/// Payload stored under each verification token. The recipient_id locates
+/// the row inside the address's notification_recipients vec.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct EmailVerificationPayload {
+    pub tenant_id: String,
+    pub local_part: String,
+    pub recipient_id: String,
 }
 
-/// Save routing rules for a domain (sorted by priority ascending).
-pub async fn save_email_rules(
+const EMAIL_VERIFICATION_TTL: u64 = 7 * 24 * 60 * 60; // 7 days
+
+pub async fn set_email_verification_token(
     kv: &kv::KvStore,
-    tenant_id: &str,
-    domain: &str,
-    rules: &[RoutingRule],
+    token: &str,
+    payload: &EmailVerificationPayload,
 ) -> Result<()> {
-    let key = format!("email_rules:{tenant_id}:{domain}");
-    kv.put(&key, serde_json::to_string(rules)?)?
+    let key = format!("email_verify:{token}");
+    kv.put(&key, serde_json::to_string(payload)?)?
+        .expiration_ttl(EMAIL_VERIFICATION_TTL)
         .execute()
         .await?;
     Ok(())
 }
+
+pub async fn get_email_verification_token(
+    kv: &kv::KvStore,
+    token: &str,
+) -> Result<Option<EmailVerificationPayload>> {
+    let key = format!("email_verify:{token}");
+    kv.get(&key)
+        .json::<EmailVerificationPayload>()
+        .await
+        .map_err(|e| Error::from(e.to_string()))
+}
+
+pub async fn delete_email_verification_token(kv: &kv::KvStore, token: &str) -> Result<()> {
+    let key = format!("email_verify:{token}");
+    kv.delete(&key).await?;
+    Ok(())
+}
+
+// --- Reverse aliases (unchanged behavior; domain field now the platform) ---
 
 /// Get a reverse alias mapping.
 pub async fn get_email_reverse_alias(
@@ -695,7 +757,7 @@ pub async fn get_email_reverse_alias(
         .map_err(|e| Error::from(e.to_string()))
 }
 
-/// Save a reverse alias mapping.
+/// Save a reverse alias mapping (30-day TTL).
 pub async fn save_email_reverse_alias(
     kv: &kv::KvStore,
     reverse_address: &str,
@@ -707,111 +769,6 @@ pub async fn save_email_reverse_alias(
         .execute()
         .await?;
     Ok(())
-}
-
-/// Log an email message to D1.
-pub struct EmailLogEntry<'a> {
-    pub id: &'a str,
-    pub tenant_id: &'a str,
-    pub domain: &'a str,
-    pub rule_id: Option<&'a str>,
-    pub direction: &'a str,
-    pub from_email: &'a str,
-    pub to_email: &'a str,
-    pub action_taken: &'a str,
-    pub error_msg: Option<&'a str>,
-}
-
-pub async fn save_email_message(db: &D1Database, entry: &EmailLogEntry<'_>) -> Result<()> {
-    let stmt = db.prepare(
-        "INSERT INTO email_messages (id, tenant_id, domain, rule_id, direction, from_email, to_email, action_taken, error_msg)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    );
-    stmt.bind(&[
-        entry.id.into(),
-        entry.tenant_id.into(),
-        entry.domain.into(),
-        entry.rule_id.map(JsValue::from).unwrap_or(JsValue::null()),
-        entry.direction.into(),
-        entry.from_email.into(),
-        entry.to_email.into(),
-        entry.action_taken.into(),
-        entry
-            .error_msg
-            .map(JsValue::from)
-            .unwrap_or(JsValue::null()),
-    ])?
-    .run()
-    .await?;
-    Ok(())
-}
-
-/// Increment email metrics counter.
-pub async fn increment_email_metric(
-    db: &D1Database,
-    domain: &str,
-    rule_id: Option<&str>,
-    action_type: &str,
-    tenant_id: &str,
-) -> Result<()> {
-    let date = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
-    let date = &date[..10]; // YYYY-MM-DD
-
-    let stmt = db.prepare(
-        "INSERT INTO email_metrics (domain, rule_id, date, action_type, count, tenant_id)
-         VALUES (?, ?, ?, ?, 1, ?)
-         ON CONFLICT(domain, rule_id, date, action_type)
-         DO UPDATE SET count = count + 1",
-    );
-    stmt.bind(&[
-        domain.into(),
-        rule_id.map(JsValue::from).unwrap_or(JsValue::null()),
-        date.into(),
-        action_type.into(),
-        tenant_id.into(),
-    ])?
-    .run()
-    .await?;
-    Ok(())
-}
-
-/// Get recent email log entries for a tenant.
-pub async fn get_email_log(
-    db: &D1Database,
-    tenant_id: &str,
-    limit: u32,
-) -> Result<Vec<serde_json::Value>> {
-    let stmt = db.prepare(
-        "SELECT * FROM email_messages WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
-    );
-    let result = stmt
-        .bind(&[tenant_id.into(), JsValue::from(limit as f64)])?
-        .all()
-        .await?;
-    result.results::<serde_json::Value>()
-}
-
-/// Get email metrics for a domain on a given date.
-pub async fn get_email_metrics(
-    db: &D1Database,
-    tenant_id: &str,
-    domain: Option<&str>,
-) -> Result<Vec<serde_json::Value>> {
-    let query = if let Some(d) = domain {
-        let stmt = db.prepare(
-            "SELECT action_type, SUM(count) as total FROM email_metrics WHERE tenant_id = ? AND domain = ? AND date >= date('now', '-7 days') GROUP BY action_type",
-        );
-        stmt.bind(&[tenant_id.into(), d.into()])?.all().await?
-    } else {
-        let stmt = db.prepare(
-            "SELECT action_type, SUM(count) as total FROM email_metrics WHERE tenant_id = ? AND date >= date('now', '-7 days') GROUP BY action_type",
-        );
-        stmt.bind(&[tenant_id.into()])?.all().await?
-    };
-    query.results::<serde_json::Value>()
 }
 
 // ============================================================================

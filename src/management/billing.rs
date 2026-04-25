@@ -8,7 +8,7 @@ use crate::templates::management as tmpl;
 
 pub async fn handle_billing(
     mut req: Request,
-    kv: &kv::KvStore,
+    _kv: &kv::KvStore,
     db: &D1Database,
     sub: &str,
     method: Method,

@@ -27,7 +27,6 @@ use worker::*;
 mod ai;
 mod billing;
 mod channel;
-pub mod cloudflare;
 mod crypto;
 mod discord;
 mod durable_objects;
@@ -257,6 +256,11 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         return handlers::handle_data_deletion(req, env, method).await;
     }
 
+    // Notification-recipient verification — opened from an emailed link.
+    if let Some(token) = path.strip_prefix("/email/verify/") {
+        return handle_email_verify(env, token).await;
+    }
+
     // Auth routes (login, callback, logout)
     if path.starts_with("/auth/") {
         return handlers::handle_auth(req, env, path, method).await;
@@ -319,6 +323,61 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     }
 
     Response::error("Not Found", 404)
+}
+
+async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
+    use templates::admin_email::email_verify_result_html;
+
+    if token.is_empty() {
+        return Response::from_html(email_verify_result_html(
+            "That verification link is invalid.",
+        ));
+    }
+
+    let kv = env.kv("KV")?;
+    let payload = match storage::get_email_verification_token(&kv, token).await? {
+        Some(p) => p,
+        None => {
+            return Response::from_html(email_verify_result_html(
+                "This link has expired or was already used. If you still need to confirm, ask the account owner to add you again.",
+            ))
+        }
+    };
+
+    let mut addr =
+        match storage::get_email_address(&kv, &payload.tenant_id, &payload.local_part).await? {
+            Some(a) => a,
+            None => {
+                let _ = storage::delete_email_verification_token(&kv, token).await;
+                return Response::from_html(email_verify_result_html(
+                    "The address this notification was for is no longer active.",
+                ));
+            }
+        };
+
+    let now = helpers::now_iso();
+    let mut found = false;
+    for r in addr.notification_recipients.iter_mut() {
+        if r.id == payload.recipient_id {
+            r.status = types::RecipientStatus::Verified;
+            r.verified_at = Some(now.clone());
+            found = true;
+            break;
+        }
+    }
+    let _ = storage::delete_email_verification_token(&kv, token).await;
+
+    if !found {
+        return Response::from_html(email_verify_result_html(
+            "This recipient has been removed. No further action needed.",
+        ));
+    }
+
+    addr.updated_at = now;
+    storage::save_email_address(&kv, &payload.tenant_id, &addr).await?;
+    Response::from_html(email_verify_result_html(
+        "You're verified — replies sent from this Concierge address will now copy you.",
+    ))
 }
 
 #[event(scheduled)]

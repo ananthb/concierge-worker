@@ -5,7 +5,7 @@ pub mod whatsapp;
 
 use worker::*;
 
-use crate::types::{Channel, InboundMessage};
+use crate::types::Channel;
 
 /// Dispatch a reply to the correct channel adapter.
 pub async fn send_reply(
