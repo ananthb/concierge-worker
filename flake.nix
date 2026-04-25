@@ -91,6 +91,7 @@
             wrangler
             worker-build
             wasm-pack
+            binaryen
             nodejs_22
             nodePackages.npm
           ];
