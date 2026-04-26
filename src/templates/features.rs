@@ -1,10 +1,9 @@
 //! Public /features page: short, scannable overview of every capability.
 
-use super::base::{base_html_with_meta, footer, public_nav_html, PageMeta};
+use super::base::{base_html_with_meta, public_nav_html, PageMeta};
 
 pub fn features_html() -> String {
     let nav = public_nav_html("features");
-    let foot = footer();
 
     let content = format!(
         r##"{nav}
@@ -92,10 +91,8 @@ pub fn features_html() -> String {
       <a href="/pricing" class="btn ghost lg">See pricing</a>
     </div>
   </section>
-</article>
-{foot}"##,
+</article>"##,
         nav = nav,
-        foot = foot,
     );
 
     base_html_with_meta(
