@@ -39,7 +39,9 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p site
-          cp doc/*.html site/
+          # Copy every static asset under doc/, not just the HTML — docs.css
+          # (and any future image/JS) needs to ride along.
+          cp -r doc/. site/
           mv target/doc site/api
 
       - uses: actions/configure-pages@v4
