@@ -94,6 +94,7 @@
             binaryen
             nodejs_22
             nodePackages.npm
+            mdbook
           ];
           shellHook = ''
             ${pre-commit-check.shellHook}
