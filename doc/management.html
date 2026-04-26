@@ -3,59 +3,90 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Management Panel | Concierge</title>
+<title>Management · Concierge docs</title>
+<meta name="theme-color" content="#e86a2c">
 <link rel="icon" type="image/svg+xml" href="https://concierge.calculon.tech/logo.svg">
-<meta name="theme-color" content="#E86A2C">
-<style>
-:root { --bg: #fff; --fg: #1a1a1a; --muted: #555; --accent: #C55A11; --code-bg: #f5f6f8; --border: #e0e0e0; --max-w: 740px; --orange: #E86A2C; --navy: #1A1A2E; }
-@media (prefers-color-scheme: dark) { :root { --bg: #121212; --fg: #e0e0e0; --muted: #aaa; --accent: #F9A825; --code-bg: #2a2a2a; --border: #3a3a3a; } }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
-.container { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem; }
-h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
-h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
-h3 { font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.3rem; }
-p { margin: 0.5rem 0; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
-li { margin: 0.3rem 0; }
-code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: ui-monospace, monospace; }
-pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 0.75rem 0; }
-pre code { background: none; padding: 0; }
-table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
-th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
-th { font-weight: 600; font-size: 0.9rem; }
-strong { font-weight: 600; }
-nav.site-nav { display: flex; gap: 0.75rem; margin: 1rem 0 2rem; flex-wrap: wrap; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-nav.site-nav a { padding: 0.3rem 0.6rem; background: var(--code-bg); border-radius: 4px; font-weight: 500; font-size: 0.85rem; }
-nav.site-nav a.current { background: var(--orange); color: #fff; }
-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); }
-</style>
+<link rel="stylesheet" href="docs.css">
 </head>
 <body>
-<div class="container">
 
-<nav class="site-nav" aria-label="Documentation">
-  <a href="./">Overview</a>
-  <a href="how-it-works.html">How It Works</a>
-  <a href="architecture.html">Architecture</a>
-  <a href="configuration.html">Config</a>
-  <a href="whatsapp.html">WhatsApp</a>
-  <a href="instagram.html">Instagram</a>
-  <a href="email-routing.html">Email Routing</a>
-  <a href="discord.html">Discord</a>
-  <a href="lead-forms.html">Lead Forms</a>
-  <a href="embedding.html">Embedding</a>
-  <a href="billing.html">Billing</a>
-  <a href="management.html" class="current">Management</a>
-  <a href="deployment.html">Deploy</a>
-  <a href="facebook-app-setup.html">Facebook App</a>
-  <a href="api/concierge/">API Docs</a>
-</nav>
+<header class="topbar">
+  <a href="./" class="topbar__brand">
+    <span class="topbar__brand-mark">C</span>
+    <span class="topbar__title">Concierge</span>
+  </a>
+  <span class="topbar__divider"></span>
+  <span class="topbar__product"><strong>Documentation</strong></span>
+  <div class="topbar__search">
+    <svg class="topbar__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input class="topbar__search-input" placeholder="Search the docs, secrets, endpoints…">
+    <span class="topbar__kbd">⌘K</span>
+  </div>
+  <nav class="topbar__nav">
+    <a href="https://concierge.calculon.tech">Hosted&nbsp;app↗</a>
+    <a href="api/concierge/">API&nbsp;ref↗</a>
+    <a href="https://github.com/ananthb/concierge" class="topbar__cta">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2 0 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.2 3 .1 3.2.8.9 1.2 2 1.2 3.2 0 4.6-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+      ananthb/concierge
+    </a>
+  </nav>
+</header>
 
-<h1>Management Panel</h1>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Start here</div>
+      <ul class="sidebar__list">
+        <li><a href="index.html"><span class="dot"></span>Overview</a></li>
+        <li><a href="how-it-works.html"><span class="dot"></span>How it works</a></li>
+        <li><a href="architecture.html"><span class="dot"></span>Architecture<span class="badge">ref</span></a></li>
+        <li><a href="configuration.html"><span class="dot"></span>Configuration<span class="badge">ref</span></a></li>
+        <li><a href="deployment.html"><span class="dot"></span>Deployment</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Channels</div>
+      <ul class="sidebar__list">
+        <li><a href="whatsapp.html"><span class="dot"></span>WhatsApp</a></li>
+        <li><a href="instagram.html"><span class="dot"></span>Instagram</a></li>
+        <li><a href="email-routing.html"><span class="dot"></span>Email routing</a></li>
+        <li><a href="discord.html"><span class="dot"></span>Discord relay</a></li>
+        <li><a href="lead-forms.html"><span class="dot"></span>Lead forms</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Operate</div>
+      <ul class="sidebar__list">
+        <li><a href="embedding.html"><span class="dot"></span>Embedding</a></li>
+        <li><a href="billing.html"><span class="dot"></span>Billing &amp; credits</a></li>
+        <li><a href="management.html" class="is-current"><span class="dot"></span>Management panel</a></li>
+        <li><a href="facebook-app-setup.html"><span class="dot"></span>Facebook app setup</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Reference</div>
+      <ul class="sidebar__list">
+        <li><a href="api/concierge/"><span class="dot"></span>Rust API docs<span class="badge">↗</span></a></li>
+        <li><a href="https://github.com/ananthb/concierge"><span class="dot"></span>Source on GitHub<span class="badge">↗</span></a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="content__main prose">
+
+      <div class="crumb">
+        <a href="index.html">Docs</a>
+        <span class="crumb__sep">/</span>
+        <span>Operate</span>
+        <span class="crumb__sep">/</span>
+        <span>Management</span>
+      </div>
+
+      <div class="page-eyebrow">Operate</div>
+      <h1 class="page-title">Management <em>panel</em>.</h1>
+
 
 <p>The management panel at <code>/manage/*</code> is a platform operator dashboard for managing tenants, billing, and reviewing audit logs. It is protected by Cloudflare Access with full JWT verification.</p>
 
@@ -135,12 +166,28 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
   <li>Deploy with <code>wrangler deploy</code></li>
 </ol>
 
-<footer>
-  <a href="https://github.com/ananthb/concierge">Open-source</a> &middot;
-  Licensed under <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a> &middot;
-  <a href="api/concierge/">API Reference</a>
-</footer>
+      <nav class="pagernav">
+        <a href="billing.html" class="pagernav__item">
+          <div class="pagernav__dir">← Previous</div>
+          <div class="pagernav__title">Billing</div>
+        </a>
+        <a href="facebook-app-setup.html" class="pagernav__item pagernav__item--next">
+          <div class="pagernav__dir">Next →</div>
+          <div class="pagernav__title">Facebook app setup</div>
+        </a>
+      </nav>
 
+      <footer class="docfoot">
+        <a href="https://github.com/ananthb/concierge">Open&#8209;source</a>
+        <span>·</span>
+        <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL&#8209;3.0</a>
+        <span>·</span>
+        <a href="api/concierge/">API reference</a>
+      </footer>
+
+    </div>
+  </main>
 </div>
+
 </body>
 </html>

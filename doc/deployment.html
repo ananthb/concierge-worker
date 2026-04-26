@@ -3,174 +3,370 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deploy | Concierge</title>
+<title>Deployment · Concierge docs</title>
+<meta name="description" content="Deploy Concierge to Cloudflare Workers — D1, KV, Queues, secrets, Meta webhooks, Discord bot, Email Routing, Access policies.">
+<meta name="theme-color" content="#e86a2c">
 <link rel="icon" type="image/svg+xml" href="https://concierge.calculon.tech/logo.svg">
-<meta name="theme-color" content="#E86A2C">
-<meta name="description" content="Fork Concierge and deploy your own instance to Cloudflare Workers via GitHub Actions.">
-<style>
-:root { --bg: #fff; --fg: #1a1a1a; --muted: #555; --accent: #C55A11; --code-bg: #f5f6f8; --border: #e0e0e0; --max-w: 740px; --orange: #E86A2C; --navy: #1A1A2E; }
-@media (prefers-color-scheme: dark) { :root { --bg: #121212; --fg: #e0e0e0; --muted: #aaa; --accent: #F9A825; --code-bg: #2a2a2a; --border: #3a3a3a; } }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
-.container { max-width: var(--max-w); margin: 0 auto; padding: 2rem 1.5rem; }
-h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
-h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
-h3 { font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.3rem; }
-p { margin: 0.5rem 0; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
-li { margin: 0.3rem 0; }
-code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: ui-monospace, monospace; }
-pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 0.75rem 0; }
-pre code { background: none; padding: 0; }
-table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
-th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
-th { font-weight: 600; font-size: 0.9rem; }
-strong { font-weight: 600; }
-nav.site-nav { display: flex; gap: 0.75rem; margin: 1rem 0 2rem; flex-wrap: wrap; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-nav.site-nav a { padding: 0.3rem 0.6rem; background: var(--code-bg); border-radius: 4px; font-weight: 500; font-size: 0.85rem; }
-nav.site-nav a.current { background: var(--orange); color: #fff; }
-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); }
-</style>
+<link rel="stylesheet" href="docs.css">
 </head>
 <body>
-<div class="container">
 
-<nav class="site-nav" aria-label="Documentation">
-  <a href="./">Overview</a>
-  <a href="how-it-works.html">How It Works</a>
-  <a href="architecture.html">Architecture</a>
-  <a href="configuration.html">Config</a>
-  <a href="whatsapp.html">WhatsApp</a>
-  <a href="instagram.html">Instagram</a>
-  <a href="email-routing.html">Email Routing</a>
-  <a href="discord.html">Discord</a>
-  <a href="lead-forms.html">Lead Forms</a>
-  <a href="embedding.html">Embedding</a>
-  <a href="billing.html">Billing</a>
-  <a href="management.html">Management</a>
-  <a href="deployment.html" class="current">Deploy</a>
-  <a href="facebook-app-setup.html">Facebook App</a>
-  <a href="api/concierge/">API Docs</a>
-</nav>
+<header class="topbar">
+  <a href="./" class="topbar__brand">
+    <span class="topbar__brand-mark">C</span>
+    <span class="topbar__title">Concierge</span>
+  </a>
+  <span class="topbar__divider"></span>
+  <span class="topbar__product"><strong>Documentation</strong></span>
+  <div class="topbar__search">
+    <svg class="topbar__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input class="topbar__search-input" placeholder="Search the docs, secrets, endpoints…">
+    <span class="topbar__kbd">⌘K</span>
+  </div>
+  <nav class="topbar__nav">
+    <a href="https://concierge.calculon.tech">Hosted&nbsp;app↗</a>
+    <a href="api/concierge/">API&nbsp;ref↗</a>
+    <a href="https://github.com/ananthb/concierge" class="topbar__cta">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2 0 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.2 3 .1 3.2.8.9 1.2 2 1.2 3.2 0 4.6-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+      ananthb/concierge
+    </a>
+  </nav>
+</header>
 
-<h1>Deploy your own Concierge</h1>
-<p>Concierge is self-host first. Fork the repo, point a few GitHub Secrets at your Cloudflare account, and pushes to <code>main</code> deploy to your own Worker via GitHub Actions.</p>
-<p>If you'd rather not run it yourself, the maintainer's hosted instance at <a href="https://concierge.calculon.tech">concierge.calculon.tech</a> runs this exact codebase: sign up there and skip this page.</p>
+<div class="shell">
 
-<h2>1. Fork the repo</h2>
-<p>Fork <a href="https://github.com/ananthb/concierge">ananthb/concierge</a> on GitHub into your own account or org.</p>
+  <aside class="sidebar">
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Start here</div>
+      <ul class="sidebar__list">
+        <li><a href="index.html"><span class="dot"></span>Overview</a></li>
+        <li><a href="how-it-works.html"><span class="dot"></span>How it works</a></li>
+        <li><a href="architecture.html"><span class="dot"></span>Architecture<span class="badge">ref</span></a></li>
+        <li><a href="configuration.html"><span class="dot"></span>Configuration<span class="badge">ref</span></a></li>
+        <li><a href="deployment.html" class="is-current"><span class="dot"></span>Deployment</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Channels</div>
+      <ul class="sidebar__list">
+        <li><a href="whatsapp.html"><span class="dot"></span>WhatsApp</a></li>
+        <li><a href="instagram.html"><span class="dot"></span>Instagram</a></li>
+        <li><a href="email-routing.html"><span class="dot"></span>Email routing</a></li>
+        <li><a href="discord.html"><span class="dot"></span>Discord relay</a></li>
+        <li><a href="lead-forms.html"><span class="dot"></span>Lead forms</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Operate</div>
+      <ul class="sidebar__list">
+        <li><a href="embedding.html"><span class="dot"></span>Embedding</a></li>
+        <li><a href="billing.html"><span class="dot"></span>Billing &amp; credits</a></li>
+        <li><a href="management.html"><span class="dot"></span>Management panel</a></li>
+        <li><a href="facebook-app-setup.html"><span class="dot"></span>Facebook app setup</a></li>
+      </ul>
+    </div>
+    <div class="sidebar__group">
+      <div class="sidebar__group-label">Reference</div>
+      <ul class="sidebar__list">
+        <li><a href="api/concierge/"><span class="dot"></span>Rust API docs<span class="badge">↗</span></a></li>
+        <li><a href="https://github.com/ananthb/concierge"><span class="dot"></span>Source on GitHub<span class="badge">↗</span></a></li>
+      </ul>
+    </div>
+  </aside>
 
-<h2>2. Adjust the deploy workflow for your domain</h2>
-<p>Open <code>.github/workflows/deploy.yml</code> in your fork. The workflow generates <code>wrangler.production.toml</code> with two custom-domain routes that point at the maintainer's domains. Replace them with routes you own: or delete the <code>[[routes]]</code> blocks entirely to deploy under <code>&lt;worker-name&gt;.&lt;your-subdomain&gt;.workers.dev</code>.</p>
-<pre><code>[[routes]]
-pattern = "your-app.example.com"
-custom_domain = true</code></pre>
-<p>Email routing requires a real zone you own; pick the domain you'll use for inbound mail here.</p>
+  <main class="content">
+    <div class="content__main prose">
 
-<h2>3. Create the Cloudflare resources</h2>
-<p>You need a D1 database (metadata logs, billing, audit), a KV namespace (sessions, account configs, billing state, persona), and two Cloudflare Queues (persona safety classifier + DLQ).</p>
-<pre><code>nix develop                                       # or install wrangler manually
-wrangler d1 create concierge
-wrangler kv namespace create KV
-wrangler queues create concierge-safety
-wrangler queues create concierge-safety-dlq</code></pre>
-<p>Save the returned <code>database_id</code> (D1) and <code>id</code> (KV): you'll paste them into GitHub Secrets next. The queue names are referenced by name in <code>wrangler.toml</code>, so they don't need to go into secrets &mdash; just create them once per Cloudflare account.</p>
+      <div class="crumb">
+        <a href="index.html">Docs</a>
+        <span class="crumb__sep">/</span>
+        <a href="index.html">Start here</a>
+        <span class="crumb__sep">/</span>
+        <span>Deployment</span>
+      </div>
 
-<p>D1 migrations apply automatically on each <code>wrangler deploy</code> via <code>wrangler d1 migrations apply concierge --remote</code> &mdash; you don't need to apply them by hand.</p>
+      <div class="page-eyebrow">Self&#8209;host · ~20 min</div>
+      <h1 class="page-title">Deployment <em>guide</em>.</h1>
+      <p class="page-lede">
+        From a fresh <code>git clone</code> to a deployed Worker absorbing inbound messages on every channel. You&rsquo;ll provision Cloudflare resources, register Meta and Discord apps, set secrets, and wire webhooks. Plan on twenty minutes if your accounts are ready.
+      </p>
 
-<p>If you skip the queues, persona safety checks will stay in <code>Pending</code> forever and AI replies will be blocked tenant-wide. Static/canned replies still work.</p>
+      <div class="page-meta">
+        <span><b>Audience</b> Operators / agencies</span>
+        <span><b>Prereqs</b> Cloudflare · Meta · Discord</span>
+        <span><b>Optional</b> Razorpay</span>
+        <span><b>Time</b> ~20 min</span>
+      </div>
 
-<h2>4. Configure GitHub Secrets</h2>
-<p>In your fork: <strong>Settings → Secrets and variables → Actions</strong>. Add:</p>
+      <h2 id="prereqs">Prerequisites</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">CF</span>
+            <span class="card__title">Cloudflare account</span>
+          </div>
+          <p class="card__desc">Workers, D1, KV, Queues, and Email Routing enabled. Free tier is fine to start; D1 + AI usage will be the first thing to outgrow it.</p>
+        </div>
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">META</span>
+            <span class="card__title">Meta Developer app</span>
+          </div>
+          <p class="card__desc">A Facebook App with WhatsApp Business and Instagram Graph products. See <a href="facebook-app-setup.html">Facebook app setup</a>.</p>
+        </div>
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">GCP</span>
+            <span class="card__title">Google Cloud project</span>
+          </div>
+          <p class="card__desc">For Google OAuth sign&#8209;in. Just an OAuth 2.0 client ID — no service account needed.</p>
+        </div>
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">DSC</span>
+            <span class="card__title">Discord application</span>
+          </div>
+          <p class="card__desc">For the relay bot and slash commands. <a href="discord.html">Discord integration</a> covers the bot setup.</p>
+        </div>
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">RZP</span>
+            <span class="card__title">Razorpay account <span class="pill" style="margin-left:6px">optional</span></span>
+          </div>
+          <p class="card__desc">Only if you want to sell paid credit packs. The hosted service uses this; self&#8209;hosters often skip it.</p>
+        </div>
+        <div class="card">
+          <div class="card__head">
+            <span class="card__chip">NIX</span>
+            <span class="card__title">Nix &amp; direnv</span>
+          </div>
+          <p class="card__desc">The dev shell pins <code>cargo</code>, <code>wrangler</code>, and the WASM toolchain. <code>nix develop</code> drops you in.</p>
+        </div>
+      </div>
 
-<h3>Required</h3>
-<ul>
-  <li><code>CLOUDFLARE_API_TOKEN</code>: token with <em>Workers Scripts: Edit</em>, <em>Workers KV Storage: Edit</em>, <em>D1: Edit</em>, and <em>Email Routing: Edit</em>.</li>
-  <li><code>CLOUDFLARE_ACCOUNT_ID</code>: your Cloudflare Account ID (visible in the dashboard sidebar).</li>
-  <li><code>D1_DATABASE_ID</code>: the <code>database_id</code> from step 3.</li>
-  <li><code>KV_NAMESPACE_ID</code>: the <code>id</code> from step 3.</li>
-  <li><code>CF_ACCESS_TEAM</code> and <code>CF_ACCESS_AUD</code>: your Cloudflare Access team domain and the AUD tag of the Access app guarding <code>/manage</code> (set this up in step 7).</li>
-</ul>
+      <h2 id="walkthrough">Step-by-step</h2>
 
-<h3>WhatsApp / Instagram (only if you'll use Meta channels)</h3>
-<ul>
-  <li><code>WHATSAPP_WABA_ID</code>: your WhatsApp Business Account ID.</li>
-  <li><code>WHATSAPP_SIGNUP_CONFIG_ID</code>: your Embedded Signup configuration ID.</li>
-</ul>
-<p>See <a href="facebook-app-setup.html">Facebook App Setup</a> and <a href="whatsapp.html">WhatsApp</a> for how to obtain these.</p>
+      <ol class="steps">
+        <li>
+          <h3>Clone &amp; build</h3>
+          <p>Get the source, drop into the dev shell, and run the test suite to confirm your toolchain works.</p>
+          <div class="codeblock">
+            <div class="codeblock__head">
+              <span class="codeblock__lang">bash</span>
+              <span class="codeblock__file">terminal</span>
+              <button class="codeblock__copy">Copy</button>
+            </div>
+<pre><code><span class="tok-k">git</span> clone <span class="tok-s">https://github.com/ananthb/concierge</span>
+<span class="tok-k">cd</span> concierge
+<span class="tok-k">nix</span> develop
+<span class="tok-k">cargo</span> test</code></pre>
+          </div>
+        </li>
 
-<h2>5. Push to <code>main</code></h2>
-<p>The <code>Deploy</code> workflow generates <code>wrangler.production.toml</code> from your secrets, applies D1 migrations, and runs <code>wrangler deploy</code>. After it succeeds, your Worker is live on the route(s) you configured in step 2.</p>
+        <li>
+          <h3>Create Cloudflare resources</h3>
+          <p>Provision a D1 database, a KV namespace, and the two queues that back the persona safety classifier. Note the IDs that print &mdash; you&rsquo;ll paste them into <code>wrangler.toml</code>.</p>
+          <div class="codeblock">
+            <div class="codeblock__head">
+              <span class="codeblock__lang">bash</span>
+              <span class="codeblock__file">terminal</span>
+              <button class="codeblock__copy">Copy</button>
+            </div>
+<pre><code><span class="tok-c"># SQLite database</span>
+<span class="tok-k">wrangler</span> d1 create concierge
 
-<h2>6. Set Worker secrets for the channels you use</h2>
-<p>The deploy workflow handles bindings and non-sensitive vars. Per-channel API keys must be uploaded as Worker secrets via <code>wrangler secret put</code> against your fork's <code>wrangler.production.toml</code>. Only set the ones for channels you actually plan to use:</p>
-<pre><code># Meta (WhatsApp + Instagram)
-wrangler secret put META_APP_ID
-wrangler secret put META_APP_SECRET
+<span class="tok-c"># Config / session / token / persona store</span>
+<span class="tok-k">wrangler</span> kv namespace create KV
 
-# Razorpay (only if enabling paid credits / subscriptions)
-wrangler secret put RAZORPAY_KEY_ID
-wrangler secret put RAZORPAY_KEY_SECRET
-wrangler secret put RAZORPAY_WEBHOOK_SECRET</code></pre>
-<p>Each channel doc lists the exact secrets it needs: see the <a href="#channels">Channel-specific setup</a> section below.</p>
+<span class="tok-c"># Persona safety classifier queue + DLQ</span>
+<span class="tok-k">wrangler</span> queues create concierge-safety
+<span class="tok-k">wrangler</span> queues create concierge-safety-dlq</code></pre>
+          </div>
+          <div class="callout callout--tip">
+            <div class="callout__icon">→</div>
+            <div class="callout__body">
+              <strong>Update wrangler.toml</strong>
+              <p>Paste the printed IDs into <code>[[d1_databases]]</code> and <code>[[kv_namespaces]]</code>. The <code>EMAIL</code>, <code>AI</code>, and queue producer / consumer bindings are already declared.</p>
+            </div>
+          </div>
+          <p class="muted">If you skip the queues, persona safety checks stay in <em>Pending</em> forever and AI replies are blocked tenant&#8209;wide. Static / canned replies still work.</p>
+        </li>
 
-<h2>7. Protect <code>/manage</code> with Cloudflare Access</h2>
-<p>The management UI must not be public.</p>
-<ol>
-  <li>Cloudflare dashboard → <strong>Zero Trust → Access → Applications</strong>.</li>
-  <li>Create a <strong>Self-hosted</strong> application covering <code>your-app.example.com/manage/*</code>.</li>
-  <li>Copy the application's <strong>AUD tag</strong> and your team domain into the <code>CF_ACCESS_AUD</code> and <code>CF_ACCESS_TEAM</code> GitHub Secrets, then re-run the deploy workflow so the worker picks them up.</li>
-  <li>Add a policy listing the operator emails that should have management access.</li>
-</ol>
-<p>Concierge verifies the <code>Cf-Access-Jwt-Assertion</code> JWT signature and audience: there's no spoofable header path.</p>
+        <li>
+          <h3>Apply database migrations</h3>
+          <p>The Worker carries its schema in <code>migrations/*.sql</code>. <code>wrangler d1 migrations apply</code> tracks what&rsquo;s already been run and applies the rest.</p>
+          <div class="codeblock">
+            <div class="codeblock__head">
+              <span class="codeblock__lang">bash</span>
+              <span class="codeblock__file">terminal</span>
+              <button class="codeblock__copy">Copy</button>
+            </div>
+<pre><code><span class="tok-k">wrangler</span> d1 migrations apply concierge <span class="tok-v">--remote</span></code></pre>
+          </div>
+          <p>This is idempotent &mdash; safe to re&#8209;run on every deploy.</p>
+        </li>
 
-<h2>8. Enable Email Routing</h2>
-<p>Required for the email channel; safe to skip if you'll only use WhatsApp / Instagram / Discord.</p>
-<ol>
-  <li>Cloudflare dashboard → <strong>Email → Email Routing</strong> for the domain you picked in step 2.</li>
-  <li>Enable Email Routing and verify the domain.</li>
-  <li>Add a <strong>Catch-all</strong> rule that sends to your Worker (<code>concierge</code>).</li>
-</ol>
-<p>See <a href="email-routing.html">Email Routing</a> for routing rules, reverse-alias replies, and Discord relay options.</p>
+        <li>
+          <h3>Set secrets</h3>
+          <p>Most of your real configuration lives in Worker secrets. The full reference is on the <a href="configuration.html">configuration page</a>; the minimum to deploy is below.</p>
+          <div class="codeblock">
+            <div class="codeblock__head">
+              <span class="codeblock__lang">bash</span>
+              <span class="codeblock__file">at minimum</span>
+              <button class="codeblock__copy">Copy</button>
+            </div>
+<pre><code><span class="tok-c"># Core encryption — generate with: openssl rand -hex 32</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">ENCRYPTION_KEY</span>
 
-<h2 id="channels">9. Channel-specific setup</h2>
-<p>Per-channel webhooks, OAuth apps, and token plumbing live in their own pages:</p>
-<ul>
-  <li><a href="whatsapp.html">WhatsApp</a></li>
-  <li><a href="instagram.html">Instagram</a></li>
-  <li><a href="email-routing.html">Email Routing</a></li>
-  <li><a href="discord.html">Discord</a></li>
-  <li><a href="lead-forms.html">Lead Forms</a></li>
-  <li><a href="billing.html">Billing</a>: Razorpay setup if you're enabling paid credits</li>
-</ul>
+<span class="tok-c"># Google OAuth (sign-in)</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">GOOGLE_OAUTH_CLIENT_ID</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">GOOGLE_OAUTH_CLIENT_SECRET</span>
 
-<h2>Updating</h2>
-<p>Pull from upstream into your fork's <code>main</code> branch (or merge a PR): the deploy workflow re-runs on every push to <code>main</code> and will apply any new D1 migrations automatically.</p>
+<span class="tok-c"># Meta — Facebook / Instagram / WhatsApp</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">META_APP_ID</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">META_APP_SECRET</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">WHATSAPP_ACCESS_TOKEN</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">WHATSAPP_VERIFY_TOKEN</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">INSTAGRAM_VERIFY_TOKEN</span>
 
-<h2>Database reset</h2>
-<p>If you need to nuke and re-create the schema:</p>
-<pre><code>wrangler d1 execute concierge --remote --command "\
-  DROP TABLE IF EXISTS tenants; \
-  DROP TABLE IF EXISTS whatsapp_messages; \
-  DROP TABLE IF EXISTS instagram_messages; \
-  DROP TABLE IF EXISTS lead_form_submissions; \
-  DROP TABLE IF EXISTS email_messages; \
-  DROP TABLE IF EXISTS email_metrics; \
-  DROP TABLE IF EXISTS messages; \
-  DROP TABLE IF EXISTS credit_packs; \
-  DROP TABLE IF EXISTS payments; \
-  DROP TABLE IF EXISTS audit_log;"
-wrangler d1 migrations apply concierge --remote</code></pre>
+<span class="tok-c"># Discord</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">DISCORD_PUBLIC_KEY</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">DISCORD_APPLICATION_ID</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">DISCORD_BOT_TOKEN</span>
 
-<footer>
-  <a href="https://github.com/ananthb/concierge">Open-source</a> &middot;
-  Licensed under <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a> &middot;
-  <a href="api/concierge/">API Reference</a>
-</footer>
+<span class="tok-c"># Razorpay — only if billing is enabled</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_KEY_ID</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_KEY_SECRET</span>
+<span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_WEBHOOK_SECRET</span></code></pre>
+          </div>
+        </li>
 
+        <li>
+          <h3>Configure <code>wrangler.toml</code> variables</h3>
+          <p>Plain&#8209;text vars belong in the <code>[vars]</code> block. These are the ones to set:</p>
+          <div class="table-wrap">
+            <table class="docs">
+              <thead><tr><th>Variable</th><th>What it&rsquo;s for</th></tr></thead>
+              <tbody>
+                <tr><td><code>CF_ACCESS_TEAM</code></td><td class="muted">Your Cloudflare Access team name (the subdomain in <code>myteam.cloudflareaccess.com</code>).</td></tr>
+                <tr><td><code>CF_ACCESS_AUD</code></td><td class="muted">Application Audience (AUD) tag from your Access app for <code>/manage/*</code>.</td></tr>
+                <tr><td><code>WHATSAPP_WABA_ID</code></td><td class="muted">Your WhatsApp Business Account ID.</td></tr>
+                <tr><td><code>WHATSAPP_SIGNUP_CONFIG_ID</code></td><td class="muted">Meta Embedded Signup configuration ID.</td></tr>
+                <tr><td><code>EMAIL_BASE_DOMAIN</code></td><td class="muted">The single domain you own that hosts catch&#8209;all email subdomains (default <code>cncg.email</code>).</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </li>
+
+        <li>
+          <h3>Deploy</h3>
+          <p>One command. The first deploy compiles to WASM, uploads, and prints your Worker URL.</p>
+          <div class="codeblock">
+            <div class="codeblock__head">
+              <span class="codeblock__lang">bash</span>
+              <span class="codeblock__file">terminal</span>
+              <button class="codeblock__copy">Copy</button>
+            </div>
+<pre><code><span class="tok-k">wrangler</span> deploy</code></pre>
+          </div>
+        </li>
+
+        <li>
+          <h3>Configure Meta webhooks</h3>
+          <p>In the Meta Developer Console, point both products at your Worker. Subscribe to the <code>messages</code> field on each.</p>
+          <div class="aside-block">
+            <div class="aside-block__title">Webhook URLs</div>
+            <dl>
+              <dt>WhatsApp</dt><dd><code>https://your-domain/webhook/whatsapp</code></dd>
+              <dt>Instagram</dt><dd><code>https://your-domain/webhook/instagram</code></dd>
+            </dl>
+          </div>
+          <p>The verify tokens you set in step&nbsp;4 are echoed back during webhook setup. See <a href="facebook-app-setup.html">Facebook app setup</a> for screenshots.</p>
+        </li>
+
+        <li>
+          <h3>Set up the Discord bot</h3>
+          <ol>
+            <li>Create a Discord application at <a href="https://discord.com/developers/applications">discord.com/developers</a>.</li>
+            <li>Set the <strong>Interactions Endpoint URL</strong> to <code>https://your-domain/discord/interactions</code>.</li>
+            <li>Create a bot user and copy the token into <code>DISCORD_BOT_TOKEN</code>.</li>
+            <li>Register the slash commands <code>/status</code>, <code>/domains</code>, <code>/rules</code> via the Discord API.</li>
+            <li>Invite the bot to your server with the appropriate permissions.</li>
+          </ol>
+          <p>Detailed walkthrough on the <a href="discord.html">Discord integration page</a>.</p>
+        </li>
+
+        <li>
+          <h3>Set up email routing</h3>
+          <p>Cloudflare Email Routing handles inbound mail for the domain in <code>EMAIL_BASE_DOMAIN</code>. To finish:</p>
+          <ol>
+            <li>In the Cloudflare dashboard, open <strong>Email Routing</strong> for your email domain.</li>
+            <li>Add a <strong>catch&#8209;all</strong> routing rule: <em>Action</em> → <strong>Send to a Worker</strong> → select <code>concierge</code>.</li>
+            <li>Set the DNS API token if you intend to provision tenant subdomains automatically: <code>wrangler secret put CF_DNS_API_TOKEN</code> (a CF API token with DNS Edit on the email zone).</li>
+          </ol>
+          <p>Tenant subdomains (e.g.&nbsp;<code>acme.cncg.email</code>) are provisioned via the admin panel; MX records are auto&#8209;discovered from the apex domain. See <a href="email-routing.html">Email routing</a>.</p>
+        </li>
+
+        <li>
+          <h3>Set up Cloudflare Access for management</h3>
+          <ol>
+            <li>In the Cloudflare dashboard, go to <strong>Zero Trust → Access → Applications</strong>.</li>
+            <li>Create an application for <code>your-domain/manage/*</code>.</li>
+            <li>Copy the <strong>Application Audience (AUD) Tag</strong> and set it as <code>CF_ACCESS_AUD</code> in <code>wrangler.toml</code>.</li>
+            <li>Add a policy allowing the emails that should have management access.</li>
+          </ol>
+          <p>See the <a href="management.html">Management panel</a> page.</p>
+        </li>
+
+        <li>
+          <h3>Set up Razorpay <span class="pill">optional</span></h3>
+          <ol>
+            <li>Create a Razorpay account and grab your API keys.</li>
+            <li>Set up a webhook at <code>https://your-domain/webhook/razorpay</code> subscribing to <code>payment.captured</code>, <code>payment.failed</code>, <code>subscription.activated</code>, <code>subscription.charged</code>, <code>subscription.halted</code>, <code>subscription.cancelled</code>.</li>
+            <li>Set the webhook secret and API keys as Worker secrets.</li>
+          </ol>
+          <p>See <a href="billing.html">Billing</a> for the credit&#8209;pack model.</p>
+        </li>
+      </ol>
+
+      <div class="callout callout--tip">
+        <div class="callout__icon">✓</div>
+        <div class="callout__body">
+          <strong>You&rsquo;re done.</strong>
+          <p>Sign in at <code>https://your-domain/</code> to walk through the in&#8209;app onboarding wizard, then send a test message to your WhatsApp number to confirm the round&#8209;trip.</p>
+        </div>
+      </div>
+
+      <nav class="pagernav">
+        <a href="configuration.html" class="pagernav__item">
+          <div class="pagernav__dir">← Previous</div>
+          <div class="pagernav__title">Configuration reference</div>
+        </a>
+        <a href="whatsapp.html" class="pagernav__item pagernav__item--next">
+          <div class="pagernav__dir">Next →</div>
+          <div class="pagernav__title">WhatsApp</div>
+        </a>
+      </nav>
+
+      <footer class="docfoot">
+        <a href="https://github.com/ananthb/concierge">Open&#8209;source</a>
+        <span>·</span>
+        <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL&#8209;3.0</a>
+        <span>·</span>
+        <a href="api/concierge/">API reference</a>
+      </footer>
+
+    </div>
+
+    <aside class="content__toc">
+      <h4>On this page</h4>
+      <ul>
+        <li class="lvl-2"><a href="#prereqs" class="is-current">Prerequisites</a></li>
+        <li class="lvl-2"><a href="#walkthrough">Step-by-step</a></li>
+      </ul>
+    </aside>
+  </main>
 </div>
+
 </body>
 </html>
