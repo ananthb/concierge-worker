@@ -162,7 +162,7 @@
         </table>
       </div>
 
-      <h3 id="meta">Meta &mdash; Facebook / Instagram / WhatsApp</h3>
+      <h3 id="meta">Meta: Facebook / Instagram / WhatsApp</h3>
       <div class="table-wrap">
         <div class="table-wrap__head">
           <b>Meta Graph API</b><span>shared app for FB Login, Instagram, WhatsApp signup</span>
@@ -171,8 +171,8 @@
         <table class="docs">
           <thead><tr><th style="width:32%">Secret</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>META_APP_ID</code></td><td class="muted">Meta app ID — shared for Facebook Login, Instagram, WhatsApp signup.</td></tr>
-            <tr><td><code>META_APP_SECRET</code></td><td class="muted">Meta app secret — used for webhook signature verification and token exchange.</td></tr>
+            <tr><td><code>META_APP_ID</code></td><td class="muted">Meta app ID: shared for Facebook Login, Instagram, WhatsApp signup.</td></tr>
+            <tr><td><code>META_APP_SECRET</code></td><td class="muted">Meta app secret: used for webhook signature verification and token exchange.</td></tr>
             <tr><td><code>WHATSAPP_ACCESS_TOKEN</code></td><td class="muted">System user token for your shared WABA.</td></tr>
             <tr><td><code>WHATSAPP_VERIFY_TOKEN</code></td><td class="muted">Webhook verification token. Generate with <code>openssl rand -hex 16</code>.</td></tr>
             <tr><td><code>INSTAGRAM_VERIFY_TOKEN</code></td><td class="muted">Instagram webhook verification token. Generate with <code>openssl rand -hex 16</code>.</td></tr>
@@ -253,8 +253,8 @@
       <h2 id="queues">Cloudflare Queues</h2>
       <p>Two queues must exist before deploy:</p>
       <ul>
-        <li><code>concierge-safety</code> — producer + consumer for the persona safety classifier. The Worker enqueues a <code>SafetyJob</code> on each persona save and consumes the same queue via <code>#[event(queue)]</code>.</li>
-        <li><code>concierge-safety-dlq</code> — dead&#8209;letter queue for safety jobs after 3 retries. Inspect failures here when persona checks stop completing.</li>
+        <li><code>concierge-safety</code>: producer + consumer for the persona safety classifier. The Worker enqueues a <code>SafetyJob</code> on each persona save and consumes the same queue via <code>#[event(queue)]</code>.</li>
+        <li><code>concierge-safety-dlq</code>: dead&#8209;letter queue for safety jobs after 3 retries. Inspect failures here when persona checks stop completing.</li>
       </ul>
       <div class="codeblock">
         <div class="codeblock__head">
@@ -356,7 +356,7 @@
         <div class="callout__icon">!</div>
         <div class="callout__body">
           <strong>Rotating secrets</strong>
-          <p>Rotating <code>ENCRYPTION_KEY</code> invalidates every encrypted Instagram page token in KV — customers will need to reconnect. Webhook verify tokens (<code>WHATSAPP_VERIFY_TOKEN</code>, <code>INSTAGRAM_VERIFY_TOKEN</code>) can be rotated independently; just update them in the Meta Developer Console at the same time.</p>
+          <p>Rotating <code>ENCRYPTION_KEY</code> invalidates every encrypted Instagram page token in KV: customers will need to reconnect. Webhook verify tokens (<code>WHATSAPP_VERIFY_TOKEN</code>, <code>INSTAGRAM_VERIFY_TOKEN</code>) can be rotated independently; just update them in the Meta Developer Console at the same time.</p>
         </div>
       </div>
 

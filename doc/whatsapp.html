@@ -138,8 +138,8 @@
       <h2 id="auto-reply">Configuring auto-reply</h2>
       <p>Each WhatsApp account has its own <code>ReplyConfig</code> with two layers:</p>
       <ul>
-        <li><strong>Default reply</strong> — edited inline on the account&rsquo;s edit page. Sets the fallback when no rule matches. Pick canned text or AI prompt.</li>
-        <li><strong>Reply rules</strong> — managed at <code>/admin/rules/whatsapp/{account_id}</code>. An ordered list checked top&#8209;down on every inbound message; first match wins.</li>
+        <li><strong>Default reply</strong>: edited inline on the account&rsquo;s edit page. Sets the fallback when no rule matches. Pick canned text or AI prompt.</li>
+        <li><strong>Reply rules</strong>: managed at <code>/admin/rules/whatsapp/{account_id}</code>. An ordered list checked top&#8209;down on every inbound message; first match wins.</li>
       </ul>
 
       <div class="table-wrap">
@@ -220,7 +220,7 @@
 
       <h2 id="credits">Credit deduction</h2>
       <p>
-        Each AI&#8209;mode reply (rule with a <em>Prompt</em> response) deducts one credit from the tenant&rsquo;s balance. Canned responses are free. Credits are deducted <em>before</em> the AI call (optimistic) and restored if generation or send fails. When credits reach zero, AI replies stop silently &mdash; canned default replies still send.
+        Each AI&#8209;mode reply (rule with a <em>Prompt</em> response) deducts one credit from the tenant&rsquo;s balance. Canned responses are free. Credits are deducted <em>before</em> the AI call (optimistic) and restored if generation or send fails. When credits reach zero, AI replies stop silently; canned default replies still send.
       </p>
       <p>See <a href="billing.html">Billing</a> for managing credits.</p>
 
@@ -228,7 +228,7 @@
         <div class="callout__icon">!</div>
         <div class="callout__body">
           <strong>Silent stop on zero</strong>
-          <p>When you run out of credits, Concierge stops AI replies without notifying the customer. The inbound message is still logged. We do not send error messages to customers because that would itself cost money &mdash; and produce a bad impression.</p>
+          <p>When you run out of credits, Concierge stops AI replies without notifying the customer. The inbound message is still logged. We do not send error messages to customers because that would itself cost money, and produce a bad impression.</p>
         </div>
       </div>
 
@@ -237,7 +237,7 @@
         All WhatsApp numbers share a single platform token (<code>WHATSAPP_ACCESS_TOKEN</code>). This is a system user token for your WhatsApp Business Account. You don&rsquo;t need per&#8209;customer tokens. Customers add their phone numbers to <em>your</em> WABA via Meta&rsquo;s Embedded Signup flow.
       </p>
       <p>
-        This means: one Meta app, one WABA, many phone numbers. The hosted service uses this same model &mdash; when you connect on <code>concierge.calculon.tech</code>, your number joins our WABA.
+        This means: one Meta app, one WABA, many phone numbers. The hosted service uses this same model. When you connect on <code>concierge.calculon.tech</code>, your number joins our WABA.
       </p>
 
       <h2 id="logging">Message logging</h2>
@@ -269,8 +269,8 @@
       <div class="aside-block">
         <div class="aside-block__title">Endpoints &nbsp;<span class="pill"><span class="pill__dot"></span>signed by Meta</span></div>
         <dl>
-          <dt><code>GET</code></dt><dd><code>/webhook/whatsapp?hub.mode=subscribe&hellip;</code> &mdash; verification handshake</dd>
-          <dt><code>POST</code></dt><dd><code>/webhook/whatsapp</code> &mdash; signed with <code>X-Hub-Signature-256</code></dd>
+          <dt><code>GET</code></dt><dd><code>/webhook/whatsapp?hub.mode=subscribe&hellip;</code>: verification handshake</dd>
+          <dt><code>POST</code></dt><dd><code>/webhook/whatsapp</code>: signed with <code>X-Hub-Signature-256</code></dd>
           <dt>verify</dt><dd>HMAC&#8209;SHA256 with <code>META_APP_SECRET</code> &middot; rejected if the signature is invalid</dd>
           <dt>subscribed</dt><dd><code>messages</code> field on the WhatsApp product</dd>
         </dl>

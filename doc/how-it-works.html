@@ -87,7 +87,7 @@
       <div class="page-eyebrow">Architecture</div>
       <h1 class="page-title">How it <em>works</em>.</h1>
       <p class="page-lede">
-        Concierge runs as a single Cloudflare Worker that handles four messaging channels through one unified pipeline. Every inbound event &mdash; a WhatsApp message, an Instagram DM, an email arriving at your catch&#8209;all, or a lead form submission &mdash; is normalized into the same shape and processed by the same steps.
+        Concierge runs as a single Cloudflare Worker that handles four messaging channels through one unified pipeline. Every inbound event (a WhatsApp message, an Instagram DM, an email arriving at your catch&#8209;all, or a lead form submission) is normalized into the same shape and processed by the same steps.
       </p>
 
       <!-- HERO PIPELINE -->
@@ -146,7 +146,7 @@
 
       <h2 id="pipeline">The unified pipeline</h2>
       <p>
-        Regardless of which channel a message arrives on, it&rsquo;s normalized into an <code>InboundMessage</code> struct &mdash; channel, sender, recipient, tenant, metadata &mdash; and processed through the same steps. This is the spine of the codebase. Channel handlers exist only to translate webhooks into <code>InboundMessage</code> and to dispatch outbound replies.
+        Regardless of which channel a message arrives on, it&rsquo;s normalized into an <code>InboundMessage</code> struct (channel, sender, recipient, tenant, metadata), and processed through the same steps. This is the spine of the codebase. Channel handlers exist only to translate webhooks into <code>InboundMessage</code> and to dispatch outbound replies.
       </p>
 
       <ol class="steps">
@@ -160,7 +160,7 @@
         </li>
         <li>
           <h3>Log metadata to <code>messages</code></h3>
-          <p>An append&#8209;only row in D1: <em>channel, direction, sender ID, recipient ID, tenant, timestamp</em>. Message <strong>content</strong> is never persisted &mdash; only the fact that something happened, with whom.</p>
+          <p>An append&#8209;only row in D1: <em>channel, direction, sender ID, recipient ID, tenant, timestamp</em>. Message <strong>content</strong> is never persisted: only the fact that something happened, with whom.</p>
         </li>
         <li>
           <h3>Reply rules evaluate in order</h3>
@@ -253,22 +253,22 @@
           <tbody>
             <tr>
               <td><strong>WhatsApp</strong></td>
-              <td><span class="pill pill--accent"><span class="pill__dot"></span>Shared WABA</span> — you own one WABA, customers add numbers via Meta Embedded Signup</td>
+              <td><span class="pill pill--accent"><span class="pill__dot"></span>Shared WABA</span>: you own one WABA, customers add numbers via Meta Embedded Signup</td>
               <td>Single platform token <code>WHATSAPP_ACCESS_TOKEN</code></td>
             </tr>
             <tr>
               <td><strong>Instagram</strong></td>
-              <td><span class="pill"><span class="pill__dot"></span>Per-account OAuth</span> — Facebook Login, page tokens per customer</td>
+              <td><span class="pill"><span class="pill__dot"></span>Per-account OAuth</span>: Facebook Login, page tokens per customer</td>
               <td>Encrypted in KV, rotated daily by cron</td>
             </tr>
             <tr>
               <td><strong>Email</strong></td>
-              <td><span class="pill"><span class="pill__dot"></span>Per-domain</span> — each tenant registers domains and creates rules</td>
+              <td><span class="pill"><span class="pill__dot"></span>Per-domain</span>: each tenant registers domains and creates rules</td>
               <td>No tokens; Cloudflare Email Routing dispatches</td>
             </tr>
             <tr>
               <td><strong>Discord</strong></td>
-              <td><span class="pill"><span class="pill__dot"></span>Guild → tenant</span> — each Discord server is linked to one tenant</td>
+              <td><span class="pill"><span class="pill__dot"></span>Guild → tenant</span>: each Discord server is linked to one tenant</td>
               <td>Shared bot token (<code>DISCORD_BOT_TOKEN</code> env secret)</td>
             </tr>
           </tbody>
@@ -277,14 +277,14 @@
 
       <h2 id="architecture">Architecture</h2>
       <ul>
-        <li><strong>Cloudflare Worker</strong> — Rust compiled to WebAssembly. Handles all HTTP routes, webhooks, and email events.</li>
-        <li><strong>Cloudflare KV</strong> — tenant configs, account configs, tokens, sessions, routing rules, billing state, conversation contexts, persona.</li>
-        <li><strong>Cloudflare D1</strong> — SQLite for message metadata, email metrics, lead form submissions, credit packs, payments, audit logs.</li>
-        <li><strong>Cloudflare Workers AI</strong> — reply generation, prompt&#8209;injection scanning, persona safety classification, BGE embeddings.</li>
-        <li><strong>Cloudflare Queues</strong> — persona safety classifier (<code>concierge-safety</code> + <code>concierge-safety-dlq</code>).</li>
-        <li><strong>Cloudflare Email Routing</strong> — triggers the Worker&rsquo;s email handler for inbound emails.</li>
-        <li><strong>Discord Interactions API</strong> — slash commands, button interactions, modal submissions via <code>POST /discord/interactions</code>.</li>
-        <li><strong>Razorpay</strong> — payment processing for credit pack purchases.</li>
+        <li><strong>Cloudflare Worker</strong>: Rust compiled to WebAssembly. Handles all HTTP routes, webhooks, and email events.</li>
+        <li><strong>Cloudflare KV</strong>: tenant configs, account configs, tokens, sessions, routing rules, billing state, conversation contexts, persona.</li>
+        <li><strong>Cloudflare D1</strong>: SQLite for message metadata, email metrics, lead form submissions, credit packs, payments, audit logs.</li>
+        <li><strong>Cloudflare Workers AI</strong>: reply generation, prompt&#8209;injection scanning, persona safety classification, BGE embeddings.</li>
+        <li><strong>Cloudflare Queues</strong>: persona safety classifier (<code>concierge-safety</code> + <code>concierge-safety-dlq</code>).</li>
+        <li><strong>Cloudflare Email Routing</strong>: triggers the Worker&rsquo;s email handler for inbound emails.</li>
+        <li><strong>Discord Interactions API</strong>: slash commands, button interactions, modal submissions via <code>POST /discord/interactions</code>.</li>
+        <li><strong>Razorpay</strong>: payment processing for credit pack purchases.</li>
       </ul>
 
       <div class="codeblock">

@@ -203,7 +203,7 @@
 
 <p>When an email is forwarded via the <strong>Forward Email</strong> action, Concierge generates a unique reverse-alias address on the subdomain (e.g., <code>reply+abc123@acme.cncg.email</code>). This alias is used as the <code>From</code> address in the forwarded email.</p>
 
-<p>When the recipient replies to the forwarded email, their reply goes to the reverse-alias address. Concierge looks up the alias, finds the original sender, and forwards the reply back to them: making the conversation appear seamless.</p>
+<p>When the recipient replies to the forwarded email, their reply goes to the reverse-alias address. Concierge looks up the alias, finds the original sender, and forwards the reply back to them, making the conversation appear seamless.</p>
 
 <ol>
   <li>Email from <code>alice@external.com</code> to <code>support@acme.cncg.email</code></li>
@@ -214,7 +214,7 @@
 
 <h2>AI Reply with Approval</h2>
 
-<p>The <strong>AI Reply</strong> action generates a draft response using Cloudflare Workers AI. The draft is not sent automatically: it is posted to a Discord channel for human approval with Approve and Reject buttons.</p>
+<p>The <strong>AI Reply</strong> action generates a draft response using Cloudflare Workers AI. The draft is not sent automatically; it is posted to a Discord channel for human approval with Approve and Reject buttons.</p>
 
 <ul>
   <li><strong>Approve</strong>: sends the AI-generated draft to the original sender</li>

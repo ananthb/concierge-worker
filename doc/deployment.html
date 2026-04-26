@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deployment · Concierge docs</title>
-<meta name="description" content="Deploy Concierge to Cloudflare Workers — D1, KV, Queues, secrets, Meta webhooks, Discord bot, Email Routing, Access policies.">
+<meta name="description" content="Deploy Concierge to Cloudflare Workers: D1, KV, Queues, secrets, Meta webhooks, Discord bot, Email Routing, Access policies.">
 <meta name="theme-color" content="#e86a2c">
 <link rel="icon" type="image/svg+xml" href="https://concierge.calculon.tech/logo.svg">
 <link rel="stylesheet" href="docs.css">
@@ -119,7 +119,7 @@
             <span class="card__chip">GCP</span>
             <span class="card__title">Google Cloud project</span>
           </div>
-          <p class="card__desc">For Google OAuth sign&#8209;in. Just an OAuth 2.0 client ID — no service account needed.</p>
+          <p class="card__desc">For Google OAuth sign&#8209;in. Just an OAuth 2.0 client ID: no service account needed.</p>
         </div>
         <div class="card">
           <div class="card__head">
@@ -165,7 +165,7 @@
 
         <li>
           <h3>Create Cloudflare resources</h3>
-          <p>Provision a D1 database, a KV namespace, and the two queues that back the persona safety classifier. Note the IDs that print &mdash; you&rsquo;ll paste them into <code>wrangler.toml</code>.</p>
+          <p>Provision a D1 database, a KV namespace, and the two queues that back the persona safety classifier. Note the IDs that print; you&rsquo;ll paste them into <code>wrangler.toml</code>.</p>
           <div class="codeblock">
             <div class="codeblock__head">
               <span class="codeblock__lang">bash</span>
@@ -203,7 +203,7 @@
             </div>
 <pre><code><span class="tok-k">wrangler</span> d1 migrations apply concierge <span class="tok-v">--remote</span></code></pre>
           </div>
-          <p>This is idempotent &mdash; safe to re&#8209;run on every deploy.</p>
+          <p>This is idempotent, safe to re&#8209;run on every deploy.</p>
         </li>
 
         <li>
@@ -215,14 +215,14 @@
               <span class="codeblock__file">at minimum</span>
               <button class="codeblock__copy">Copy</button>
             </div>
-<pre><code><span class="tok-c"># Core encryption — generate with: openssl rand -hex 32</span>
+<pre><code><span class="tok-c"># Core encryption: generate with: openssl rand -hex 32</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">ENCRYPTION_KEY</span>
 
 <span class="tok-c"># Google OAuth (sign-in)</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">GOOGLE_OAUTH_CLIENT_ID</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">GOOGLE_OAUTH_CLIENT_SECRET</span>
 
-<span class="tok-c"># Meta — Facebook / Instagram / WhatsApp</span>
+<span class="tok-c"># Meta: Facebook / Instagram / WhatsApp</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">META_APP_ID</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">META_APP_SECRET</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">WHATSAPP_ACCESS_TOKEN</span>
@@ -234,7 +234,7 @@
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">DISCORD_APPLICATION_ID</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">DISCORD_BOT_TOKEN</span>
 
-<span class="tok-c"># Razorpay — only if billing is enabled</span>
+<span class="tok-c"># Razorpay: only if billing is enabled</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_KEY_ID</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_KEY_SECRET</span>
 <span class="tok-k">wrangler</span> secret put <span class="tok-v">RAZORPAY_WEBHOOK_SECRET</span></code></pre>
