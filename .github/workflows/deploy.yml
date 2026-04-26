@@ -101,10 +101,10 @@ jobs:
             set -uo pipefail
             for q in concierge-safety concierge-safety-dlq; do
               out=$(wrangler queues create "$q" 2>&1) && { echo "Created $q"; continue; }
-              # Cloudflare's already-exists error reads "already taken"
-              # (error code 11009); older API versions said "already exists".
-              # Match either, plus the explicit code so the rule survives a
-              # phrasing change.
+              # Cloudflare API error 11009 fires when the queue already
+              # exists. The phrase has been "already taken" / "already
+              # exists" / "already in use" across versions, so match all
+              # three plus the explicit code.
               if echo "$out" | grep -qiE "already (taken|exist|in use)|code:?\s*11009"; then
                 echo "$q already exists"
                 continue
