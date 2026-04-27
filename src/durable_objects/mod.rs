@@ -6,5 +6,9 @@
 pub mod approvals_do;
 pub mod reply_buffer;
 
+// `#[durable_object]` generates the wasm-bindgen wrappers for these
+// classes; we don't `use` them directly from Rust code.
+#[allow(unused_imports)]
 pub use approvals_do::ApprovalsDO;
+#[allow(unused_imports)]
 pub use reply_buffer::ReplyBufferDO;

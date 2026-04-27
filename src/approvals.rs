@@ -256,7 +256,7 @@ pub async fn expire_stale(db: &D1Database, cutoff_iso: &str) -> Result<Vec<Pendi
 /// are stable and known, so a hand-written shim is simpler than a custom
 /// Deserialize impl on a project-wide enum.
 fn from_row(row: &serde_json::Value) -> PendingApproval {
-    use crate::types::{ApprovalStatus, Channel, QueueReason};
+    use crate::types::{Channel, QueueReason};
     let s = |k: &str| {
         row.get(k)
             .and_then(|v| v.as_str())

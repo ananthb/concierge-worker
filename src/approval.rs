@@ -94,13 +94,15 @@ fn risk_persona_drift(draft_lower: &str, persona: &PersonaConfig) -> bool {
     let PersonaSource::Builder(b) = &persona.source else {
         return false;
     };
-    if !b.never.trim().is_empty() && draft_lower.contains(&b.never.to_lowercase()) {
+    let never = b.never.trim();
+    if !never.is_empty() && draft_lower.contains(&never.to_lowercase()) {
         return true;
     }
-    b.off_topics.iter().any(|t| {
-        let t = t.trim();
-        !t.is_empty() && draft_lower.contains(&t.to_lowercase())
-    })
+    b.off_topics
+        .iter()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .any(|t| draft_lower.contains(&t.to_lowercase()))
 }
 
 #[cfg(test)]

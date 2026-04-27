@@ -6,7 +6,7 @@
 
 use crate::approvals::queue_reason_label;
 use crate::helpers::html_escape;
-use crate::types::{Channel, PendingApproval, QueueReason};
+use crate::types::{PendingApproval, QueueReason};
 
 use super::base::{app_shell, base_html};
 use super::HASH;
@@ -67,7 +67,7 @@ pub fn approval_row_html(row: &PendingApproval) -> String {
     let rule_label = html_escape(&row.rule_label);
     let inbound = html_escape(&row.inbound_preview);
     let draft = html_escape(&row.draft);
-    let channel = channel_label(&row.channel);
+    let channel = row.channel.label();
     let reason_chip = reason_chip(row.queue_reason);
     let created = html_escape(short_date(&row.created_at));
 
@@ -125,15 +125,6 @@ fn reason_chip(reason: QueueReason) -> String {
     match reason {
         QueueReason::RuleAlways => format!(r##"<span class="chip">{label}</span>"##),
         _ => format!(r##"<span class="chip warn">{label}</span>"##),
-    }
-}
-
-fn channel_label(channel: &Channel) -> &'static str {
-    match channel {
-        Channel::WhatsApp => "WhatsApp",
-        Channel::Instagram => "Instagram",
-        Channel::Email => "Email",
-        Channel::Discord => "Discord",
     }
 }
 

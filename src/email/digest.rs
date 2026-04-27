@@ -163,7 +163,7 @@ fn build_digest_email(
   <a href="{base_url}/admin/approvals/{id}" style="display:inline-block;padding:8px 14px;background:#5865F2;color:#fff;border-radius:4px;text-decoration:none">Review draft</a>
 </li>"#,
                 sender = html_escape(&r.sender),
-                channel = channel_label(&r.channel),
+                channel = r.channel.label(),
                 reason = html_escape(queue_reason_label(r.queue_reason)),
                 preview = html_escape(&r.inbound_preview),
                 draft = html_escape(&r.draft),
@@ -190,7 +190,7 @@ fn build_digest_email(
             format!(
                 "- From {sender} via {channel} ({reason})\n  {preview}\n  Draft: {draft}\n  Review: {base_url}/admin/approvals/{id}\n",
                 sender = r.sender,
-                channel = channel_label(&r.channel),
+                channel = r.channel.label(),
                 reason = queue_reason_label(r.queue_reason),
                 preview = r.inbound_preview,
                 draft = r.draft,
@@ -215,15 +215,5 @@ fn build_digest_email(
         cc: vec![],
         bcc: vec![],
         headers: vec![],
-    }
-}
-
-fn channel_label(channel: &crate::types::Channel) -> &'static str {
-    use crate::types::Channel;
-    match channel {
-        Channel::WhatsApp => "WhatsApp",
-        Channel::Instagram => "Instagram",
-        Channel::Email => "Email",
-        Channel::Discord => "Discord",
     }
 }

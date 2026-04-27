@@ -26,9 +26,20 @@ use worker::*;
 
 const SSE_PING: &[u8] = b"event: approval-changed\ndata: {}\n\n";
 
+/// Cap on simultaneous SSE writers per tenant DO. A normal session has one
+/// or two open tabs; this exists so a misbehaving client can't grow the
+/// in-memory list without bound.
+const MAX_SUBSCRIBERS: usize = 64;
+
 #[durable_object]
 pub struct ApprovalsDO {
+    // `state` and `env` aren't read directly: the DO has no persistent
+    // storage and doesn't reach back into the worker. Hold them on the
+    // struct anyway so the trait's `new(state, env)` contract has
+    // somewhere to put them.
+    #[allow(dead_code)]
     state: State,
+    #[allow(dead_code)]
     env: Env,
     /// One sender per live SSE client. `RefCell` is fine because the DO
     /// runtime is single-threaded inside its V8 isolate.
@@ -45,8 +56,6 @@ impl DurableObject for ApprovalsDO {
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
-        let _ = &self.state;
-        let _ = &self.env;
         let url = req.url()?;
         let path = url.path();
 
@@ -61,7 +70,16 @@ impl DurableObject for ApprovalsDO {
 impl ApprovalsDO {
     fn handle_subscribe(&self) -> Result<Response> {
         let (tx, rx) = unbounded::<Vec<u8>>();
-        self.subscribers.borrow_mut().push(tx);
+        {
+            let mut subs = self.subscribers.borrow_mut();
+            if subs.len() >= MAX_SUBSCRIBERS {
+                // Evict the oldest sender. Its receiver is dropped with
+                // it, so the corresponding browser sees the stream end
+                // and reconnects (which goes to the back of the line).
+                subs.remove(0);
+            }
+            subs.push(tx);
+        }
 
         let stream = rx.map(|chunk| Ok::<Vec<u8>, Error>(chunk));
         let mut resp = Response::from_stream(stream)?;

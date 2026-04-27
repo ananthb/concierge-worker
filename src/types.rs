@@ -520,12 +520,25 @@ pub enum Channel {
 }
 
 impl Channel {
+    /// Lowercase wire form used by the D1 `channel` column and inside
+    /// API/webhook payloads. Diverges from serde's snake_case form (which
+    /// would emit "whats_app"); keep both intact.
     pub fn as_str(&self) -> &'static str {
         match self {
             Channel::WhatsApp => "whatsapp",
             Channel::Instagram => "instagram",
             Channel::Email => "email",
             Channel::Discord => "discord",
+        }
+    }
+
+    /// Display label used in templates and email digests.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Channel::WhatsApp => "WhatsApp",
+            Channel::Instagram => "Instagram",
+            Channel::Email => "Email",
+            Channel::Discord => "Discord",
         }
     }
 }

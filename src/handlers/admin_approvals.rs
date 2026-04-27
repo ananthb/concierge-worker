@@ -14,7 +14,7 @@ use crate::helpers::{generate_id, now_iso};
 use crate::storage::{
     delete_conversation_context, get_conversation_context, get_tenant, save_message,
 };
-use crate::templates::approvals::{approval_row_html, approvals_list_html, approvals_page_html};
+use crate::templates::approvals::{approvals_list_html, approvals_page_html};
 use crate::types::{ApprovalStatus, Channel, ConversationContext, PendingApproval};
 
 pub async fn handle_approvals(
@@ -228,7 +228,6 @@ fn resolved_row_html(row: &PendingApproval, note: &str) -> Result<Response> {
 </div>"##,
         note = crate::helpers::html_escape(note),
     );
-    let _ = approval_row_html; // keep reference to silence unused-import lints
     Response::from_html(html)
 }
 
