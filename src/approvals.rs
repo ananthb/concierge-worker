@@ -79,6 +79,10 @@ pub async fn enqueue(
     )
     .await?;
 
+    // Best-effort SSE ping so any browser tab on /admin/approvals
+    // refreshes its list without waiting for the polling fallback.
+    notify_change(env, &msg.tenant_id).await;
+
     // Discord post is best-effort: if the bot isn't configured or the post
     // fails, the row still lives in D1 and the web queue surfaces it.
     if !discord_channel_id.is_empty() {
@@ -392,6 +396,28 @@ pub fn queue_reason_label(reason: QueueReason) -> &'static str {
         QueueReason::RiskCommitment => "Makes a commitment",
         QueueReason::RiskPersonaDrift => "Off-topic for persona",
     }
+}
+
+/// Tell the per-tenant `ApprovalsDO` that the approval set has changed, so
+/// any open `/admin/approvals` browser tabs refresh. Best-effort: if the
+/// DO binding is missing or the call fails, the browsers' 5s polling
+/// fallback still picks up the change.
+pub async fn notify_change(env: &Env, tenant_id: &str) {
+    if let Err(e) = notify_change_inner(env, tenant_id).await {
+        console_log!("ApprovalsDO broadcast failed for tenant {tenant_id}: {e:?}");
+    }
+}
+
+async fn notify_change_inner(env: &Env, tenant_id: &str) -> Result<()> {
+    let ns = env.durable_object("APPROVALS_DO")?;
+    let stub = ns.id_from_name(tenant_id)?.get_stub()?;
+    // Any URL works; the DO routes on path. Origin doesn't matter for
+    // intra-worker DO fetches but the URL must be parseable.
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    let req = Request::new_with_init("https://do.invalid/broadcast", &init)?;
+    stub.fetch_with_request(req).await?;
+    Ok(())
 }
 
 fn approval_status_wire(status: crate::types::ApprovalStatus) -> &'static str {

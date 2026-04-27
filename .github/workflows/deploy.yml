@@ -56,6 +56,22 @@ jobs:
           binding = "KV"
           id = "${KV_NAMESPACE_ID}"
 
+          [[durable_objects.bindings]]
+          name = "REPLY_BUFFER"
+          class_name = "ReplyBufferDO"
+
+          [[durable_objects.bindings]]
+          name = "APPROVALS_DO"
+          class_name = "ApprovalsDO"
+
+          [[migrations]]
+          tag = "v1"
+          new_classes = ["ReplyBufferDO"]
+
+          [[migrations]]
+          tag = "v2"
+          new_classes = ["ApprovalsDO"]
+
           [ai]
           binding = "AI"
 

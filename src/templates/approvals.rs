@@ -13,14 +13,17 @@ use super::HASH;
 
 pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str) -> String {
     let list = approvals_list_inner_html(rows);
+    // SSE listener fires on every push; HTMX refetches /list when it
+    // hears the event. Polling every 30s is the belt-and-suspenders
+    // fallback if the SSE connection drops between reconnect retries.
     let body = format!(
-        r##"<div class="page-pad">
+        r##"<div class="page-pad" hx-ext="sse" sse-connect="/admin/approvals/stream">
   <h1 class="display-sm m-0 mb-4">Approvals</h1>
   <p class="muted mb-16">AI drafts that paused for review. Approve, reject, or edit and send.</p>
 
   <div id="approvals-list"
     hx-get="/admin/approvals/list"
-    hx-trigger="every 5s"
+    hx-trigger="sse:approval-changed, every 30s"
     hx-swap="outerHTML">
     {list}
   </div>
@@ -32,14 +35,14 @@ pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str) -> String {
 }
 
 /// Render just the inner list. Returned by GET `/admin/approvals/list`,
-/// which the page polls. The `outerHTML` swap replaces the wrapping div
-/// (so the polling trigger keeps firing on the new wrapper).
+/// which the SSE event triggers (with a 30s polling fallback). The
+/// `outerHTML` swap replaces the wrapping div so the next tick rebinds.
 pub fn approvals_list_html(rows: &[PendingApproval]) -> String {
     let inner = approvals_list_inner_html(rows);
     format!(
         r##"<div id="approvals-list"
   hx-get="/admin/approvals/list"
-  hx-trigger="every 5s"
+  hx-trigger="sse:approval-changed, every 30s"
   hx-swap="outerHTML">
   {inner}
 </div>"##

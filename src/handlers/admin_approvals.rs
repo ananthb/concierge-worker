@@ -44,6 +44,15 @@ pub async fn handle_approvals(
             Response::from_html(approvals_list_html(&rows))
         }
 
+        (Method::Get, "/stream") => {
+            // Proxy the SSE subscription to the per-tenant ApprovalsDO.
+            // The DO holds the live writers and pings them when an
+            // approval is enqueued or resolved.
+            let ns = env.durable_object("APPROVALS_DO")?;
+            let stub = ns.id_from_name(tenant_id)?.get_stub()?;
+            stub.fetch_with_str("https://do.invalid/subscribe").await
+        }
+
         (Method::Post, action_path) if action_path.starts_with('/') => {
             let parts: Vec<&str> = action_path.trim_start_matches('/').split('/').collect();
             let (id, action) = match parts.as_slice() {
@@ -62,7 +71,7 @@ pub async fn handle_approvals(
 
             match action {
                 "approve" => approve(&env, &kv, &db, tenant_id, row, None).await,
-                "reject" => reject(&kv, &db, tenant_id, row).await,
+                "reject" => reject(&env, &kv, &db, tenant_id, row).await,
                 "edit" => {
                     let form: serde_json::Value =
                         req.json().await.unwrap_or(serde_json::Value::Null);
@@ -150,6 +159,7 @@ async fn approve(
     .await;
 
     let _ = delete_conversation_context(kv, &row.id).await;
+    approvals::notify_change(env, tenant_id).await;
 
     let mut updated = row;
     updated.status = ApprovalStatus::Approved;
@@ -163,6 +173,7 @@ async fn approve(
 }
 
 async fn reject(
+    env: &Env,
     kv: &kv::KvStore,
     db: &D1Database,
     tenant_id: &str,
@@ -193,6 +204,7 @@ async fn reject(
     .await;
 
     let _ = delete_conversation_context(kv, &row.id).await;
+    approvals::notify_change(env, tenant_id).await;
 
     let mut updated = row;
     updated.status = ApprovalStatus::Rejected;

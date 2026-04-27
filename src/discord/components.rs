@@ -197,6 +197,7 @@ async fn handle_approve(ctx_id: &str, interaction: &Interaction, env: &Env) -> R
     .await;
 
     let _ = delete_conversation_context(&kv, ctx_id).await;
+    approvals::notify_change(env, &ctx.tenant_id).await;
 
     ephemeral(&format!(
         "Approved and sent to {} via {}.",
@@ -246,6 +247,9 @@ async fn handle_reject(ctx_id: &str, interaction: &Interaction, env: &Env) -> Re
     }
 
     let _ = delete_conversation_context(&kv, ctx_id).await;
+    if let Some(ctx) = ctx {
+        approvals::notify_change(env, &ctx.tenant_id).await;
+    }
     ephemeral("Draft rejected and discarded.")
 }
 

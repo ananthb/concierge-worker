@@ -21,15 +21,30 @@ binding = "KV"
 id = "2c2f474d22e04d1f8a4d12b37810390b"
 
 # ============================================================================
-# Durable Objects: buffer inbound messages so we can reply to a batch
+# Durable Objects:
+#   REPLY_BUFFER  — buffers inbound messages so we can reply to a batch.
+#   APPROVALS_DO  — per-tenant SSE fan-out for the approvals page. One DO
+#                   instance per tenant_id; each open browser tab
+#                   subscribes via GET /admin/approvals/stream, the worker
+#                   forwards to the DO, the DO holds a WritableStream per
+#                   client and pings them when an approval is enqueued or
+#                   resolved.
 # ============================================================================
 [[durable_objects.bindings]]
 name = "REPLY_BUFFER"
 class_name = "ReplyBufferDO"
 
+[[durable_objects.bindings]]
+name = "APPROVALS_DO"
+class_name = "ApprovalsDO"
+
 [[migrations]]
 tag = "v1"
 new_classes = ["ReplyBufferDO"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["ApprovalsDO"]
 
 # ============================================================================
 # AI Binding for auto-reply generation
