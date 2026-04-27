@@ -34,7 +34,7 @@ pub async fn handle_billing_admin(
             let tenant = storage::get_tenant(&db, tenant_id)
                 .await?
                 .unwrap_or_default();
-            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(&tenant.currency));
+            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let kv = env.kv("KV")?;
             let addrs = storage::get_email_addresses(&kv, tenant_id).await?;
             Response::from_html(tmpl::billing_overview_with_addresses_html(
@@ -75,7 +75,7 @@ pub async fn handle_billing_admin(
             let tenant = storage::get_tenant(&db, tenant_id)
                 .await?
                 .unwrap_or_default();
-            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(&tenant.currency));
+            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let currency = locale.currency.as_str();
             let amount = credits * billing::unit_price(currency);
 
@@ -100,7 +100,7 @@ pub async fn handle_billing_admin(
             let tenant = storage::get_tenant(&db, tenant_id)
                 .await?
                 .unwrap_or_default();
-            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(&tenant.currency));
+            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let currency = locale.currency.as_str();
             let amount = billing::address_price(currency);
 

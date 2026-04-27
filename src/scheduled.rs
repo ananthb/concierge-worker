@@ -5,17 +5,24 @@ use crate::email::digest;
 use crate::instagram;
 use crate::storage::*;
 
+/// Approval-digest sweep + 24h expiry. Mirror this string in `wrangler.toml`
+/// and `.github/workflows/deploy.yml` so the deploy registers the trigger.
+pub const CRON_DIGEST_SWEEP: &str = "*/15 * * * *";
+
+/// Daily Instagram long-lived-token refresh. Same wrangler/workflow contract.
+pub const CRON_INSTAGRAM_REFRESH: &str = "0 6 * * *";
+
 pub async fn handle_scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
     let cron = event.cron();
     console_log!("Scheduled job started: {cron}");
 
     match cron.as_str() {
-        "*/15 * * * *" => {
+        CRON_DIGEST_SWEEP => {
             if let Err(e) = digest::sweep(&env).await {
                 console_log!("Digest sweep error: {:?}", e);
             }
         }
-        "0 6 * * *" => {
+        CRON_INSTAGRAM_REFRESH => {
             if let Err(e) = refresh_instagram_tokens(&env).await {
                 console_log!("Instagram token refresh error: {:?}", e);
             }

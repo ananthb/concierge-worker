@@ -382,10 +382,10 @@ async fn build_rule_from_form(
     let matcher_kind = form
         .get("matcher_kind")
         .and_then(|v| v.as_str())
-        .unwrap_or("static_text");
+        .unwrap_or("keyword");
 
     let matcher = match matcher_kind {
-        "static_text" => {
+        "keyword" => {
             let raw = form.get("keywords").and_then(|v| v.as_str()).unwrap_or("");
             let keywords: Vec<String> = raw
                 .split(|c: char| c == ',' || c == '\n')
@@ -397,7 +397,7 @@ async fn build_rule_from_form(
             if keywords.is_empty() {
                 return Err("Add at least one keyword (comma- or newline-separated).".to_string());
             }
-            ReplyMatcher::StaticText { keywords }
+            ReplyMatcher::Keyword { keywords }
         }
         "prompt" => {
             let description: String = form

@@ -1,8 +1,55 @@
 use serde::{Deserialize, Serialize};
 
+use crate::locale::Currency;
+
 // ============================================================================
 // Tenant Types
 // ============================================================================
+
+/// Tenant subscription tier. Pricing surfaces (`templates/management.rs`)
+/// match on this enum; rate-limit/quota logic that needs a plan branch
+/// adds a method here so adding a tier doesn't fan out across files.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Plan {
+    #[default]
+    Free,
+    Starter,
+    Pro,
+    Business,
+}
+
+impl Plan {
+    pub const ALL: &'static [Plan] = &[Plan::Free, Plan::Starter, Plan::Pro, Plan::Business];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Plan::Free => "free",
+            Plan::Starter => "starter",
+            Plan::Pro => "pro",
+            Plan::Business => "business",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Plan::Free => "Free",
+            Plan::Starter => "Starter",
+            Plan::Pro => "Pro",
+            Plan::Business => "Business",
+        }
+    }
+
+    pub fn from_wire(s: &str) -> Option<Self> {
+        match s {
+            "free" => Some(Plan::Free),
+            "starter" => Some(Plan::Starter),
+            "pro" => Some(Plan::Pro),
+            "business" => Some(Plan::Business),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Tenant {
@@ -11,14 +58,15 @@ pub struct Tenant {
     pub name: Option<String>,
     #[serde(default)]
     pub facebook_id: Option<String>,
-    pub plan: String,
+    #[serde(default)]
+    pub plan: Plan,
     /// BCP-47 locale tag, e.g. "en-IN", "en-US". Drives UI grouping and
     /// (in Phase 2) translated copy. Currency below is a separate override
     /// that lets a tenant see prices in INR while reading English-IN copy.
     #[serde(default = "default_locale")]
     pub locale: String,
-    #[serde(default = "default_currency")]
-    pub currency: String,
+    #[serde(default)]
+    pub currency: Currency,
     /// Count of extra email addresses the tenant has bought beyond the one
     /// free with the account. Quota = 1 + this. Each extra is a one-time
     /// Razorpay purchase at ₹99 / $1.
@@ -32,10 +80,6 @@ impl Tenant {
     pub fn email_address_quota(&self) -> u32 {
         1 + self.email_address_extras_purchased
     }
-}
-
-fn default_currency() -> String {
-    "INR".to_string()
 }
 
 fn default_locale() -> String {
@@ -218,6 +262,47 @@ pub enum ApprovalStatus {
     Expired,
 }
 
+/// Who decided a pending approval. Stored on `pending_approvals.decided_by`
+/// in a flat string form (`"discord:<id>" | "web:<email>" | "expired"`) so
+/// the column stays human-readable in the audit log.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ApprovalDecider {
+    Discord { user_id: String },
+    Web { email: String },
+    Expired,
+}
+
+impl ApprovalDecider {
+    /// Wire form for the `decided_by` column.
+    pub fn wire(&self) -> String {
+        match self {
+            ApprovalDecider::Discord { user_id } => format!("discord:{user_id}"),
+            ApprovalDecider::Web { email } => format!("web:{email}"),
+            ApprovalDecider::Expired => "expired".to_string(),
+        }
+    }
+
+    /// Inverse of `wire`: parse a stored value. Returns `None` for unknown
+    /// forms. Used by tests and any future read path that needs to branch
+    /// on who decided.
+    pub fn from_wire(s: &str) -> Option<Self> {
+        if s == "expired" {
+            return Some(ApprovalDecider::Expired);
+        }
+        if let Some(id) = s.strip_prefix("discord:") {
+            return Some(ApprovalDecider::Discord {
+                user_id: id.to_string(),
+            });
+        }
+        if let Some(email) = s.strip_prefix("web:") {
+            return Some(ApprovalDecider::Web {
+                email: email.to_string(),
+            });
+        }
+        None
+    }
+}
+
 /// How a rule decides whether it matches the inbound message.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -225,7 +310,7 @@ pub enum ReplyMatcher {
     /// Only valid for the `default_rule` slot. Always matches.
     Default,
     /// Match if any keyword (case-insensitive substring) appears in the message.
-    StaticText { keywords: Vec<String> },
+    Keyword { keywords: Vec<String> },
     /// Embedding-based intent match. The `embedding` is precomputed from
     /// `description` on save; the pipeline compares it to the embedded
     /// inbound message via cosine similarity.
@@ -543,6 +628,58 @@ impl Channel {
     }
 }
 
+/// Direction of a row in the unified `messages` table.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageDirection {
+    Inbound,
+    Outbound,
+    /// A message routed back through Discord cross-channel relay.
+    Relay,
+}
+
+impl MessageDirection {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MessageDirection::Inbound => "inbound",
+            MessageDirection::Outbound => "outbound",
+            MessageDirection::Relay => "relay",
+        }
+    }
+}
+
+/// What was done with a message after the pipeline routed it. Stored on
+/// the `messages` row so an operator can audit which path fired.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageAction {
+    /// Auto-reply sent without any approval gate.
+    AutoReply,
+    /// Forwarded to Discord for human relay (not an AI draft).
+    Relay,
+    /// AI draft was diverted to the approval queue.
+    AiQueued,
+    /// AI draft sent after a human approval (Discord button or web).
+    AiApproved,
+    /// AI draft rejected; credit refunded.
+    AiRejected,
+    /// AI draft expired past its 24h hold without action.
+    AiExpired,
+}
+
+impl MessageAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MessageAction::AutoReply => "auto_reply",
+            MessageAction::Relay => "relay",
+            MessageAction::AiQueued => "ai_queued",
+            MessageAction::AiApproved => "ai_approved",
+            MessageAction::AiRejected => "ai_rejected",
+            MessageAction::AiExpired => "ai_expired",
+        }
+    }
+}
+
 /// Unified inbound message from any channel.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InboundMessage {
@@ -563,7 +700,6 @@ pub struct InboundMessage {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConversationContext {
     pub id: String,
-    pub discord_message_id: String,
     pub discord_channel_id: String,
     pub origin_channel: Channel,
     pub origin_sender: String,
@@ -676,6 +812,57 @@ impl DigestCadence {
 }
 
 #[cfg(test)]
+mod enum_tests {
+    use super::{ApprovalDecider, OnboardingStep, Plan};
+
+    #[test]
+    fn approval_decider_round_trip() {
+        let cases = [
+            ApprovalDecider::Discord {
+                user_id: "12345".into(),
+            },
+            ApprovalDecider::Web {
+                email: "owner@example.com".into(),
+            },
+            ApprovalDecider::Expired,
+        ];
+        for d in cases {
+            let wire = d.wire();
+            let parsed = ApprovalDecider::from_wire(&wire).expect("round trip");
+            assert_eq!(parsed, d);
+        }
+    }
+
+    #[test]
+    fn approval_decider_from_unknown_returns_none() {
+        assert_eq!(ApprovalDecider::from_wire("bogus:value"), None);
+        assert_eq!(ApprovalDecider::from_wire(""), None);
+    }
+
+    #[test]
+    fn onboarding_step_round_trip_and_index() {
+        for step in [
+            OnboardingStep::Basics,
+            OnboardingStep::Channels,
+            OnboardingStep::Notifications,
+            OnboardingStep::Replies,
+            OnboardingStep::Launch,
+        ] {
+            assert_eq!(OnboardingStep::from_wire(step.as_str()), Some(step));
+        }
+        assert_eq!(OnboardingStep::from_wire("welcome"), None);
+        // Indices stay in display order.
+        assert!(OnboardingStep::Basics.index() < OnboardingStep::Launch.index());
+    }
+
+    #[test]
+    fn plan_from_wire_rejects_unknown() {
+        assert_eq!(Plan::from_wire("free"), Some(Plan::Free));
+        assert_eq!(Plan::from_wire("enterprise"), None);
+    }
+}
+
+#[cfg(test)]
 mod cadence_tests {
     use super::DigestCadence;
 
@@ -723,10 +910,59 @@ mod cadence_tests {
     }
 }
 
+/// Steps in the onboarding wizard, in display order. The wizard URL
+/// (`/admin/wizard/<step>`) mirrors `as_str` exactly.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OnboardingStep {
+    #[default]
+    Basics,
+    Channels,
+    Notifications,
+    Replies,
+    Launch,
+}
+
+impl OnboardingStep {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OnboardingStep::Basics => "basics",
+            OnboardingStep::Channels => "channels",
+            OnboardingStep::Notifications => "notifications",
+            OnboardingStep::Replies => "replies",
+            OnboardingStep::Launch => "launch",
+        }
+    }
+
+    pub fn from_wire(s: &str) -> Option<Self> {
+        match s {
+            "basics" => Some(OnboardingStep::Basics),
+            "channels" => Some(OnboardingStep::Channels),
+            "notifications" => Some(OnboardingStep::Notifications),
+            "replies" => Some(OnboardingStep::Replies),
+            "launch" => Some(OnboardingStep::Launch),
+            _ => None,
+        }
+    }
+
+    /// Display index used by the progress bar. Same order as the variant
+    /// definition so adding a step doesn't drift this from `as_str`.
+    pub fn index(self) -> usize {
+        match self {
+            OnboardingStep::Basics => 0,
+            OnboardingStep::Channels => 1,
+            OnboardingStep::Notifications => 2,
+            OnboardingStep::Replies => 3,
+            OnboardingStep::Launch => 4,
+        }
+    }
+}
+
 /// Onboarding state for the setup wizard.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct OnboardingState {
-    pub step: String,
+    #[serde(default)]
+    pub step: OnboardingStep,
     #[serde(default)]
     pub business: BusinessInfo,
     #[serde(default)]
@@ -861,12 +1097,10 @@ pub struct DiscordConfig {
     pub tenant_id: String,
     #[serde(default)]
     pub guild_name: Option<String>,
+    /// Channel where AI drafts are posted with Approve/Reject buttons.
+    /// When unset, the approval queue lives only on the web page.
     #[serde(default)]
     pub approval_channel_id: Option<String>,
-    #[serde(default)]
-    pub digest_channel_id: Option<String>,
-    #[serde(default)]
-    pub relay_channel_id: Option<String>,
     /// Reply when the bot is @mentioned in any channel of the guild.
     #[serde(default)]
     pub inbound_mentions: bool,
@@ -958,7 +1192,6 @@ mod tests {
     fn test_conversation_context_roundtrip() {
         let ctx = ConversationContext {
             id: "ctx-1".into(),
-            discord_message_id: "msg-1".into(),
             discord_channel_id: "ch-1".into(),
             origin_channel: Channel::Email,
             origin_sender: "alice@example.com".into(),

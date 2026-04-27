@@ -53,8 +53,12 @@ pub async fn handle_tenants(
                 None => return Response::error("Tenant not found", 404),
             };
 
-            if let Some(plan) = form.get("plan").and_then(|v| v.as_str()) {
-                tenant.plan = plan.to_string();
+            if let Some(plan) = form
+                .get("plan")
+                .and_then(|v| v.as_str())
+                .and_then(crate::types::Plan::from_wire)
+            {
+                tenant.plan = plan;
             }
             tenant.updated_at = crate::helpers::now_iso();
             save_tenant(db, &tenant).await?;

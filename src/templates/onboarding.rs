@@ -259,7 +259,6 @@ pub fn connect_html(
     email_addresses: &[crate::types::EmailAddress],
     suggested_slug: &str,
     email_base_domain: &str,
-    _currency: &str,
     tenant_id: &str,
     discord: Option<&crate::types::DiscordConfig>,
     base_url: &str,

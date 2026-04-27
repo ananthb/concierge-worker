@@ -71,8 +71,6 @@ pub fn manage_html(
     };
 
     let approval_opts = options_html(cfg.approval_channel_id.as_deref());
-    let digest_opts = options_html(cfg.digest_channel_id.as_deref());
-    let relay_opts = options_html(cfg.relay_channel_id.as_deref());
 
     let inbound_channel_opts: String = channels
         .iter()
@@ -120,18 +118,6 @@ pub fn manage_html(
       <label class="eyebrow lbl">Approvals channel</label>
       <select class="select" name="approval_channel_id">{approval_opts}</select>
       <small class="muted fs-12">AI drafts land here for you to approve or reject.</small>
-    </div>
-
-    <div class="form-group">
-      <label class="eyebrow lbl">Digests channel</label>
-      <select class="select" name="digest_channel_id">{digest_opts}</select>
-      <small class="muted fs-12">Periodic activity summaries go here.</small>
-    </div>
-
-    <div class="form-group">
-      <label class="eyebrow lbl">Email relay channel</label>
-      <select class="select" name="relay_channel_id">{relay_opts}</select>
-      <small class="muted fs-12">Default for <code>forward_discord</code> rules when none is set on the rule.</small>
     </div>
 
     <h3 class="m-0 mt-24 mb-12">Inbound triggers</h3>
@@ -187,8 +173,6 @@ pub fn manage_html(
         guild = html_escape(guild),
         from_enc = urlencoding::encode(from),
         approval_opts = approval_opts,
-        digest_opts = digest_opts,
-        relay_opts = relay_opts,
         channel_opts = inbound_channel_opts,
         empty_note = empty_note,
         hash = HASH,

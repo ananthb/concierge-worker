@@ -159,7 +159,7 @@ pub fn tenants_list_html(tenants: &[Tenant], base_url: &str) -> String {
                 id = html_escape(&t.id),
                 email = html_escape(&t.email),
                 name = html_escape(t.name.as_deref().unwrap_or("—")),
-                plan = html_escape(&t.plan),
+                plan = html_escape(t.plan.label()),
                 created = html_escape(&t.created_at.get(..10).unwrap_or(&t.created_at)),
             )
         })
@@ -250,10 +250,7 @@ pub fn tenant_detail_html(
     <form hx-put="{base_url}/manage/tenants/{id}" hx-target="{hash}toast" hx-swap="innerHTML">
       <div class="row gap-12">
         <select class="select" name="plan" style="max-width:200px">
-          <option value="free"{free_sel}>Free</option>
-          <option value="starter"{starter_sel}>Starter</option>
-          <option value="pro"{pro_sel}>Pro</option>
-          <option value="business"{business_sel}>Business</option>
+          {plan_options}
         </select>
         <button class="btn sm" type="submit">Update</button>
       </div>
@@ -279,28 +276,19 @@ pub fn tenant_detail_html(
         id = html_escape(&tenant.id),
         email = html_escape(&tenant.email),
         name = html_escape(tenant.name.as_deref().unwrap_or("—")),
-        plan = html_escape(&tenant.plan),
+        plan = html_escape(tenant.plan.label()),
         created = html_escape(&tenant.created_at.get(..10).unwrap_or(&tenant.created_at)),
-        free_sel = if tenant.plan == "free" {
-            " selected"
-        } else {
-            ""
-        },
-        starter_sel = if tenant.plan == "starter" {
-            " selected"
-        } else {
-            ""
-        },
-        pro_sel = if tenant.plan == "pro" {
-            " selected"
-        } else {
-            ""
-        },
-        business_sel = if tenant.plan == "business" {
-            " selected"
-        } else {
-            ""
-        },
+        plan_options = crate::types::Plan::ALL
+            .iter()
+            .map(|p| {
+                let sel = if *p == tenant.plan { " selected" } else { "" };
+                format!(
+                    r#"<option value="{val}"{sel}>{label}</option>"#,
+                    val = p.as_str(),
+                    label = p.label(),
+                )
+            })
+            .collect::<String>(),
         wa_count = wa.len(),
         ig_count = ig.len(),
         domain_count = addrs.len(),

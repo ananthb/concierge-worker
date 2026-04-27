@@ -131,7 +131,7 @@ impl PersonaPreset {
                 ReplyRule {
                     id: "cancellation".to_string(),
                     label: "Cancellation policy".to_string(),
-                    matcher: ReplyMatcher::StaticText {
+                    matcher: ReplyMatcher::Keyword {
                         keywords: vec!["cancel".to_string(), "refund".to_string()],
                     },
                     response: ReplyResponse::Canned {
@@ -147,7 +147,7 @@ impl PersonaPreset {
                 ReplyRule {
                     id: "hours".to_string(),
                     label: "Hours / location".to_string(),
-                    matcher: ReplyMatcher::StaticText {
+                    matcher: ReplyMatcher::Keyword {
                         keywords: vec![
                             "hours".to_string(),
                             "open".to_string(),
@@ -182,7 +182,7 @@ impl PersonaPreset {
                 ReplyRule {
                     id: "emergency".to_string(),
                     label: "Emergencies".to_string(),
-                    matcher: ReplyMatcher::StaticText {
+                    matcher: ReplyMatcher::Keyword {
                         keywords: vec![
                             "emergency".to_string(),
                             "urgent".to_string(),

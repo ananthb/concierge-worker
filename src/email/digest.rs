@@ -16,9 +16,9 @@ use crate::approvals;
 use crate::approvals::queue_reason_label;
 use crate::billing;
 use crate::email::send::{send_outbound, OutboundEmail};
-use crate::helpers::html_escape;
-use crate::storage::{get_onboarding, get_tenant};
-use crate::types::PendingApproval;
+use crate::helpers::{generate_id, html_escape};
+use crate::storage::{get_onboarding, get_tenant, save_message};
+use crate::types::{MessageAction, MessageDirection, PendingApproval};
 
 /// Hard expiry for pending approvals: anything older than 24h is dropped.
 /// 24h is short enough that a queued draft can't be sent against a customer
@@ -121,6 +121,18 @@ async fn expire_pass(db: &D1Database) {
                 if let Err(e) = billing::restore_credit(db, &row.tenant_id).await {
                     console_log!("Failed to restore credit on expiry: {e:?}");
                 }
+                let _ = save_message(
+                    db,
+                    &generate_id(),
+                    &row.channel,
+                    MessageDirection::Outbound,
+                    &row.sender,
+                    &row.sender,
+                    &row.tenant_id,
+                    &row.channel_account_id,
+                    Some(MessageAction::AiExpired),
+                )
+                .await;
                 console_log!(
                     "Expired stale approval {} for tenant {}",
                     row.id,

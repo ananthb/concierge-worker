@@ -46,7 +46,6 @@ pub async fn post_forwarded_message(
 
     let ctx = ConversationContext {
         id: generate_id(),
-        discord_message_id: String::new(),
         discord_channel_id: discord_channel_id.to_string(),
         origin_channel: msg.channel.clone(),
         origin_sender: msg.sender.clone(),
@@ -122,11 +121,6 @@ pub async fn post_forwarded_message(
     };
 
     let message = bot.create_message(discord_channel_id, params).await?;
-
-    let ctx = ConversationContext {
-        discord_message_id: message.id.clone(),
-        ..ctx
-    };
     storage::save_conversation_context(&kv, &ctx).await?;
 
     Ok(message.id)

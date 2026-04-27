@@ -68,13 +68,10 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
         // Currency and locale are independent: a tenant can read English-IN
         // copy with USD prices, or vice versa. Both are accepted in the same
         // PUT so the settings page can offer them as paired controls.
-        let currency = form.get("currency").and_then(|v| v.as_str()).map(|c| {
-            if c == "USD" {
-                "USD"
-            } else {
-                "INR"
-            }
-        });
+        let currency = form
+            .get("currency")
+            .and_then(|v| v.as_str())
+            .map(crate::locale::Currency::parse);
         let locale_str = form
             .get("locale")
             .and_then(|v| v.as_str())
@@ -84,7 +81,7 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             let mut changed = false;
             if let Some(c) = currency {
                 if tenant.currency != c {
-                    tenant.currency = c.to_string();
+                    tenant.currency = c;
                     changed = true;
                 }
             }

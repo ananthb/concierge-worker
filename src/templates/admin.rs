@@ -270,8 +270,8 @@ pub fn admin_settings_html(
         google_row = google_row,
         facebook_row = facebook_row,
         integrations_section = integrations_section,
-        inr_sel = if tenant.currency != "USD" { " selected" } else { "" },
-        usd_sel = if tenant.currency == "USD" { " selected" } else { "" },
+        inr_sel = if tenant.currency == crate::locale::Currency::Inr { " selected" } else { "" },
+        usd_sel = if tenant.currency == crate::locale::Currency::Usd { " selected" } else { "" },
     );
 
     let page = super::base::app_shell(&content, "Settings", base_url);

@@ -32,8 +32,8 @@ fn row_to_tenant(row: &serde_json::Value) -> Tenant {
         plan: row
             .get("plan")
             .and_then(|v| v.as_str())
-            .unwrap_or("free")
-            .to_string(),
+            .and_then(crate::types::Plan::from_wire)
+            .unwrap_or_default(),
         locale: row
             .get("locale")
             .and_then(|v| v.as_str())
@@ -42,8 +42,8 @@ fn row_to_tenant(row: &serde_json::Value) -> Tenant {
         currency: row
             .get("currency")
             .and_then(|v| v.as_str())
-            .unwrap_or("INR")
-            .to_string(),
+            .map(crate::locale::Currency::parse)
+            .unwrap_or_default(),
         email_address_extras_purchased: row
             .get("email_address_extras_purchased")
             .and_then(|v| v.as_u64())
@@ -782,19 +782,22 @@ pub async fn save_email_reverse_alias(
 // Unified Message Storage
 // ============================================================================
 
-use crate::types::{Channel, ConversationContext, DiscordConfig, InboundMessage, OnboardingState};
+use crate::types::{
+    Channel, ConversationContext, DiscordConfig, InboundMessage, MessageAction, MessageDirection,
+    OnboardingState,
+};
 
 /// Save a unified message to D1. No message content stored: metadata only.
 pub async fn save_message(
     db: &D1Database,
     id: &str,
     channel: &Channel,
-    direction: &str,
+    direction: MessageDirection,
     sender: &str,
     recipient: &str,
     tenant_id: &str,
     channel_account_id: &str,
-    action_taken: Option<&str>,
+    action_taken: Option<MessageAction>,
 ) -> Result<()> {
     let stmt = db.prepare(
         "INSERT INTO messages (id, channel, direction, sender, recipient, tenant_id, channel_account_id, action_taken)
@@ -803,12 +806,14 @@ pub async fn save_message(
     stmt.bind(&[
         id.into(),
         channel.as_str().into(),
-        direction.into(),
+        direction.as_str().into(),
         sender.into(),
         recipient.into(),
         tenant_id.into(),
         channel_account_id.into(),
-        action_taken.map(JsValue::from).unwrap_or(JsValue::null()),
+        action_taken
+            .map(|a| JsValue::from(a.as_str()))
+            .unwrap_or(JsValue::null()),
     ])?
     .run()
     .await?;
@@ -819,13 +824,13 @@ pub async fn save_message(
 pub async fn save_inbound_message(
     db: &D1Database,
     msg: &InboundMessage,
-    action_taken: Option<&str>,
+    action_taken: Option<MessageAction>,
 ) -> Result<()> {
     save_message(
         db,
         &msg.id,
         &msg.channel,
-        "inbound",
+        MessageDirection::Inbound,
         &msg.sender,
         &msg.recipient,
         &msg.tenant_id,

@@ -263,12 +263,12 @@ async fn handle_auto_reply(
                 db,
                 &generate_id(),
                 &msg.channel,
-                "outbound",
+                MessageDirection::Outbound,
                 &msg.recipient,
                 &msg.sender,
                 &msg.tenant_id,
                 &msg.channel_account_id,
-                Some("ai_queued"),
+                Some(MessageAction::AiQueued),
             )
             .await
             {
@@ -301,12 +301,12 @@ async fn handle_auto_reply(
         db,
         &generate_id(),
         &msg.channel,
-        "outbound",
+        MessageDirection::Outbound,
         &msg.recipient,
         &msg.sender,
         &msg.tenant_id,
         &msg.channel_account_id,
-        Some("auto_reply"),
+        Some(MessageAction::AutoReply),
     )
     .await
     {
@@ -322,7 +322,7 @@ async fn handle_auto_reply(
 fn matches_rule(matcher: &ReplyMatcher, body: &str, body_embedding: Option<&[f32]>) -> bool {
     match matcher {
         ReplyMatcher::Default => false, // default fires only via fallback path
-        ReplyMatcher::StaticText { keywords } => {
+        ReplyMatcher::Keyword { keywords } => {
             let lower = body.to_lowercase();
             keywords
                 .iter()

@@ -68,7 +68,7 @@ fn rule_row_html(rule: &ReplyRule, idx: usize, last_idx: usize, rules_base: &str
     let label = html_escape(&rule.label);
     let matcher_chip = match &rule.matcher {
         ReplyMatcher::Default => r#"<span class="chip">default</span>"#.to_string(),
-        ReplyMatcher::StaticText { keywords } => format!(
+        ReplyMatcher::Keyword { keywords } => format!(
             r#"<span class="chip">keywords</span> <span class="muted fs-13">{}</span>"#,
             html_escape(&keywords.join(", "))
         ),
@@ -190,7 +190,7 @@ pub fn rule_form_html(
     let initial = existing.cloned().unwrap_or_else(|| ReplyRule {
         id: String::new(),
         label: String::new(),
-        matcher: ReplyMatcher::StaticText {
+        matcher: ReplyMatcher::Keyword {
             keywords: Vec::new(),
         },
         response: ReplyResponse::Canned {
@@ -217,8 +217,8 @@ pub fn rule_form_html(
             String::new(),
             default_match_threshold(),
         ),
-        ReplyMatcher::StaticText { keywords } => (
-            "static_text",
+        ReplyMatcher::Keyword { keywords } => (
+            "keyword",
             keywords.join(", "),
             String::new(),
             default_match_threshold(),
@@ -253,11 +253,11 @@ pub fn rule_form_html(
             r##"<div class="form-group">
   <label class="eyebrow lbl">Match by</label>
   <div class="row gap-12 mb-12">
-    <label class="row gap-6"><input type="radio" name="matcher_kind" value="static_text" x-model="matcherKind"> Keywords</label>
+    <label class="row gap-6"><input type="radio" name="matcher_kind" value="keyword" x-model="matcherKind"> Keywords</label>
     <label class="row gap-6"><input type="radio" name="matcher_kind" value="prompt" x-model="matcherKind"> Prompt (AI intent)</label>
   </div>
 
-  <div x-show="matcherKind === 'static_text'" x-cloak>
+  <div x-show="matcherKind === 'keyword'" x-cloak>
     <label class="eyebrow lbl">Keywords (comma- or newline-separated)</label>
     <textarea class="textarea mono" name="keywords" rows="2" placeholder="hours, open, closed">{keywords_val}</textarea>
     <p class="muted fs-12 mt-4">Case-insensitive. Matches if the inbound message contains any of these.</p>

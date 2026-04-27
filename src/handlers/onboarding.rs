@@ -26,37 +26,39 @@ pub async fn handle_wizard(
     // Must come before the form-submit arms below, which share step names with
     // POST handlers ("basics", "notifications") and would otherwise try to
     // parse a non-existent JSON body on GET.
-    if req.method() == Method::Get
-        && matches!(
-            sub,
-            "basics" | "channels" | "notifications" | "replies" | "launch"
-        )
-    {
-        let requested_idx = step_index(sub);
-        let current_idx = step_index(&state.step);
-        if requested_idx <= current_idx {
-            return render_step(sub, &state, &kv, &env, tenant_id, base_url).await;
+    if req.method() == Method::Get {
+        if let Some(requested) = OnboardingStep::from_wire(sub) {
+            if requested.index() <= state.step.index() {
+                return render_step(requested, &state, &kv, &env, tenant_id, base_url).await;
+            }
+            let headers = Headers::new();
+            headers.set(
+                "Location",
+                &format!("{base_url}/admin/wizard/{}", state.step.as_str()),
+            )?;
+            return Ok(Response::empty()?.with_status(302).with_headers(headers));
         }
-        let headers = Headers::new();
-        headers.set(
-            "Location",
-            &format!("{base_url}/admin/wizard/{}", state.step),
-        )?;
-        return Ok(Response::empty()?.with_status(302).with_headers(headers));
     }
 
     match sub {
         // Navigation between steps
         "goto" => {
             let form: serde_json::Value = req.json().await?;
-            let to = form.get("to").and_then(|v| v.as_str()).unwrap_or("basics");
+            let to = form
+                .get("to")
+                .and_then(|v| v.as_str())
+                .and_then(OnboardingStep::from_wire)
+                .unwrap_or(OnboardingStep::Basics);
 
-            state.step = to.to_string();
+            state.step = to;
             save_onboarding(&kv, tenant_id, &state).await?;
 
             // Redirect so the URL changes (enables back/forward)
             let headers = Headers::new();
-            headers.set("HX-Redirect", &format!("{base_url}/admin/wizard/{to}"))?;
+            headers.set(
+                "HX-Redirect",
+                &format!("{base_url}/admin/wizard/{}", to.as_str()),
+            )?;
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
@@ -88,7 +90,7 @@ pub async fn handle_wizard(
             state.business.address = get("address");
             state.business.state = get("state");
             state.business.pincode = get("pincode");
-            state.step = "channels".to_string();
+            state.step = OnboardingStep::Channels;
             save_onboarding(&kv, tenant_id, &state).await?;
 
             let headers = Headers::new();
@@ -137,7 +139,15 @@ pub async fn handle_wizard(
                 }
             }
 
-            render_step("channels", &state, &kv, &env, tenant_id, base_url).await
+            render_step(
+                OnboardingStep::Channels,
+                &state,
+                &kv,
+                &env,
+                tenant_id,
+                base_url,
+            )
+            .await
         }
 
         // Remove an email address while in the wizard.
@@ -156,7 +166,15 @@ pub async fn handle_wizard(
                 }
             }
 
-            render_step("channels", &state, &kv, &env, tenant_id, base_url).await
+            render_step(
+                OnboardingStep::Channels,
+                &state,
+                &kv,
+                &env,
+                tenant_id,
+                base_url,
+            )
+            .await
         }
 
         // Save notification preferences
@@ -181,7 +199,7 @@ pub async fn handle_wizard(
                 approval_email,
                 approval_email_cadence: crate::types::DigestCadence::from_str(cadence_raw),
             };
-            state.step = "replies".to_string();
+            state.step = OnboardingStep::Replies;
             save_onboarding(&kv, tenant_id, &state).await?;
 
             let headers = Headers::new();
@@ -221,7 +239,7 @@ pub async fn handle_wizard(
                 prompt_hash: state.persona.active_prompt_hash(),
             };
             state.persona.safety.status = PersonaSafetyStatus::Pending;
-            state.step = "launch".to_string();
+            state.step = OnboardingStep::Launch;
             save_onboarding(&kv, tenant_id, &state).await?;
             let _ = crate::safety_queue::enqueue(&env, job).await;
 
@@ -235,7 +253,7 @@ pub async fn handle_wizard(
         // later from Email Routing.
         "complete" => {
             state.completed = true;
-            state.step = "launch".to_string();
+            state.step = OnboardingStep::Launch;
             save_onboarding(&kv, tenant_id, &state).await?;
 
             let headers = Headers::new();
@@ -243,36 +261,20 @@ pub async fn handle_wizard(
             Ok(Response::empty()?.with_status(200).with_headers(headers))
         }
 
-        // Default: show current step (resume from where user left off)
+        // Default: show current step (resume from where user left off).
         _ => {
-            let step =
-                if state.step.is_empty() || state.step == "welcome" || state.step == "business" {
-                    state.step = "basics".to_string();
-                    let _ = save_onboarding(&kv, tenant_id, &state).await;
-                    "basics"
-                } else {
-                    &state.step
-                };
             let headers = Headers::new();
-            headers.set("Location", &format!("{base_url}/admin/wizard/{step}"))?;
+            headers.set(
+                "Location",
+                &format!("{base_url}/admin/wizard/{}", state.step.as_str()),
+            )?;
             Ok(Response::empty()?.with_status(302).with_headers(headers))
         }
     }
 }
 
-fn step_index(step: &str) -> usize {
-    match step {
-        "basics" => 0,
-        "channels" => 1,
-        "notifications" => 2,
-        "replies" => 3,
-        "launch" => 4,
-        _ => 0,
-    }
-}
-
 async fn render_step(
-    step: &str,
+    step: OnboardingStep,
     state: &OnboardingState,
     kv: &kv::KvStore,
     env: &Env,
@@ -280,8 +282,8 @@ async fn render_step(
     base_url: &str,
 ) -> Result<Response> {
     match step {
-        "basics" => Response::from_html(basics_html(&state.business, base_url)),
-        "channels" => {
+        OnboardingStep::Basics => Response::from_html(basics_html(&state.business, base_url)),
+        OnboardingStep::Channels => {
             let wa = list_whatsapp_accounts(kv, tenant_id).await?;
             let ig = list_instagram_accounts(kv, tenant_id).await?;
             let email_addrs = get_email_addresses(kv, tenant_id).await?;
@@ -290,11 +292,6 @@ async fn render_step(
                 .var("EMAIL_BASE_DOMAIN")
                 .map(|v| v.to_string())
                 .unwrap_or_default();
-            let db = env.d1("DB")?;
-            let currency = crate::storage::get_tenant(&db, tenant_id)
-                .await?
-                .map(|t| t.currency)
-                .unwrap_or_else(|| "INR".to_string());
             let discord = get_discord_config_by_tenant(kv, tenant_id).await?;
             Response::from_html(connect_html(
                 !ig.is_empty(),
@@ -302,13 +299,12 @@ async fn render_step(
                 &email_addrs,
                 &slug,
                 &base_domain,
-                &currency,
                 tenant_id,
                 discord.as_ref(),
                 base_url,
             ))
         }
-        "notifications" => {
+        OnboardingStep::Notifications => {
             let dc_installed = get_discord_config_by_tenant(kv, tenant_id).await?.is_some();
             Response::from_html(notifications_html(
                 &state.notifications,
@@ -316,12 +312,12 @@ async fn render_step(
                 base_url,
             ))
         }
-        "replies" => Response::from_html(replies_html(
+        OnboardingStep::Replies => Response::from_html(replies_html(
             &state.persona,
             state.default_wait_seconds,
             base_url,
         )),
-        "launch" => {
+        OnboardingStep::Launch => {
             let email_addrs = get_email_addresses(kv, tenant_id).await?;
             let base_domain = env
                 .var("EMAIL_BASE_DOMAIN")
@@ -331,10 +327,9 @@ async fn render_step(
             let tenant = crate::storage::get_tenant(&db, tenant_id)
                 .await?
                 .unwrap_or_default();
-            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(&tenant.currency));
+            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             Response::from_html(launch_html(&email_addrs, &base_domain, &locale, base_url))
         }
-        _ => Response::from_html(basics_html(&state.business, base_url)),
     }
 }
 

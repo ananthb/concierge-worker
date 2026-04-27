@@ -12,8 +12,10 @@ use worker::Request;
 /// Display currency. Bound to a small fixed set since each currency requires
 /// its own pricing config in `billing/mod.rs` and routing in Razorpay; this
 /// is not a bag of arbitrary ISO-4217 codes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Currency {
+    #[default]
     Inr,
     Usd,
 }
@@ -67,11 +69,9 @@ impl Locale {
     /// Build a locale from a stored `Tenant.locale` tag plus an optional
     /// stored `Tenant.currency` override. Tenant-level configuration always
     /// wins over request-time signals.
-    pub fn from_tenant(tag: &str, currency_override: Option<&str>) -> Self {
+    pub fn from_tenant(tag: &str, currency_override: Option<Currency>) -> Self {
         let langid = parse_supported(tag).unwrap_or_else(|| langid!("en-IN"));
-        let currency = currency_override
-            .map(Currency::parse)
-            .unwrap_or_else(|| currency_for_langid(&langid));
+        let currency = currency_override.unwrap_or_else(|| currency_for_langid(&langid));
         Self { langid, currency }
     }
 
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn from_tenant_with_override() {
-        let l = Locale::from_tenant("en-IN", Some("USD"));
+        let l = Locale::from_tenant("en-IN", Some(Currency::Usd));
         assert_eq!(l.langid.to_string(), "en-IN");
         assert_eq!(l.currency, Currency::Usd);
     }

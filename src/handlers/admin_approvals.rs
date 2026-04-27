@@ -15,7 +15,10 @@ use crate::storage::{
     delete_conversation_context, get_conversation_context, get_tenant, save_message,
 };
 use crate::templates::approvals::{approvals_list_html, approvals_page_html};
-use crate::types::{ApprovalStatus, Channel, ConversationContext, PendingApproval};
+use crate::types::{
+    ApprovalDecider, ApprovalStatus, Channel, ConversationContext, MessageAction, MessageDirection,
+    PendingApproval,
+};
 
 pub async fn handle_approvals(
     mut req: Request,
@@ -138,7 +141,9 @@ async fn approve(
         return Response::from_html(format!(r#"<div class="error">Failed to send: {}</div>"#, e));
     }
 
-    let decided_by = format!("web:{}", web_decider(db, tenant_id).await);
+    let decided_by = ApprovalDecider::Web {
+        email: web_decider(db, tenant_id).await,
+    };
     if let Err(e) =
         approvals::mark_decided(db, &row.id, ApprovalStatus::Approved, &decided_by, edited).await
     {
@@ -149,12 +154,12 @@ async fn approve(
         db,
         &generate_id(),
         &ctx.origin_channel,
-        "outbound",
+        MessageDirection::Outbound,
         &ctx.origin_recipient,
         &ctx.origin_sender,
         &ctx.tenant_id,
         &ctx.channel_account_id,
-        Some("ai_approved"),
+        Some(MessageAction::AiApproved),
     )
     .await;
 
@@ -164,7 +169,7 @@ async fn approve(
     let mut updated = row;
     updated.status = ApprovalStatus::Approved;
     updated.decided_at = Some(now_iso());
-    updated.decided_by = Some(decided_by);
+    updated.decided_by = Some(decided_by.wire());
     updated.edited = edited;
     if let Some(text) = edit {
         updated.draft = text;
@@ -179,7 +184,9 @@ async fn reject(
     tenant_id: &str,
     row: PendingApproval,
 ) -> Result<Response> {
-    let decided_by = format!("web:{}", web_decider(db, tenant_id).await);
+    let decided_by = ApprovalDecider::Web {
+        email: web_decider(db, tenant_id).await,
+    };
     if let Err(e) =
         approvals::mark_decided(db, &row.id, ApprovalStatus::Rejected, &decided_by, false).await
     {
@@ -194,12 +201,12 @@ async fn reject(
         db,
         &generate_id(),
         &row.channel,
-        "outbound",
+        MessageDirection::Outbound,
         &row.sender,
         &row.sender,
         &row.tenant_id,
         &row.channel_account_id,
-        Some("ai_rejected"),
+        Some(MessageAction::AiRejected),
     )
     .await;
 
@@ -209,7 +216,7 @@ async fn reject(
     let mut updated = row;
     updated.status = ApprovalStatus::Rejected;
     updated.decided_at = Some(now_iso());
-    updated.decided_by = Some(decided_by);
+    updated.decided_by = Some(decided_by.wire());
     resolved_row_html(&updated, "Rejected. Credit refunded.")
 }
 

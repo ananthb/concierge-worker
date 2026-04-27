@@ -39,7 +39,6 @@ pub async fn enqueue(
 
     let ctx = ConversationContext {
         id: id.clone(),
-        discord_message_id: String::new(),
         discord_channel_id: discord_channel_id.clone(),
         origin_channel: msg.channel.clone(),
         origin_sender: msg.sender.clone(),
@@ -86,7 +85,7 @@ pub async fn enqueue(
     // Discord post is best-effort: if the bot isn't configured or the post
     // fails, the row still lives in D1 and the web queue surfaces it.
     if !discord_channel_id.is_empty() {
-        match discord::post_ai_draft(
+        if let Err(e) = discord::post_ai_draft(
             env,
             &ctx,
             msg.subject.as_deref(),
@@ -96,19 +95,10 @@ pub async fn enqueue(
         )
         .await
         {
-            Ok(message_id) => {
-                let stamped = ConversationContext {
-                    discord_message_id: message_id,
-                    ..ctx
-                };
-                if let Err(e) = save_conversation_context(&kv, &stamped).await {
-                    console_log!("Failed to stamp discord_message_id back to KV: {e:?}");
-                }
-            }
-            Err(e) => console_log!(
+            console_log!(
                 "Discord draft post failed for tenant {}: {e:?}",
                 msg.tenant_id
-            ),
+            );
         }
     }
 
@@ -317,7 +307,7 @@ pub async fn mark_decided(
     db: &D1Database,
     id: &str,
     status: crate::types::ApprovalStatus,
-    decided_by: &str,
+    decided_by: &crate::types::ApprovalDecider,
     edited: bool,
 ) -> Result<()> {
     let stmt = db.prepare(
@@ -327,7 +317,7 @@ pub async fn mark_decided(
     );
     stmt.bind(&[
         approval_status_wire(status).into(),
-        decided_by.into(),
+        decided_by.wire().into(),
         wasm_bindgen::JsValue::from(if edited { 1.0_f64 } else { 0.0_f64 }),
         id.into(),
     ])?

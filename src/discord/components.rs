@@ -118,12 +118,12 @@ async fn send_relay_reply(ctx_id: &str, reply_text: &str, env: &Env) -> Result<R
         &db,
         &generate_id(),
         &ctx.origin_channel,
-        "relay",
+        MessageDirection::Relay,
         &ctx.origin_recipient,
         &ctx.origin_sender,
         &ctx.tenant_id,
         &ctx.channel_account_id,
-        Some("relay"),
+        Some(MessageAction::Relay),
     )
     .await;
 
@@ -176,7 +176,9 @@ async fn handle_approve(ctx_id: &str, interaction: &Interaction, env: &Env) -> R
         Err(e) => return ephemeral(&format!("Failed to send: {e}")),
     }
 
-    let decided_by = format!("discord:{}", member_user_id(interaction));
+    let decided_by = ApprovalDecider::Discord {
+        user_id: member_user_id(interaction),
+    };
     if let Err(e) =
         approvals::mark_decided(&db, ctx_id, ApprovalStatus::Approved, &decided_by, false).await
     {
@@ -187,12 +189,12 @@ async fn handle_approve(ctx_id: &str, interaction: &Interaction, env: &Env) -> R
         &db,
         &generate_id(),
         &ctx.origin_channel,
-        "outbound",
+        MessageDirection::Outbound,
         &ctx.origin_recipient,
         &ctx.origin_sender,
         &ctx.tenant_id,
         &ctx.channel_account_id,
-        Some("ai_approved"),
+        Some(MessageAction::AiApproved),
     )
     .await;
 
@@ -221,7 +223,9 @@ async fn handle_reject(ctx_id: &str, interaction: &Interaction, env: &Env) -> Re
     // Pull the row before marking it so we know which tenant to credit back.
     let ctx = get_conversation_context(&kv, ctx_id).await?;
 
-    let decided_by = format!("discord:{}", member_user_id(interaction));
+    let decided_by = ApprovalDecider::Discord {
+        user_id: member_user_id(interaction),
+    };
     if let Err(e) =
         approvals::mark_decided(&db, ctx_id, ApprovalStatus::Rejected, &decided_by, false).await
     {
@@ -236,12 +240,12 @@ async fn handle_reject(ctx_id: &str, interaction: &Interaction, env: &Env) -> Re
             &db,
             &generate_id(),
             &ctx.origin_channel,
-            "outbound",
+            MessageDirection::Outbound,
             &ctx.origin_recipient,
             &ctx.origin_sender,
             &ctx.tenant_id,
             &ctx.channel_account_id,
-            Some("ai_rejected"),
+            Some(MessageAction::AiRejected),
         )
         .await;
     }

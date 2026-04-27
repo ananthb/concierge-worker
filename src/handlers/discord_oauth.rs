@@ -126,8 +126,6 @@ pub async fn handle_discord_callback(req: Request, env: Env) -> Result<Response>
         tenant_id: tenant_id.clone(),
         guild_name,
         approval_channel_id: None,
-        digest_channel_id: None,
-        relay_channel_id: None,
         inbound_mentions: false,
         inbound_channel_ids: Vec::new(),
         auto_reply: ReplyConfig::default(),
@@ -247,8 +245,6 @@ async fn save_channels(req: &mut Request, kv: &kv::KvStore, tenant_id: &str) -> 
             .map(String::from)
     };
     cfg.approval_channel_id = opt_str("approval_channel_id");
-    cfg.digest_channel_id = opt_str("digest_channel_id");
-    cfg.relay_channel_id = opt_str("relay_channel_id");
 
     // Inbound triggers + AI auto-reply config
     cfg.inbound_mentions = form
