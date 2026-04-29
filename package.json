@@ -1,0 +1,12 @@
+{
+  "name": "concierge",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "cargo install -q worker-build && wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
