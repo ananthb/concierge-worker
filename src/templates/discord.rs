@@ -1,6 +1,7 @@
 //! Discord management page: install CTA + channel picker + uninstall.
 
 use crate::helpers::html_escape;
+use crate::i18n::t;
 use crate::locale::Locale;
 use crate::types::DiscordConfig;
 
@@ -21,26 +22,31 @@ pub fn install_cta_html(from: &str, base_url: &str, locale: &Locale) -> String {
 
     let content = format!(
         r##"<div class="page-pad">
-  <p><a href="{back_href}" class="btn ghost sm">&larr; Back</a></p>
-  <h1 class="display-sm m-0 mt-8 mb-16">Discord</h1>
+  <p><a href="{back_href}" class="btn ghost sm">{back}</a></p>
+  <h1 class="display-sm m-0 mt-8 mb-16">{h1}</h1>
   <div class="card p-22">
     <div class="row gap-16">
       <div class="admin-mark icon-chip">{icon}</div>
       <div class="flex-1">
-        <div class="fw-600">Install the Concierge bot</div>
-        <p class="muted m-0 mt-4 fs-14">Pick a server and approve the bot. We use Discord for AI approvals, digests, and email relay.</p>
+        <div class="fw-600">{card_h}</div>
+        <p class="muted m-0 mt-4 fs-14">{card_lead}</p>
       </div>
-      <a href="{install_href}" class="btn primary">Install &rarr;</a>
+      <a href="{install_href}" class="btn primary">{cta}</a>
     </div>
   </div>
 </div>"##,
         back_href = back_href,
         install_href = install_href,
         icon = discord_icon(),
+        back = t(locale, "admin-discord-install-back"),
+        h1 = t(locale, "admin-discord-install-h1"),
+        card_h = t(locale, "admin-discord-install-card-headline"),
+        card_lead = t(locale, "admin-discord-install-card-lead"),
+        cta = t(locale, "admin-discord-install-cta"),
     );
 
     let page = app_shell(&content, "Settings", base_url, locale);
-    base_html("Connect Discord - Concierge", &page, locale)
+    base_html(&t(locale, "admin-discord-install-title"), &page, locale)
 }
 
 /// Render the installed-management page: show guild, pick channels, uninstall.
@@ -92,80 +98,83 @@ pub fn manage_html(
         .collect();
 
     let empty_note = if channels.is_empty() {
-        r#"<p class="muted mt-8 fs-13">No text channels found. The bot may not have access yet: check the server's permissions.</p>"#
+        format!(
+            r#"<p class="muted mt-8 fs-13">{}</p>"#,
+            t(locale, "admin-discord-empty-channels"),
+        )
     } else {
-        ""
+        String::new()
     };
 
     let content = format!(
         r##"<div class="page-pad">
-  <p><a href="{back_href}" class="btn ghost sm">&larr; Back</a></p>
+  <p><a href="{back_href}" class="btn ghost sm">{back}</a></p>
   <div class="between m-0 mt-8 mb-16">
     <div>
-      <h1 class="display-sm m-0">Discord</h1>
-      <p class="muted m-0 mt-4 fs-13">Connected to <strong>{guild}</strong></p>
+      <h1 class="display-sm m-0">{h1}</h1>
+      <p class="muted m-0 mt-4 fs-13">{server_prefix} <strong>{guild}</strong></p>
     </div>
     <div class="row gap-8">
-      <a href="{base_url}/admin/discord/install?from={from_enc}" class="btn ghost sm">Re-install</a>
-      <button class="btn ghost sm text-warn" hx-delete="{base_url}/admin/discord" hx-confirm="Uninstall the bot and forget these channels?">Uninstall</button>
+      <a href="{base_url}/admin/discord/install?from={from_enc}" class="btn ghost sm">{reinstall}</a>
+      <button class="btn ghost sm text-warn" hx-delete="{base_url}/admin/discord" hx-confirm="{uninstall_confirm}">{uninstall}</button>
     </div>
   </div>
 
   <form class="card p-22" hx-put="{base_url}/admin/discord/config" hx-ext="json-enc" hx-target="{hash}dc-toast" hx-swap="innerHTML"
         x-data="{{ ar_enabled: {ar_enabled}, ar_mode: '{ar_mode}', wait_seconds: {wait}, mentions: {inbound_mentions}, channels: {inbound_channels_json} }}">
-    <h3 class="m-0 mb-12">Outbound channels</h3>
-    <p class="muted m-0 mb-16 fs-14">Pick where we should post to. Per-rule overrides still win over these defaults.</p>
+    <h3 class="m-0 mb-12">{out_h3}</h3>
+    <p class="muted m-0 mb-16 fs-14">{out_lead}</p>
 
     <div class="form-group">
-      <label for="dc-approval-channel" class="eyebrow lbl">Approvals channel</label>
+      <label for="dc-approval-channel" class="eyebrow lbl">{approval_lbl}</label>
       <select id="dc-approval-channel" class="select" name="approval_channel_id">{approval_opts}</select>
-      <small class="muted fs-12">AI drafts land here for you to approve or reject.</small>
+      <small class="muted fs-12">{approval_help}</small>
     </div>
 
-    <h3 class="m-0 mt-24 mb-12">Inbound triggers</h3>
-    <p class="muted m-0 mb-16 fs-14">Choose when the bot replies. DMs aren't supported with the shared bot.</p>
+    <h3 class="m-0 mt-24 mb-12">{in_h3}</h3>
+    <p class="muted m-0 mb-16 fs-14">{in_lead}</p>
 
     <div class="form-group">
-      <label><input type="checkbox" name="inbound_mentions" value="true" x-model="mentions"> Reply when @mentioned</label>
+      <label><input type="checkbox" name="inbound_mentions" value="true" x-model="mentions"> {in_mentions}</label>
       <input type="hidden" name="inbound_mentions_present" value="true">
     </div>
 
     <div class="form-group">
-      <label for="dc-inbound-channels" class="eyebrow lbl">Always reply in these channels</label>
+      <label for="dc-inbound-channels" class="eyebrow lbl">{in_channels_lbl}</label>
       <select id="dc-inbound-channels" class="select" name="inbound_channel_ids" multiple size="6" x-model="channels">{channel_opts}</select>
-      <small class="muted fs-12">Hold Cmd/Ctrl to multi-select. The bot will respond to every message in each chosen channel.</small>
+      <small class="muted fs-12">{in_channels_help}</small>
     </div>
 
-    <h3 class="m-0 mt-24 mb-12">AI auto-reply</h3>
-    <p class="muted fs-13 mb-12">This is the default reply when no rule matches. Manage the full rules list at <a href="{base_url}/admin/rules/discord/_">Reply rules</a>.</p>
+    <h3 class="m-0 mt-24 mb-12">{ar_h3}</h3>
+    <p class="muted fs-13 mb-12">{ar_rules_prefix} <a href="{base_url}/admin/rules/discord/_">{ar_rules_link}</a>.</p>
 
     <div class="form-group">
-      <label><input type="checkbox" name="auto_reply_enabled" value="true" x-model="ar_enabled"> Enabled</label>
+      <label><input type="checkbox" name="auto_reply_enabled" value="true" x-model="ar_enabled"> {ar_enabled_lbl}</label>
     </div>
 
     <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
-      <label for="dc-ar-mode" class="eyebrow lbl">Mode</label>
+      <label for="dc-ar-mode" class="eyebrow lbl">{ar_mode_lbl}</label>
       <select id="dc-ar-mode" class="select" name="auto_reply_mode" x-model="ar_mode">
-        <option value="canned">Static (canned text: free)</option>
-        <option value="prompt">AI (uses 1 credit per reply)</option>
+        <option value="canned">{ar_mode_canned}</option>
+        <option value="prompt">{ar_mode_prompt}</option>
       </select>
     </div>
 
     <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
-      <label for="dc-ar-prompt" class="eyebrow lbl"><span x-text="ar_mode === 'prompt' ? 'System prompt' : 'Reply text'"></span></label>
+      <label for="dc-ar-prompt" class="eyebrow lbl"><span x-text="ar_mode === 'prompt' ? '{ar_prompt_system}' : '{ar_prompt_reply}'"></span></label>
       <textarea id="dc-ar-prompt" class="textarea" name="auto_reply_prompt" rows="3">{ar_prompt}</textarea>
     </div>
 
     <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
-      <label for="dc-wait" class="eyebrow lbl">Wait before replying: <span x-text="wait_seconds === 0 ? 'instant' : wait_seconds + 's'"></span></label>
+      <label for="dc-wait" class="eyebrow lbl">{wait_prefix} <span x-text="wait_seconds === 0 ? '{wait_instant}' : wait_seconds + 's'"></span></label>
       <input id="dc-wait" type="range" min="0" max="30" step="1" name="wait_seconds" x-model.number="wait_seconds" style="accent-color:var(--accent)">
-      <small class="muted fs-12">0 = reply immediately. Higher values let users send a burst of messages and get one combined reply.</small>
+      <small class="muted fs-12">{wait_help}</small>
     </div>
 
     {empty_note}
 
     <div class="row gap-8 mt-16" style="justify-content:flex-end">
-      <button type="submit" class="btn primary">Save</button>
+      <button type="submit" class="btn primary">{save}</button>
     </div>
     <div id="dc-toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
   </form>
@@ -197,10 +206,38 @@ pub fn manage_html(
         },
         inbound_channels_json =
             serde_json::to_string(&cfg.inbound_channel_ids).unwrap_or_else(|_| "[]".into()),
+        back = t(locale, "admin-discord-manage-back"),
+        h1 = t(locale, "admin-discord-install-h1"),
+        server_prefix = t(locale, "admin-discord-manage-server-prefix"),
+        reinstall = t(locale, "admin-discord-install-cta"),
+        uninstall = t(locale, "admin-discord-manage-uninstall"),
+        uninstall_confirm = html_escape(&t(locale, "admin-discord-manage-uninstall-confirm")),
+        out_h3 = t(locale, "admin-discord-out-h3"),
+        out_lead = t(locale, "admin-discord-out-lead"),
+        approval_lbl = t(locale, "admin-discord-approval-channel"),
+        approval_help = t(locale, "admin-discord-approval-channel-help"),
+        in_h3 = t(locale, "admin-discord-in-h3"),
+        in_lead = t(locale, "admin-discord-in-lead"),
+        in_mentions = t(locale, "admin-discord-in-mentions"),
+        in_channels_lbl = t(locale, "admin-discord-in-channels"),
+        in_channels_help = t(locale, "admin-discord-in-channels-help"),
+        ar_h3 = t(locale, "admin-discord-ar-h3"),
+        ar_rules_prefix = t(locale, "admin-discord-ar-rules-prefix"),
+        ar_rules_link = t(locale, "admin-discord-ar-rules-link"),
+        ar_enabled_lbl = t(locale, "admin-discord-ar-enabled"),
+        ar_mode_lbl = t(locale, "admin-discord-ar-mode"),
+        ar_mode_canned = t(locale, "admin-discord-ar-mode-canned"),
+        ar_mode_prompt = t(locale, "admin-discord-ar-mode-prompt"),
+        ar_prompt_system = t(locale, "admin-discord-ar-prompt-system"),
+        ar_prompt_reply = t(locale, "admin-discord-ar-prompt-reply"),
+        wait_prefix = t(locale, "admin-discord-ar-wait-prefix"),
+        wait_instant = t(locale, "admin-discord-ar-wait-instant"),
+        wait_help = t(locale, "admin-discord-ar-wait-help"),
+        save = t(locale, "admin-discord-save"),
     );
 
     let page = app_shell(&content, "Settings", base_url, locale);
-    base_html("Discord - Concierge", &page, locale)
+    base_html(&t(locale, "admin-discord-manage-title"), &page, locale)
 }
 
 fn back_href_for(from: &str, base_url: &str) -> String {

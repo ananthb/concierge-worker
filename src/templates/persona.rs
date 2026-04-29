@@ -6,6 +6,7 @@
 //! decides which source variant to construct.
 
 use crate::helpers::html_escape;
+use crate::i18n::t;
 use crate::locale::Locale;
 use crate::personas;
 use crate::types::{PersonaConfig, PersonaPreset, PersonaSafetyStatus, PersonaSource};
@@ -65,30 +66,30 @@ pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str, locale: &Loca
         PersonaSource::Custom(s) => s.clone(),
     };
 
-    let safety_badge = render_safety_badge(persona);
+    let safety_badge = render_safety_badge(persona, locale);
 
     let body = format!(
         r##"<div class="page-pad" x-data="{x_data}" hx-ext="json-enc">
-  <p><a href="{base_url}/admin" class="btn ghost sm">&larr; Dashboard</a></p>
-  <h1 class="display-sm m-0 mb-4">Persona</h1>
-  <p class="muted mb-16">The persona is your AI assistant's voice. Every AI-generated reply uses this prompt as its system prompt.</p>
+  <p><a href="{base_url}/admin" class="btn ghost sm">{back}</a></p>
+  <h1 class="display-sm m-0 mb-4">{h1}</h1>
+  <p class="muted mb-16">{lead}</p>
 
   {safety_badge}
 
   <div class="card p-22 mb-16">
-    <div class="eyebrow mb-12">Mode</div>
-    <div class="row gap-8 mb-16" style="flex-wrap:wrap">
-      <label class="row gap-6"><input type="radio" name="mode" value="preset" x-model="mode"> Preset</label>
-      <label class="row gap-6"><input type="radio" name="mode" value="builder" x-model="mode"> Builder</label>
-      <label class="row gap-6"><input type="radio" name="mode" value="custom" x-model="mode"> Custom prompt</label>
+    <div class="eyebrow mb-12" id="persona-mode-label">{mode_eyebrow}</div>
+    <div class="row gap-8 mb-16" style="flex-wrap:wrap" role="radiogroup" aria-labelledby="persona-mode-label">
+      <label class="row gap-6"><input type="radio" name="mode" value="preset" x-model="mode"> {mode_preset}</label>
+      <label class="row gap-6"><input type="radio" name="mode" value="builder" x-model="mode"> {mode_builder}</label>
+      <label class="row gap-6"><input type="radio" name="mode" value="custom" x-model="mode"> {mode_custom}</label>
     </div>
 
     <form hx-post="{base_url}/admin/persona" hx-target="body" hx-swap="innerHTML">
       <input type="hidden" name="mode" :value="mode">
 
       <!-- PRESET -->
-      <div x-show="mode === 'preset'" x-cloak>
-        <p class="muted fs-13 mb-12">Pick one of the curated personas. The prompt and a starter set of reply rules will be applied.</p>
+      <div x-show="mode === 'preset'" x-cloak :aria-hidden="mode !== 'preset'">
+        <p class="muted fs-13 mb-12">{preset_lead}</p>
         <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr">
           {preset_options}
         </div>
@@ -97,56 +98,56 @@ pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str, locale: &Loca
 
       <!-- BUILDER -->
       <div x-show="mode === 'builder'" x-cloak :aria-hidden="mode !== 'builder'">
-        <p class="muted fs-13 mb-12">Fill in the fields and we'll compose the prompt for you. Switch to Custom mode if you want to write the whole thing yourself.</p>
+        <p class="muted fs-13 mb-12">{builder_lead}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
-            <label for="persona-biz-type" class="eyebrow lbl">Type of business</label>
-            <input id="persona-biz-type" class="input" name="biz_type" x-model="builder.biz_type" placeholder="florist, hair salon, cafe...">
+            <label for="persona-biz-type" class="eyebrow lbl">{lbl_biz_type}</label>
+            <input id="persona-biz-type" class="input" name="biz_type" x-model="builder.biz_type" placeholder="{ph_biz_type}">
           </div>
           <div>
-            <label for="persona-city" class="eyebrow lbl">City (optional)</label>
-            <input id="persona-city" class="input" name="city" x-model="builder.city" placeholder="Chennai, Berlin...">
+            <label for="persona-city" class="eyebrow lbl">{lbl_city}</label>
+            <input id="persona-city" class="input" name="city" x-model="builder.city" placeholder="{ph_city}">
           </div>
           <div>
-            <label for="persona-tone" class="eyebrow lbl">Tone</label>
-            <input id="persona-tone" class="input" name="tone" x-model="builder.tone" placeholder="warm and friendly, concise and professional...">
+            <label for="persona-tone" class="eyebrow lbl">{lbl_tone}</label>
+            <input id="persona-tone" class="input" name="tone" x-model="builder.tone" placeholder="{ph_tone}">
           </div>
           <div>
-            <label for="persona-never" class="eyebrow lbl">Never (one boundary)</label>
-            <input id="persona-never" class="input" name="never" x-model="builder.never" placeholder="quote prices, promise dates...">
+            <label for="persona-never" class="eyebrow lbl">{lbl_never}</label>
+            <input id="persona-never" class="input" name="never" x-model="builder.never" placeholder="{ph_never}">
           </div>
         </div>
         <div class="mt-12">
-          <label for="persona-catch-phrases" class="eyebrow lbl">Catch-phrases (one per line, max 5)</label>
-          <textarea id="persona-catch-phrases" class="textarea" name="catch_phrases" x-model="builder.catch_phrases" rows="3" placeholder="One catch-phrase per line"></textarea>
+          <label for="persona-catch-phrases" class="eyebrow lbl">{lbl_catch}</label>
+          <textarea id="persona-catch-phrases" class="textarea" name="catch_phrases" x-model="builder.catch_phrases" rows="3" placeholder="{ph_catch}"></textarea>
         </div>
         <div class="mt-12">
-          <label for="persona-off-topics" class="eyebrow lbl">Off-topic subjects (one per line, max 10)</label>
-          <textarea id="persona-off-topics" class="textarea" name="off_topics" x-model="builder.off_topics" rows="3" placeholder="politics, medical advice, refunds..."></textarea>
+          <label for="persona-off-topics" class="eyebrow lbl">{lbl_off}</label>
+          <textarea id="persona-off-topics" class="textarea" name="off_topics" x-model="builder.off_topics" rows="3" placeholder="{ph_off}"></textarea>
         </div>
       </div>
 
       <!-- CUSTOM -->
       <div x-show="mode === 'custom'" x-cloak :aria-hidden="mode !== 'custom'">
-        <p class="muted fs-13 mb-12">Write the entire system prompt yourself. Up to 2000 characters.</p>
-        <label for="persona-custom-prompt" class="sr-only">System prompt</label>
-        <textarea id="persona-custom-prompt" class="textarea mono" name="custom_prompt" x-model="customPrompt" rows="12" maxlength="2000" placeholder="You are a helpful assistant for..."></textarea>
+        <p class="muted fs-13 mb-12">{custom_lead}</p>
+        <label for="persona-custom-prompt" class="sr-only">{custom_sr}</label>
+        <textarea id="persona-custom-prompt" class="textarea mono" name="custom_prompt" x-model="customPrompt" rows="12" maxlength="2000" placeholder="{custom_ph}"></textarea>
         <p class="muted fs-12 mt-4"><span x-text="customPrompt.length"></span> / 2000</p>
       </div>
 
       <div class="row gap-8 mt-16" style="justify-content:flex-end">
-        <button type="submit" class="btn primary">Save persona</button>
+        <button type="submit" class="btn primary">{save}</button>
       </div>
     </form>
   </div>
 
   <div class="card p-14" style="background:var(--ink);color:var(--cream);border-color:var(--ink);border-radius:var(--r-sm)">
-    <div class="mono fs-10 mb-6" style="letter-spacing:.18em;color:var(--accent-soft)">PROMPT PREVIEW</div>
+    <div class="mono fs-10 mb-6" style="letter-spacing:.18em;color:var(--accent-soft)">{preview_eyebrow}</div>
     <div id="prompt-preview">
       <pre class="mono m-0 fs-12" style="white-space:pre-wrap;color:var(--cream);line-height:1.5">{initial_preview}</pre>
     </div>
-    <div class="row gap-8 mt-8" x-show="mode === 'builder'" x-cloak>
-      <button type="button" class="btn ghost sm" hx-post="{base_url}/admin/persona/preview" hx-target="#prompt-preview" hx-include="[name='biz_type'],[name='city'],[name='tone'],[name='never'],[name='catch_phrases'],[name='off_topics']">Refresh preview</button>
+    <div class="row gap-8 mt-8" x-show="mode === 'builder'" x-cloak :aria-hidden="mode !== 'builder'">
+      <button type="button" class="btn ghost sm" hx-post="{base_url}/admin/persona/preview" hx-target="#prompt-preview" hx-include="[name='biz_type'],[name='city'],[name='tone'],[name='never'],[name='catch_phrases'],[name='off_topics']">{refresh}</button>
     </div>
   </div>
 </div>"##,
@@ -155,13 +156,40 @@ pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str, locale: &Loca
         preset_options = preset_options,
         initial_preview = html_escape(&initial_preview),
         x_data = build_x_data(active_mode, active_preset_slug, &builder, &custom_prompt),
+        back = t(locale, "admin-persona-back"),
+        h1 = t(locale, "admin-persona-h1"),
+        lead = t(locale, "admin-persona-lead"),
+        mode_eyebrow = t(locale, "admin-persona-mode-eyebrow"),
+        mode_preset = t(locale, "admin-persona-mode-preset"),
+        mode_builder = t(locale, "admin-persona-mode-builder"),
+        mode_custom = t(locale, "admin-persona-mode-custom"),
+        preset_lead = t(locale, "admin-persona-preset-lead"),
+        builder_lead = t(locale, "admin-persona-builder-lead"),
+        lbl_biz_type = t(locale, "admin-persona-label-biz-type"),
+        lbl_city = t(locale, "admin-persona-label-city"),
+        lbl_tone = t(locale, "admin-persona-label-tone"),
+        lbl_never = t(locale, "admin-persona-label-never"),
+        lbl_catch = t(locale, "admin-persona-label-catch-phrases"),
+        lbl_off = t(locale, "admin-persona-label-off-topics"),
+        ph_biz_type = t(locale, "admin-persona-placeholder-biz-type"),
+        ph_city = t(locale, "admin-persona-placeholder-city"),
+        ph_tone = t(locale, "admin-persona-placeholder-tone"),
+        ph_never = t(locale, "admin-persona-placeholder-never"),
+        ph_catch = t(locale, "admin-persona-placeholder-catch-phrases"),
+        ph_off = t(locale, "admin-persona-placeholder-off-topics"),
+        custom_lead = t(locale, "admin-persona-custom-lead"),
+        custom_sr = t(locale, "admin-persona-custom-sr-only"),
+        custom_ph = t(locale, "admin-persona-custom-placeholder"),
+        save = t(locale, "admin-persona-save"),
+        preview_eyebrow = t(locale, "admin-persona-preview-eyebrow"),
+        refresh = t(locale, "admin-persona-preview-refresh"),
     );
 
     let page = app_shell(&body, "Persona", base_url, locale);
-    base_html("Persona — Concierge", &page, locale)
+    base_html(&t(locale, "admin-persona-title"), &page, locale)
 }
 
-fn render_safety_badge(persona: &PersonaConfig) -> String {
+fn render_safety_badge(persona: &PersonaConfig, locale: &Locale) -> String {
     let prompt_drift_locked = persona.safety.checked_prompt_hash.as_deref()
         != Some(persona.active_prompt_hash().as_str())
         && matches!(persona.safety.status, PersonaSafetyStatus::Approved);
@@ -169,32 +197,37 @@ fn render_safety_badge(persona: &PersonaConfig) -> String {
     let (chip_class, label, detail) = if prompt_drift_locked {
         (
             "warn",
-            "Re-checking",
-            "Prompt was edited; safety re-check in progress.".to_string(),
+            t(locale, "admin-persona-safety-rechecking"),
+            t(locale, "admin-persona-safety-rechecking-detail"),
         )
     } else {
         match &persona.safety.status {
             PersonaSafetyStatus::Approved => (
                 "ok",
-                "Approved",
+                t(locale, "admin-persona-safety-approved"),
                 format!(
-                    "Last checked {}.",
-                    persona.safety.checked_at.as_deref().unwrap_or("just now")
+                    "{} {}.",
+                    t(locale, "admin-persona-safety-approved-prefix"),
+                    persona
+                        .safety
+                        .checked_at
+                        .clone()
+                        .unwrap_or_else(|| t(locale, "admin-persona-safety-approved-fallback"))
                 ),
             ),
             PersonaSafetyStatus::Pending => (
                 "warn",
-                "Pending",
-                "Safety check in progress; AI replies are paused until it completes.".to_string(),
+                t(locale, "admin-persona-safety-pending"),
+                t(locale, "admin-persona-safety-pending-detail"),
             ),
             PersonaSafetyStatus::Rejected => (
                 "warn",
-                "Rejected",
+                t(locale, "admin-persona-safety-rejected"),
                 persona
                     .safety
                     .vague_reason
                     .clone()
-                    .unwrap_or_else(|| "This persona doesn't fit our content policies.".into()),
+                    .unwrap_or_else(|| t(locale, "admin-persona-safety-rejected-fallback")),
             ),
         }
     };
@@ -205,7 +238,7 @@ fn render_safety_badge(persona: &PersonaConfig) -> String {
   <span class="muted fs-13">{detail}</span>
 </div>"#,
         chip_class = chip_class,
-        label = html_escape(label),
+        label = html_escape(&label),
         detail = html_escape(&detail),
     )
 }

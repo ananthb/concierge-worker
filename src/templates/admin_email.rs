@@ -2,6 +2,7 @@
 //! edit (auto-reply config + notification recipients).
 
 use crate::helpers::html_escape;
+use crate::i18n::t;
 use crate::locale::Locale;
 use crate::types::*;
 
@@ -20,28 +21,36 @@ pub fn email_dashboard_html(
     let quota = tenant.email_address_quota();
     let at_limit = used >= quota;
 
+    let mode_static = t(locale, "admin-email-mode-static");
+    let mode_ai = t(locale, "admin-email-mode-ai");
+    let on_label = t(locale, "admin-email-on");
+    let off_label = t(locale, "admin-email-off");
+    let recip_suffix = t(locale, "admin-email-recipients-suffix");
+    let edit_label = t(locale, "admin-email-row-edit");
+    let delete_label = t(locale, "admin-email-row-delete");
+    let delete_confirm = html_escape(&t(locale, "admin-email-delete-confirm"));
     let address_rows: String = addrs
         .iter()
         .map(|a| {
             let full = format!("{}@{}", a.local_part, base_domain);
             let mode_label = if a.auto_reply.default_is_canned() {
-                "Static"
+                &mode_static
             } else {
-                "AI"
+                &mode_ai
             };
             let on_off = if a.auto_reply.enabled {
-                r#"<span class="chip ok">on</span>"#
+                format!(r#"<span class="chip ok">{on_label}</span>"#)
             } else {
-                r#"<span class="chip">off</span>"#
+                format!(r#"<span class="chip">{off_label}</span>"#)
             };
             format!(
                 r#"<tr>
                     <td><a href="{base_url}/admin/email/addresses/{label}" class="link-reset"><strong>{full}</strong></a></td>
                     <td>{mode_label} {on_off}</td>
-                    <td>{count} recipient(s)</td>
+                    <td>{count} {recip_suffix}</td>
                     <td class="ta-right">
-                        <a href="{base_url}/admin/email/addresses/{label}" class="btn ghost sm">Edit</a>
-                        <button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}" hx-confirm="Delete this address? Inbound mail will be rejected.">Delete</button>
+                        <a href="{base_url}/admin/email/addresses/{label}" class="btn ghost sm">{edit_label}</a>
+                        <button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}" hx-confirm="{delete_confirm}">{delete_label}</button>
                     </td>
                 </tr>"#,
                 base_url = base_url,
@@ -50,43 +59,57 @@ pub fn email_dashboard_html(
                 mode_label = mode_label,
                 on_off = on_off,
                 count = a.notification_recipients.len(),
+                recip_suffix = recip_suffix,
+                edit_label = edit_label,
+                delete_label = delete_label,
+                delete_confirm = delete_confirm,
             )
         })
         .collect();
 
     let address_table = if addrs.is_empty() {
-        r#"<p class="muted">No email addresses yet. Pick a name below: you can use it like <code>name@domain</code> from the moment you save.</p>"#.to_string()
+        format!(r#"<p class="muted">{}</p>"#, t(locale, "admin-email-empty"),)
     } else {
         format!(
             r#"<div class="card p-0" style="overflow:hidden">
                 <table>
-                    <caption class="sr-only">Concierge email addresses</caption>
-                    <thead><tr><th scope="col">Address</th><th scope="col">Auto-reply</th><th scope="col">Notify</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+                    <caption class="sr-only">{caption}</caption>
+                    <thead><tr><th scope="col">{th_address}</th><th scope="col">{th_auto}</th><th scope="col">{th_notify}</th><th scope="col"><span class="sr-only">{th_actions}</span></th></tr></thead>
                     <tbody>{address_rows}</tbody>
                 </table>
             </div>"#,
             address_rows = address_rows,
+            caption = t(locale, "admin-email-h1"),
+            th_address = t(locale, "admin-email-th-address"),
+            th_auto = t(locale, "admin-email-th-autoreply"),
+            th_notify = t(locale, "admin-email-th-notify"),
+            th_actions = t(locale, "admin-email-th-actions"),
         )
     };
 
     let add_form = if at_limit {
         format!(
             r#"<div class="card p-18 mt-16 card-warn">
-                <p class="m-0"><strong>You've used your {quota} address slot(s).</strong> Buy a 5-pack from <a href="{base_url}/admin/billing">Billing</a> to add more.</p>
+                <p class="m-0"><strong>{warn_prefix} {quota} {warn_suffix}</strong> <a href="{base_url}/admin/billing">{warn_link}</a> {warn_tail}</p>
             </div>"#,
             base_url = base_url,
             quota = quota,
+            warn_prefix = t(locale, "admin-email-quota-warn-prefix"),
+            warn_suffix = t(locale, "admin-email-quota-warn-suffix"),
+            warn_link = t(locale, "admin-email-quota-warn-link"),
+            warn_tail = t(locale, "admin-email-quota-warn-tail"),
         )
     } else {
         format!(
             r##"<div class="card p-18 mt-16">
-                <h2 class="display-sm m-0 mb-8">Add an address</h2>
-                <p class="muted mb-12">{used} of {quota} addresses used. Pick a memorable local-part: it can use a-z, 0-9, dot, dash, underscore.</p>
+                <h2 class="display-sm m-0 mb-8">{add_h2}</h2>
+                <p class="muted mb-12">{used} {prefix} {quota} {suffix}</p>
                 <form hx-post="{base_url}/admin/email/addresses" hx-ext="json-enc" hx-target="{HASH}toast" hx-swap="innerHTML">
                     <div class="row gap-8 wrap">
-                        <input class="input" name="local_part" placeholder="support" required style="max-width:240px">
+                        <label for="email-local-part" class="sr-only">{add_h2}</label>
+                        <input id="email-local-part" class="input" name="local_part" placeholder="{ph}" required aria-required="true" style="max-width:240px">
                         <span class="muted">@{base_domain}</span>
-                        <button class="btn primary" type="submit">Add</button>
+                        <button class="btn primary" type="submit">{add_cta}</button>
                     </div>
                 </form>
                 <div id="toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -96,23 +119,31 @@ pub fn email_dashboard_html(
             base_domain = html_escape(base_domain),
             used = used,
             quota = quota,
+            add_h2 = t(locale, "admin-email-add-h2"),
+            prefix = t(locale, "admin-email-add-lead-prefix"),
+            suffix = t(locale, "admin-email-add-lead-suffix"),
+            ph = t(locale, "admin-email-add-placeholder"),
+            add_cta = t(locale, "admin-email-add-cta"),
         )
     };
 
     let body = format!(
         r#"<div class="page-pad">
-            <h1 class="display-sm mb-4">Email</h1>
-            <p class="muted mb-16">Each address you add at <code>@{base_domain}</code> can auto-reply to incoming mail. Replies go to the sender; you and your team get a copy via Cc/Bcc.</p>
+            <h1 class="display-sm mb-4">{h1}</h1>
+            <p class="muted mb-16">{lead_prefix} <code>@{base_domain}</code> {lead_suffix}</p>
             {address_table}
             {add_form}
         </div>"#,
         base_domain = html_escape(base_domain),
         address_table = address_table,
         add_form = add_form,
+        h1 = t(locale, "admin-email-h1"),
+        lead_prefix = t(locale, "admin-email-lead-prefix"),
+        lead_suffix = t(locale, "admin-email-lead-suffix"),
     );
 
     let page = app_shell(&body, "Email", base_url, locale);
-    base_html("Email: Concierge", &page, locale)
+    base_html(&t(locale, "admin-email-title"), &page, locale)
 }
 
 /// Per-address edit page.
@@ -133,7 +164,7 @@ pub fn email_address_html(
     };
 
     let auto_reply_form = format!(
-        r##"<p class="muted fs-13 mb-12">This is the default reply when no rule matches. Manage the full rules list at <a href="{base_url}/admin/rules/email/{label}">Reply rules</a>.</p>
+        r##"<p class="muted fs-13 mb-12">{rules_prefix} <a href="{base_url}/admin/rules/email/{label}">{rules_link}</a>.</p>
         <form hx-put="{base_url}/admin/email/addresses/{label}/auto-reply" hx-ext="json-enc" hx-target="{HASH}auto-toast" hx-swap="innerHTML">
             <div class="form-group">
                 <label class="row gap-8">
@@ -141,27 +172,27 @@ pub fn email_address_html(
                         <input type="checkbox" name="enabled" {enabled_attr}>
                         <span></span>
                     </span>
-                    <span>Reply automatically to inbound mail</span>
+                    <span>{toggle_label}</span>
                 </label>
             </div>
             <div class="form-group">
-                <label for="email-mode">Default reply mode</label>
+                <label for="email-mode">{mode_label}</label>
                 <select id="email-mode" class="select" name="mode">
-                    <option value="canned" {static_sel}>Static: same canned reply every time</option>
-                    <option value="prompt" {ai_sel}>AI: generate a reply for each message (uses 1 credit)</option>
+                    <option value="canned" {static_sel}>{mode_canned}</option>
+                    <option value="prompt" {ai_sel}>{mode_prompt}</option>
                 </select>
             </div>
             <div class="form-group">
-                <label for="email-prompt">Default reply text / AI prompt</label>
-                <textarea id="email-prompt" class="textarea" name="prompt" rows="6" placeholder="In static mode this exact text is sent. In AI mode, this is the system prompt for the model.">{prompt}</textarea>
+                <label for="email-prompt">{prompt_label}</label>
+                <textarea id="email-prompt" class="textarea" name="prompt" rows="6" placeholder="{prompt_ph}">{prompt}</textarea>
             </div>
             <div class="form-group">
-                <label for="email-wait">Wait before replying ({wait}s)</label>
+                <label for="email-wait">{wait_prefix} ({wait}s)</label>
                 <input id="email-wait" class="input" name="wait_seconds" type="number" min="0" max="120" value="{wait}">
-                <p class="muted fs-12 mt-4">Lets clusters of forwarded messages collapse into one reply. 0 = reply immediately.</p>
+                <p class="muted fs-12 mt-4">{wait_help}</p>
             </div>
             <div class="row gap-8">
-                <button class="btn primary" type="submit">Save</button>
+                <button class="btn primary" type="submit">{save}</button>
             </div>
             <div id="auto-toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
         </form>"##,
@@ -173,31 +204,51 @@ pub fn email_address_html(
         ai_sel = if ai_selected { "selected" } else { "" },
         prompt = html_escape(addr.auto_reply.default_text()),
         wait = addr.auto_reply.wait_seconds,
+        rules_prefix = t(locale, "admin-email-edit-rules-prefix"),
+        rules_link = t(locale, "admin-email-edit-rules-link"),
+        toggle_label = t(locale, "admin-email-edit-toggle-label"),
+        mode_label = t(locale, "admin-email-edit-mode-label"),
+        mode_canned = t(locale, "admin-email-edit-mode-canned"),
+        mode_prompt = t(locale, "admin-email-edit-mode-prompt"),
+        prompt_label = t(locale, "admin-email-edit-prompt-label"),
+        prompt_ph = html_escape(&t(locale, "admin-email-edit-prompt-placeholder")),
+        wait_prefix = t(locale, "admin-email-edit-wait-prefix"),
+        wait_help = t(locale, "admin-email-edit-wait-help"),
+        save = t(locale, "admin-email-edit-save"),
     );
 
+    let cc_label = t(locale, "admin-email-recipients-cc");
+    let bcc_label = t(locale, "admin-email-recipients-bcc");
+    let owner_label = t(locale, "admin-email-recipients-status-owner");
+    let verified_label = t(locale, "admin-email-recipients-status-verified");
+    let pending_label = t(locale, "admin-email-recipients-status-pending");
+    let remove_label = t(locale, "admin-email-recipients-remove");
+    let remove_confirm = html_escape(&t(locale, "admin-email-recipients-remove-confirm"));
     let recipient_rows: String = addr
         .notification_recipients
         .iter()
         .map(|r| {
             let kind_chip = match r.kind {
-                RecipientKind::Cc => r#"<span class="chip">Cc</span>"#,
-                RecipientKind::Bcc => r#"<span class="chip">Bcc</span>"#,
+                RecipientKind::Cc => format!(r#"<span class="chip">{cc_label}</span>"#),
+                RecipientKind::Bcc => format!(r#"<span class="chip">{bcc_label}</span>"#),
             };
             let status_chip = if r.is_owner {
-                r#"<span class="chip ok">Owner</span>"#.to_string()
+                format!(r#"<span class="chip ok">{owner_label}</span>"#)
             } else if matches!(r.status, RecipientStatus::Verified) {
-                r#"<span class="chip ok">Verified</span>"#.to_string()
+                format!(r#"<span class="chip ok">{verified_label}</span>"#)
             } else {
-                r#"<span class="chip warn">Pending</span>"#.to_string()
+                format!(r#"<span class="chip warn">{pending_label}</span>"#)
             };
             let delete_btn = if r.is_owner {
                 String::new()
             } else {
                 format!(
-                    r#"<button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}/recipients/{id}" hx-confirm="Remove this recipient?" hx-target="closest tr" hx-swap="outerHTML">Remove</button>"#,
+                    r#"<button class="btn ghost sm" hx-delete="{base_url}/admin/email/addresses/{label}/recipients/{id}" hx-confirm="{confirm}" hx-target="closest tr" hx-swap="outerHTML">{remove}</button>"#,
                     base_url = base_url,
                     label = html_escape(&addr.local_part),
                     id = html_escape(&r.id),
+                    confirm = remove_confirm,
+                    remove = remove_label,
                 )
             };
             format!(
@@ -218,47 +269,67 @@ pub fn email_address_html(
     let recipients_section = format!(
         r##"<div class="card p-0" style="overflow:hidden">
             <table>
-                <caption class="sr-only">Notification recipients</caption>
-                <thead><tr><th scope="col">Address</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+                <caption class="sr-only">{caption}</caption>
+                <thead><tr><th scope="col">{th_addr}</th><th scope="col">{th_kind}</th><th scope="col">{th_status}</th><th scope="col"><span class="sr-only">{th_actions}</span></th></tr></thead>
                 <tbody>{recipient_rows}</tbody>
             </table>
         </div>
         <form class="card p-18 mt-12" hx-post="{base_url}/admin/email/addresses/{label}/recipients" hx-ext="json-enc" hx-target="{HASH}rec-toast" hx-swap="innerHTML">
             <div class="row gap-8 wrap">
-                <input class="input" name="address" type="email" placeholder="team@example.com" required style="flex:1;max-width:340px">
-                <select class="select" name="kind" style="max-width:120px">
-                    <option value="cc">Cc</option>
-                    <option value="bcc">Bcc</option>
+                <label for="recipient-address" class="sr-only">{th_addr}</label>
+                <input id="recipient-address" class="input" name="address" type="email" placeholder="{ph}" required aria-required="true" style="flex:1;max-width:340px">
+                <label for="recipient-kind" class="sr-only">{th_kind}</label>
+                <select id="recipient-kind" class="select" name="kind" style="max-width:120px">
+                    <option value="cc">{cc_label}</option>
+                    <option value="bcc">{bcc_label}</option>
                 </select>
-                <button class="btn primary" type="submit">Add &amp; verify</button>
+                <button class="btn primary" type="submit">{cta}</button>
             </div>
-            <p class="muted fs-12 mt-8">We'll send a one-click verification link to confirm ownership before notifications start arriving.</p>
-            <div id="rec-toast" class="mt-8"></div>
+            <p class="muted fs-12 mt-8">{lead}</p>
+            <div id="rec-toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
         </form>"##,
         HASH = HASH,
         base_url = base_url,
         label = html_escape(&addr.local_part),
         recipient_rows = recipient_rows,
+        caption = t(locale, "admin-email-recipients-h2"),
+        th_addr = t(locale, "admin-email-recipients-th-address"),
+        th_kind = t(locale, "admin-email-recipients-th-kind"),
+        th_status = t(locale, "admin-email-recipients-th-status"),
+        th_actions = t(locale, "admin-email-th-actions"),
+        ph = html_escape(&t(locale, "admin-email-recipients-add-placeholder")),
+        cc_label = cc_label,
+        bcc_label = bcc_label,
+        cta = t(locale, "admin-email-recipients-add-cta"),
+        lead = t(locale, "admin-email-recipients-lead"),
     );
 
     let body = format!(
         r#"<div class="page-pad">
-            <p><a href="{base_url}/admin/email" class="btn ghost sm">&larr; Email</a></p>
+            <p><a href="{base_url}/admin/email" class="btn ghost sm">{back}</a></p>
             <h1 class="display-sm mt-8 mb-4">{full}</h1>
-            <p class="muted mb-24">Replies are sent from this address. Cc/Bcc recipients listed below get a copy of every reply.</p>
-            <h2 class="display-sm mb-8">Auto-reply</h2>
+            <p class="muted mb-24">{lead}</p>
+            <h2 class="display-sm mb-8">{auto_h2}</h2>
             <div class="card p-22 mb-24">{auto_reply_form}</div>
-            <h2 class="display-sm mb-8">Notify on every reply</h2>
+            <h2 class="display-sm mb-8">{rec_h2}</h2>
             {recipients_section}
         </div>"#,
         base_url = base_url,
         full = html_escape(&full),
         auto_reply_form = auto_reply_form,
         recipients_section = recipients_section,
+        back = t(locale, "admin-email-edit-back"),
+        lead = t(locale, "admin-email-edit-h1"),
+        auto_h2 = t(locale, "admin-email-edit-rules-link"),
+        rec_h2 = t(locale, "admin-email-recipients-h2"),
     );
 
     let page = app_shell(&body, "Email", base_url, locale);
-    base_html(&format!("{full}: Concierge"), &page, locale)
+    base_html(
+        &format!("{full}{}", t(locale, "admin-email-edit-title-suffix")),
+        &page,
+        locale,
+    )
 }
 
 /// Public verification page rendered when a recipient clicks the link
@@ -267,11 +338,13 @@ pub fn email_address_html(
 pub fn email_verify_result_html(message: &str, locale: &Locale) -> String {
     let body = format!(
         r#"<div class="page-pad ta-center">
-            <h1 class="display-md mb-12">Email verification</h1>
+            <h1 class="display-md mb-12">{h1}</h1>
             <p class="lead">{message}</p>
-            <p class="mt-16"><a class="btn ghost sm" href="/">Back to Concierge</a></p>
+            <p class="mt-16"><a class="btn ghost sm" href="/">{back}</a></p>
         </div>"#,
         message = html_escape(message),
+        h1 = t(locale, "admin-email-verify-h1"),
+        back = t(locale, "admin-email-verify-back"),
     );
-    base_html("Email verification: Concierge", &body, locale)
+    base_html(&t(locale, "admin-email-verify-title"), &body, locale)
 }

@@ -1121,83 +1121,84 @@ pub fn admin_lead_form_edit_html(
     );
 
     let content = format!(
-        "<p><a href=\"{base_url}/admin/lead-forms\">&larr; Back to Lead Forms</a></p>
-        <h1>Edit Lead Form</h1>
+        "<p><a href=\"{base_url}/admin/lead-forms\">{back}</a></p>
+        <h1>{h1}</h1>
         <div id=\"toast\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\"></div>
         <div class=\"card p-22\">
             <form hx-put=\"{base_url}/admin/lead-forms/{id}\" hx-target=\"{hash}toast\" hx-swap=\"innerHTML\">
                 <div class=\"form-group\">
-                    <label>Name</label>
-                    <input type=\"text\" name=\"name\" value=\"{name}\" required>
+                    <label for=\"lf-name\">{lbl_name}</label>
+                    <input type=\"text\" id=\"lf-name\" name=\"name\" value=\"{name}\" required aria-required=\"true\">
                 </div>
                 <div class=\"form-group\">
-                    <label><input type=\"checkbox\" name=\"enabled\" value=\"true\"{enabled_checked}> Enabled</label>
+                    <label><input type=\"checkbox\" name=\"enabled\" value=\"true\"{enabled_checked}> {lbl_enabled}</label>
                 </div>
                 <div class=\"form-group\">
-                    <label>WhatsApp Account</label>
-                    <select name=\"whatsapp_account_id\" required>{wa_options}</select>
+                    <label for=\"lf-wa\">{lbl_wa}</label>
+                    <select id=\"lf-wa\" name=\"whatsapp_account_id\" required aria-required=\"true\">{wa_options}</select>
                 </div>
                 <div class=\"form-group\">
-                    <label>Reply Mode</label>
-                    <select name=\"reply_mode\">
-                        <option value=\"canned\"{mode_static_sel}>Static</option>
-                        <option value=\"prompt\"{mode_ai_sel}>AI</option>
+                    <label for=\"lf-reply-mode\">{lbl_reply_mode}</label>
+                    <select id=\"lf-reply-mode\" name=\"reply_mode\">
+                        <option value=\"canned\"{mode_static_sel}>{mode_static}</option>
+                        <option value=\"prompt\"{mode_ai_sel}>{mode_ai}</option>
                     </select>
                 </div>
                 <div class=\"form-group\">
-                    <label>Reply Prompt</label>
-                    <textarea name=\"reply_prompt\" rows=\"3\">{reply_prompt}</textarea>
+                    <label for=\"lf-reply-prompt\">{lbl_reply_prompt}</label>
+                    <textarea id=\"lf-reply-prompt\" name=\"reply_prompt\" rows=\"3\">{reply_prompt}</textarea>
                 </div>
-                <h3 style=\"margin: 1rem 0 0.5rem;\">Style</h3>
+                <h3 style=\"margin: 1rem 0 0.5rem;\">{h3_style}</h3>
                 <div class=\"form-group\">
-                    <label>Primary Color</label>
-                    <input type=\"color\" name=\"style_primary_color\" value=\"{s_primary}\">
-                </div>
-                <div class=\"form-group\">
-                    <label>Text Color</label>
-                    <input type=\"color\" name=\"style_text_color\" value=\"{s_text}\">
+                    <label for=\"lf-color-primary\">{lbl_primary}</label>
+                    <input type=\"color\" id=\"lf-color-primary\" name=\"style_primary_color\" value=\"{s_primary}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Background Color</label>
-                    <input type=\"color\" name=\"style_background_color\" value=\"{s_bg}\">
+                    <label for=\"lf-color-text\">{lbl_text}</label>
+                    <input type=\"color\" id=\"lf-color-text\" name=\"style_text_color\" value=\"{s_text}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Border Radius</label>
-                    <input type=\"text\" name=\"style_border_radius\" value=\"{s_radius}\">
+                    <label for=\"lf-color-bg\">{lbl_bg}</label>
+                    <input type=\"color\" id=\"lf-color-bg\" name=\"style_background_color\" value=\"{s_bg}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Button Text</label>
-                    <input type=\"text\" name=\"style_button_text\" value=\"{s_button}\">
+                    <label for=\"lf-radius\">{lbl_radius}</label>
+                    <input type=\"text\" id=\"lf-radius\" name=\"style_border_radius\" value=\"{s_radius}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Placeholder Text</label>
-                    <input type=\"text\" name=\"style_placeholder_text\" value=\"{s_placeholder}\">
+                    <label for=\"lf-button-text\">{lbl_button}</label>
+                    <input type=\"text\" id=\"lf-button-text\" name=\"style_button_text\" value=\"{s_button}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Success Message</label>
-                    <input type=\"text\" name=\"style_success_message\" value=\"{s_success}\">
+                    <label for=\"lf-placeholder\">{lbl_placeholder}</label>
+                    <input type=\"text\" id=\"lf-placeholder\" name=\"style_placeholder_text\" value=\"{s_placeholder}\">
                 </div>
                 <div class=\"form-group\">
-                    <label>Custom CSS</label>
-                    <textarea name=\"style_custom_css\" rows=\"3\">{s_css}</textarea>
+                    <label for=\"lf-success\">{lbl_success}</label>
+                    <input type=\"text\" id=\"lf-success\" name=\"style_success_message\" value=\"{s_success}\">
                 </div>
-                <h3 style=\"margin: 1rem 0 0.5rem;\">Allowed Origins</h3>
                 <div class=\"form-group\">
-                    <textarea name=\"allowed_origins\" rows=\"3\" placeholder=\"https://example.com (one per line)\">{origins}</textarea>
-                    <small class=\"muted\">One origin per line. Leave empty to allow all.</small>
+                    <label for=\"lf-custom-css\">{lbl_css}</label>
+                    <textarea id=\"lf-custom-css\" name=\"style_custom_css\" rows=\"3\">{s_css}</textarea>
+                </div>
+                <h3 style=\"margin: 1rem 0 0.5rem;\">{h3_origins}</h3>
+                <div class=\"form-group\">
+                    <label for=\"lf-origins\" class=\"sr-only\">{h3_origins}</label>
+                    <textarea id=\"lf-origins\" name=\"allowed_origins\" rows=\"3\" placeholder=\"{ph_origins}\">{origins}</textarea>
+                    <small class=\"muted\">{help_origins}</small>
                 </div>
                 <div style=\"display: flex; justify-content: flex-end;\">
-                    <button type=\"submit\" class=\"btn\">Save</button>
+                    <button type=\"submit\" class=\"btn\">{save}</button>
                 </div>
             </form>
         </div>
 
         <div class=\"card p-22\">
-            <h3>Embed Code</h3>
-            <p class=\"muted mb-8\">Copy and paste this into your website:</p>
+            <h3>{embed_h3}</h3>
+            <p class=\"muted mb-8\">{embed_lead}</p>
             <div class=\"row gap-8\">
                 <code class=\"block flex-1\" style=\"padding: 0.5rem; overflow-x: auto; white-space: nowrap;\">{embed_code}</code>
-                <button class=\"btn sm\" onclick=\"copyUrl(this, '{embed_raw}')\">Copy</button>
+                <button class=\"btn sm\" onclick=\"copyUrl(this, '{embed_raw}')\">{copy}</button>
             </div>
         </div>",
         base_url = base_url,
@@ -1225,6 +1226,31 @@ pub fn admin_lead_form_edit_html(
             slug = form.slug,
         ).replace('\'', "\\'"),
         hash = HASH,
+        back = t(locale, "admin-lf-edit-back"),
+        h1 = t(locale, "admin-lf-edit-h1"),
+        lbl_name = t(locale, "admin-lf-edit-name"),
+        lbl_enabled = t(locale, "admin-lf-edit-enabled"),
+        lbl_wa = t(locale, "admin-lf-edit-wa-account"),
+        lbl_reply_mode = t(locale, "admin-lf-edit-reply-mode"),
+        mode_static = t(locale, "admin-lf-edit-reply-mode-static"),
+        mode_ai = t(locale, "admin-lf-edit-reply-mode-ai"),
+        lbl_reply_prompt = t(locale, "admin-lf-edit-reply-prompt"),
+        h3_style = t(locale, "admin-lf-edit-style-h3"),
+        lbl_primary = t(locale, "admin-lf-edit-style-primary"),
+        lbl_text = t(locale, "admin-lf-edit-style-text"),
+        lbl_bg = t(locale, "admin-lf-edit-style-bg"),
+        lbl_radius = t(locale, "admin-lf-edit-style-radius"),
+        lbl_button = t(locale, "admin-lf-edit-style-button"),
+        lbl_placeholder = t(locale, "admin-lf-edit-style-placeholder"),
+        lbl_success = t(locale, "admin-lf-edit-style-success"),
+        lbl_css = t(locale, "admin-lf-edit-style-css"),
+        h3_origins = t(locale, "admin-lf-edit-origins-h3"),
+        ph_origins = html_escape(&t(locale, "admin-lf-edit-origins-placeholder")),
+        help_origins = t(locale, "admin-lf-edit-origins-help"),
+        save = t(locale, "admin-lf-edit-save"),
+        embed_h3 = t(locale, "admin-lf-edit-embed-h3"),
+        embed_lead = t(locale, "admin-lf-edit-embed-lead"),
+        copy = t(locale, "admin-lf-edit-embed-copy"),
     );
 
     base_html(&t(locale, "admin-lf-edit-title"), &content, locale)
