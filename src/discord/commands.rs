@@ -42,7 +42,7 @@ async fn handle_status(kv: &kv::KvStore, env: &Env, tenant_id: &str) -> Result<R
     let ig_accounts = list_instagram_accounts(kv, tenant_id).await?;
     let addrs = get_email_addresses(kv, tenant_id).await?;
     let base_domain = env
-        .var("EMAIL_BASE_DOMAIN")
+        .var("EMAIL_DOMAIN")
         .map(|v| v.to_string())
         .unwrap_or_default();
 

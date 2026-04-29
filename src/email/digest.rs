@@ -52,7 +52,7 @@ pub async fn sweep(env: &Env) -> Result<()> {
         .unwrap_or_else(|| "https://concierge.calculon.tech".to_string());
     let from_addr = format!(
         "noreply@{}",
-        env.var("EMAIL_BASE_DOMAIN")
+        env.var("EMAIL_DOMAIN")
             .ok()
             .map(|v| v.to_string())
             .filter(|s| !s.is_empty())

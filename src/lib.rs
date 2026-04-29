@@ -187,7 +187,7 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     // Redirect cncg.email (and subdomains) to the main site
     let host = url.host_str().unwrap_or("");
     let email_base = env
-        .var("EMAIL_BASE_DOMAIN")
+        .var("EMAIL_DOMAIN")
         .map(|v| v.to_string())
         .unwrap_or_default();
     if !email_base.is_empty() && (host == email_base || host.ends_with(&format!(".{email_base}"))) {

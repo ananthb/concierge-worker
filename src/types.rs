@@ -538,7 +538,7 @@ pub struct InstagramDm {
 // ============================================================================
 
 /// One concierge email address owned by a tenant. The full address is
-/// `{local_part}@{EMAIL_BASE_DOMAIN}` (the platform's single email domain).
+/// `{local_part}@{EMAIL_DOMAIN}` (the platform's single email domain).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EmailAddress {
     pub local_part: String,

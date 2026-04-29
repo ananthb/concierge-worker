@@ -289,7 +289,7 @@ async fn render_step(
             let email_addrs = get_email_addresses(kv, tenant_id).await?;
             let slug = crate::helpers::generate_slug().unwrap_or_else(|_| "my-biz".into());
             let base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
+                .var("EMAIL_DOMAIN")
                 .map(|v| v.to_string())
                 .unwrap_or_default();
             let discord = get_discord_config_by_tenant(kv, tenant_id).await?;
@@ -320,7 +320,7 @@ async fn render_step(
         OnboardingStep::Launch => {
             let email_addrs = get_email_addresses(kv, tenant_id).await?;
             let base_domain = env
-                .var("EMAIL_BASE_DOMAIN")
+                .var("EMAIL_DOMAIN")
                 .map(|v| v.to_string())
                 .unwrap_or_default();
             let db = env.d1("DB")?;

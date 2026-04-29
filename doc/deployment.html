@@ -197,7 +197,6 @@
                 <tr><td><code>INSTAGRAM_VERIFY_TOKEN</code></td><td class="muted">Instagram DM webhook verifier.</td></tr>
                 <tr><td><code>DISCORD_PUBLIC_KEY</code> / <code>DISCORD_APPLICATION_ID</code> / <code>DISCORD_BOT_TOKEN</code></td><td class="muted">Discord interactions + bot.</td></tr>
                 <tr><td><code>RAZORPAY_KEY_ID</code> / <code>RAZORPAY_KEY_SECRET</code> / <code>RAZORPAY_WEBHOOK_SECRET</code></td><td class="muted">Only if billing is enabled.</td></tr>
-                <tr><td><code>CF_DNS_API_TOKEN</code></td><td class="muted">Cloudflare API token with DNS Edit on the email zone &mdash; needed only for tenant subdomain provisioning.</td></tr>
               </tbody>
             </table>
           </div>
@@ -205,7 +204,7 @@
 
         <li>
           <h3>Set runtime variables in the dashboard</h3>
-          <p>Plain-text vars live alongside the secrets, under <strong>Variables and Secrets &rsaquo; Variables</strong>. <code>EMAIL_BASE_DOMAIN</code> is the only var the repo ships with a default for (<code>cncg.email</code>); the rest you set per-deployment:</p>
+          <p>Plain-text vars live alongside the secrets, under <strong>Variables and Secrets &rsaquo; Variables</strong>. Set each one per-deployment:</p>
           <div class="table-wrap">
             <table class="docs">
               <thead><tr><th>Variable</th><th>What it&rsquo;s for</th></tr></thead>
@@ -214,7 +213,7 @@
                 <tr><td><code>CF_ACCESS_AUD</code></td><td class="muted">Application Audience (AUD) tag from your Access app for <code>/manage/*</code>.</td></tr>
                 <tr><td><code>WHATSAPP_WABA_ID</code></td><td class="muted">Your WhatsApp Business Account ID.</td></tr>
                 <tr><td><code>WHATSAPP_SIGNUP_CONFIG_ID</code></td><td class="muted">Meta Embedded Signup configuration ID.</td></tr>
-                <tr><td><code>EMAIL_ZONE_ID</code></td><td class="muted">Cloudflare zone ID for <code>EMAIL_BASE_DOMAIN</code>. Used by the DNS provisioning code path.</td></tr>
+                <tr><td><code>EMAIL_DOMAIN</code></td><td class="muted">Email domain you control. Set MX records on its apex and add it to Cloudflare Email Routing.</td></tr>
                 <tr><td><code>AI_MODEL</code> / <code>AI_FAST_MODEL</code></td><td class="muted">Optional overrides for the reply and injection-scanning models.</td></tr>
               </tbody>
             </table>
@@ -262,13 +261,12 @@
 
         <li>
           <h3>Set up email routing</h3>
-          <p>Cloudflare Email Routing handles inbound mail for the domain in <code>EMAIL_BASE_DOMAIN</code>. To finish:</p>
+          <p>Cloudflare Email Routing handles inbound mail for the domain in <code>EMAIL_DOMAIN</code>. To finish:</p>
           <ol>
             <li>In the Cloudflare dashboard, open <strong>Email Routing</strong> for your email domain.</li>
             <li>Add a <strong>catch&#8209;all</strong> routing rule: <em>Action</em> → <strong>Send to a Worker</strong> → select <code>concierge</code>.</li>
-            <li>Set the DNS API token if you intend to provision tenant subdomains automatically: <code>wrangler secret put CF_DNS_API_TOKEN</code> (a CF API token with DNS Edit on the email zone).</li>
           </ol>
-          <p>Tenant subdomains (e.g.&nbsp;<code>acme.cncg.email</code>) are provisioned via the admin panel; MX records are auto&#8209;discovered from the apex domain. See <a href="email-routing.html">Email routing</a>.</p>
+          <p>See <a href="email-routing.html">Email routing</a> for the per-tenant address model.</p>
         </li>
 
         <li>

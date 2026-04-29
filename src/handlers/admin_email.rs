@@ -33,7 +33,7 @@ pub async fn handle_email_admin(
 
     let method = req.method();
     let base_domain = env
-        .var("EMAIL_BASE_DOMAIN")
+        .var("EMAIL_DOMAIN")
         .map(|v| v.to_string())
         .unwrap_or_default();
 

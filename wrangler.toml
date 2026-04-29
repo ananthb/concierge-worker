@@ -85,7 +85,7 @@ name = "EMAIL"
 
 [vars]
 ENVIRONMENT = "production"
-EMAIL_BASE_DOMAIN = "cncg.email" # Single platform email domain. MX records on the apex.
+EMAIL_DOMAIN = "cncg.email" # Single platform email domain. MX records on the apex.
 
 # ============================================================================
 # Cron triggers:
@@ -133,4 +133,3 @@ invocation_logs = true
 #   RAZORPAY_KEY_ID            Razorpay key ID
 #   RAZORPAY_KEY_SECRET        Razorpay key secret
 #   RAZORPAY_WEBHOOK_SECRET    Razorpay webhook secret
-#   CF_DNS_API_TOKEN           Cloudflare API token (DNS edit on email zone)

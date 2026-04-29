@@ -120,7 +120,7 @@
             <tr><td><code>CF_ACCESS_AUD</code></td><td class="muted">Cloudflare Access Application Audience (AUD) tag for <code>/manage/*</code>.</td></tr>
             <tr><td><code>WHATSAPP_WABA_ID</code></td><td class="muted">Your WhatsApp Business Account ID.</td></tr>
             <tr><td><code>WHATSAPP_SIGNUP_CONFIG_ID</code></td><td class="muted">Meta Embedded Signup configuration ID.</td></tr>
-            <tr><td><code>EMAIL_BASE_DOMAIN</code></td><td class="muted">Single platform email domain (default <code>cncg.email</code>). MX records configured manually on the apex.</td></tr>
+            <tr><td><code>EMAIL_DOMAIN</code></td><td class="muted">Single platform email domain. Set to a domain you control; configure MX records manually on its apex and wire it into Cloudflare Email Routing.</td></tr>
             <tr><td><code>AI_MODEL</code></td><td class="muted">Optional override for the Workers AI model used for replies. Default <code>@cf/meta/llama-4-scout-17b-16e-instruct</code>.</td></tr>
             <tr><td><code>AI_FAST_MODEL</code></td><td class="muted">Optional override for the fast classifier model (prompt&#8209;injection scan + persona safety check). Default <code>@cf/meta/llama-3.1-8b-instruct-fast</code>.</td></tr>
           </tbody>
@@ -212,23 +212,6 @@
         </table>
       </div>
 
-      <h3 id="dns">Cloudflare DNS <span class="pill" style="margin-left:8px;vertical-align:middle">optional</span></h3>
-      <div class="table-wrap">
-        <div class="table-wrap__head">
-          <b>Email subdomain provisioning</b><span>required if you sell email subdomains</span>
-          <span class="count">1 secret</span>
-        </div>
-        <table class="docs">
-          <thead><tr><th style="width:32%">Secret</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><code>CF_DNS_API_TOKEN</code></td>
-              <td class="muted">Cloudflare API token scoped to <em>DNS Edit</em> on the email zone. Used to create / delete MX records for tenant subdomains.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
       <h2 id="bindings">Bindings</h2>
       <p>Cloudflare resource bindings declared in <code>wrangler.toml</code>. The IDs come from the <a href="deployment.html">deployment guide</a>.</p>
 
@@ -316,7 +299,7 @@
 <span class="tok-v">CF_ACCESS_TEAM</span>        = <span class="tok-s">"calculon"</span>
 <span class="tok-v">CF_ACCESS_AUD</span>         = <span class="tok-s">"abcd1234…"</span>
 <span class="tok-v">WHATSAPP_WABA_ID</span>      = <span class="tok-s">"123456789012345"</span>
-<span class="tok-v">EMAIL_BASE_DOMAIN</span>     = <span class="tok-s">"cncg.email"</span>
+<span class="tok-v">EMAIL_DOMAIN</span>     = <span class="tok-s">"cncg.email"</span>
 
 <span class="tok-c"># Bindings</span>
 [[<span class="tok-k">d1_databases</span>]]
@@ -391,7 +374,6 @@
         <li class="lvl-3"><a href="#meta">Meta</a></li>
         <li class="lvl-3"><a href="#discord">Discord</a></li>
         <li class="lvl-3"><a href="#razorpay">Razorpay</a></li>
-        <li class="lvl-3"><a href="#dns">Cloudflare DNS</a></li>
         <li class="lvl-2"><a href="#bindings">Bindings</a></li>
         <li class="lvl-2"><a href="#queues">Cloudflare Queues</a></li>
         <li class="lvl-2"><a href="#locale">Locale</a></li>

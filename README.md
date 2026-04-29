@@ -53,7 +53,6 @@ To wire up your fork:
 - [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) (AI auto-replies)
 - [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/) (inbound email handling)
 - [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) (outbound delivery to arbitrary recipients via the `send_email` binding's structured API)
-- [Cloudflare DNS API](https://developers.cloudflare.com/api/resources/dns/) (MX + A/AAAA record provisioning for tenant subdomains)
 - Meta WhatsApp Business API + Instagram Graph API
 - Discord Interactions API (slash commands + cross-channel relay)
 - Razorpay (one-shot credit purchases + email subdomain subscriptions)

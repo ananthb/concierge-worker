@@ -42,7 +42,7 @@ pub async fn handle_email(
     }
 
     let base_domain = env
-        .var("EMAIL_BASE_DOMAIN")
+        .var("EMAIL_DOMAIN")
         .map(|v| v.to_string())
         .unwrap_or_default();
     if domain != base_domain {
