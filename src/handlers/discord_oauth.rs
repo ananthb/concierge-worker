@@ -204,11 +204,14 @@ async fn show_manage_page(
     let url = req.url()?;
     let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
     let from = query.get("from").map(|s| s.to_string()).unwrap_or_default();
+    let locale = crate::locale::Locale::from_request(req);
 
     match cfg {
         None => {
             // Not installed: render a simple CTA that kicks off the install.
-            Response::from_html(crate::templates::discord::install_cta_html(&from, base_url))
+            Response::from_html(crate::templates::discord::install_cta_html(
+                &from, base_url, &locale,
+            ))
         }
         Some(cfg) => {
             let bot_token = env
@@ -224,7 +227,7 @@ async fn show_manage_page(
                     .unwrap_or_default()
             };
             Response::from_html(crate::templates::discord::manage_html(
-                &cfg, &channels, &from, base_url,
+                &cfg, &channels, &from, base_url, &locale,
             ))
         }
     }

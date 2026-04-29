@@ -15,6 +15,7 @@ pub async fn handle_instagram_admin(
     tenant_id: &str,
 ) -> Result<Response> {
     let kv = env.kv("KV")?;
+    let locale = crate::locale::Locale::from_request(&req);
 
     let path_parts: Vec<&str> = path
         .strip_prefix("/admin/instagram")
@@ -30,7 +31,9 @@ pub async fn handle_instagram_admin(
         // List all Instagram accounts
         (Method::Get, []) => {
             let accounts = list_instagram_accounts(&kv, tenant_id).await?;
-            Response::from_html(admin_instagram_list_html(&accounts, base_url, tenant_id))
+            Response::from_html(admin_instagram_list_html(
+                &accounts, base_url, tenant_id, &locale,
+            ))
         }
 
         // Edit page for an Instagram account
@@ -42,7 +45,7 @@ pub async fn handle_instagram_admin(
             if account.tenant_id != tenant_id {
                 return Response::error("Not found", 404);
             }
-            Response::from_html(admin_instagram_edit_html(&account, base_url))
+            Response::from_html(admin_instagram_edit_html(&account, base_url, &locale))
         }
 
         // Update Instagram account

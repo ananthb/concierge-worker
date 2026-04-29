@@ -1,107 +1,149 @@
 //! Public /features page: short, scannable overview of every capability.
 
+use crate::i18n::t;
+use crate::locale::Locale;
+
 use super::base::{base_html_with_meta, public_nav_html, PageMeta};
 
-pub fn features_html() -> String {
-    let nav = public_nav_html("features");
+pub fn features_html(locale: &Locale) -> String {
+    let nav = public_nav_html("features", locale);
 
     let content = format!(
         r##"{nav}
 <article class="page narrow">
-  <h1 class="display-md m-0">One assistant. Every channel.</h1>
-  <p class="lead">Concierge replies for you on WhatsApp, Instagram, Discord, and email: instantly, in your voice, and only when it should.</p>
+  <h1 class="display-md m-0">{headline}</h1>
+  <p class="lead">{lead}</p>
 
-  <h2 class="mt-32 mb-12">Channels</h2>
+  <h2 class="mt-32 mb-12">{channels_h}</h2>
   <div class="channels-grid">
     <div class="card p-22">
-      <div class="eyebrow">WhatsApp Business</div>
-      <p class="m-0 mt-8">Connect a number, pick a tone, ship. Customer messages get an instant static or AI reply.</p>
+      <div class="eyebrow">{wa_eyebrow}</div>
+      <p class="m-0 mt-8">{wa_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Instagram DMs</div>
-      <p class="m-0 mt-8">Sign in with Meta, choose the business account. Replies go out through the official Graph API.</p>
+      <div class="eyebrow">{ig_eyebrow}</div>
+      <p class="m-0 mt-8">{ig_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Discord</div>
-      <p class="m-0 mt-8">Install the bot. The concierge replies when @-mentioned or in channels you designate.</p>
+      <div class="eyebrow">{dc_eyebrow}</div>
+      <p class="m-0 mt-8">{dc_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Email</div>
-      <p class="m-0 mt-8">Pick a name at <code>name@cncg.email</code>. Inbound mail gets a reply; you and your team get a copy via Cc/Bcc.</p>
+      <div class="eyebrow">{em_eyebrow}</div>
+      <p class="m-0 mt-8">{em_body}</p>
     </div>
   </div>
 
-  <h2 class="mt-32 mb-12">How it works</h2>
+  <h2 class="mt-32 mb-12">{how_h}</h2>
   <div class="channels-grid">
     <div class="card p-22">
-      <div class="eyebrow">1. Connect</div>
-      <p class="m-0 mt-8">5-minute wizard. Authenticate with your WhatsApp for Business, Instagram Pages, and Discord Channels.</p>
+      <div class="eyebrow">{s1_eyebrow}</div>
+      <p class="m-0 mt-8">{s1_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">2. Configure</div>
-      <p class="m-0 mt-8">Pick static or AI replies per channel. Set a persona: tone, business type, things to never say.</p>
+      <div class="eyebrow">{s2_eyebrow}</div>
+      <p class="m-0 mt-8">{s2_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">3. Run</div>
-      <p class="m-0 mt-8">Concierge replies to incoming messages for you in the channels you use. Pick up the conversation when you're ready!</p>
+      <div class="eyebrow">{s3_eyebrow}</div>
+      <p class="m-0 mt-8">{s3_body}</p>
     </div>
   </div>
 
-  <h2 class="mt-32 mb-12">AI you can trust</h2>
+  <h2 class="mt-32 mb-12">{trust_h}</h2>
   <div class="channels-grid">
     <div class="card p-22">
-      <div class="eyebrow">Voice and guardrails</div>
-      <p class="m-0 mt-8">Set tone, biz type, and things the AI must never do. Every reply respects those rules.</p>
+      <div class="eyebrow">{voice_eyebrow}</div>
+      <p class="m-0 mt-8">{voice_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Prompt-injection screening</div>
-      <p class="m-0 mt-8">Inbound text is scanned before it reaches the model. Suspicious messages are skipped, not auto-replied.</p>
+      <div class="eyebrow">{inj_eyebrow}</div>
+      <p class="m-0 mt-8">{inj_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Pay only for AI</div>
-      <p class="m-0 mt-8">Static auto-replies are free, forever. AI replies cost ₹2 / $0.02 each, with 100 free per month.</p>
+      <div class="eyebrow">{pay_eyebrow}</div>
+      <p class="m-0 mt-8">{pay_body}</p>
     </div>
   </div>
 
-  <h2 class="mt-32 mb-12">More that just works</h2>
+  <h2 class="mt-32 mb-12">{more_h}</h2>
   <div class="channels-grid">
     <div class="card p-22">
-      <div class="eyebrow">Lead capture</div>
-      <p class="m-0 mt-8">Embed a phone-number form on any page. Submissions trigger an instant WhatsApp message.</p>
+      <div class="eyebrow">{leads_eyebrow}</div>
+      <p class="m-0 mt-8">{leads_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Notification recipients</div>
-      <p class="m-0 mt-8">Add Cc/Bcc emails to any concierge address. We verify each one with a one-click link.</p>
+      <div class="eyebrow">{rec_eyebrow}</div>
+      <p class="m-0 mt-8">{rec_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Privacy by default</div>
-      <p class="m-0 mt-8">We log metadata, never message bodies. Account deletion wipes everything, immediately.</p>
+      <div class="eyebrow">{priv_eyebrow}</div>
+      <p class="m-0 mt-8">{priv_body}</p>
     </div>
     <div class="card p-22">
-      <div class="eyebrow">Open source</div>
-      <p class="m-0 mt-8">AGPL-3.0 on <a href="https://github.com/ananthb/concierge" target="_blank" rel="noopener">GitHub</a>. Self-host if you'd rather. <a href="https://ananthb.github.io/concierge/" target="_blank" rel="noopener">Architecture docs</a>.</p>
+      <div class="eyebrow">{os_eyebrow}</div>
+      <p class="m-0 mt-8">{os_body}</p>
     </div>
   </div>
 
   <section class="card p-22 mt-32 ta-center">
-    <h2 class="m-0">Ready to set this up?</h2>
-    <p class="muted mt-8 mb-16">Sign in with Google or Facebook. The wizard takes 5 minutes.</p>
+    <h2 class="m-0">{cta_h}</h2>
+    <p class="muted mt-8 mb-16">{cta_body}</p>
     <div class="row gap-12 jc-center">
-      <a href="/auth/login" class="btn primary lg">Get started &rarr;</a>
-      <a href="/pricing" class="btn ghost lg">See pricing</a>
+      <a href="/auth/login" class="btn primary lg">{cta_primary}</a>
+      <a href="/pricing" class="btn ghost lg">{cta_secondary}</a>
     </div>
   </section>
 </article>"##,
         nav = nav,
+        headline = t(locale, "features-headline"),
+        lead = t(locale, "features-lead"),
+        channels_h = t(locale, "features-channels-heading"),
+        wa_eyebrow = t(locale, "features-card-whatsapp-eyebrow"),
+        wa_body = t(locale, "features-card-whatsapp-body"),
+        ig_eyebrow = t(locale, "features-card-instagram-eyebrow"),
+        ig_body = t(locale, "features-card-instagram-body"),
+        dc_eyebrow = t(locale, "features-card-discord-eyebrow"),
+        dc_body = t(locale, "features-card-discord-body"),
+        em_eyebrow = t(locale, "features-card-email-eyebrow"),
+        em_body = t(locale, "features-card-email-body"),
+        how_h = t(locale, "features-how-heading"),
+        s1_eyebrow = t(locale, "features-card-step-1-eyebrow"),
+        s1_body = t(locale, "features-card-step-1-body"),
+        s2_eyebrow = t(locale, "features-card-step-2-eyebrow"),
+        s2_body = t(locale, "features-card-step-2-body"),
+        s3_eyebrow = t(locale, "features-card-step-3-eyebrow"),
+        s3_body = t(locale, "features-card-step-3-body"),
+        trust_h = t(locale, "features-trust-heading"),
+        voice_eyebrow = t(locale, "features-card-voice-eyebrow"),
+        voice_body = t(locale, "features-card-voice-body"),
+        inj_eyebrow = t(locale, "features-card-injection-eyebrow"),
+        inj_body = t(locale, "features-card-injection-body"),
+        pay_eyebrow = t(locale, "features-card-pay-eyebrow"),
+        pay_body = t(locale, "features-card-pay-body"),
+        more_h = t(locale, "features-more-heading"),
+        leads_eyebrow = t(locale, "features-card-leads-eyebrow"),
+        leads_body = t(locale, "features-card-leads-body"),
+        rec_eyebrow = t(locale, "features-card-recipients-eyebrow"),
+        rec_body = t(locale, "features-card-recipients-body"),
+        priv_eyebrow = t(locale, "features-card-privacy-eyebrow"),
+        priv_body = t(locale, "features-card-privacy-body"),
+        os_eyebrow = t(locale, "features-card-os-eyebrow"),
+        os_body = t(locale, "features-card-os-body"),
+        cta_h = t(locale, "features-cta-heading"),
+        cta_body = t(locale, "features-cta-body"),
+        cta_primary = t(locale, "features-cta-primary"),
+        cta_secondary = t(locale, "features-cta-secondary"),
     );
 
     base_html_with_meta(
         "Features - Concierge",
         &content,
         &PageMeta {
-            description: "Concierge auto-replies on WhatsApp, Instagram, Discord, and email. Static replies free; AI replies ₹2 / $0.02 with 100 free per month. 5-minute setup. Open source.",
-            og_title: "Concierge Features",
-            ..PageMeta::default()
+            description: t(locale, "features-meta-description"),
+            og_title: t(locale, "features-og-title"),
+            og_type: "website",
         },
+        locale,
     )
 }

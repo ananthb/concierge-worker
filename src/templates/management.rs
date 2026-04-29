@@ -1,12 +1,19 @@
 //! Management panel templates: super-admin UI
 
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::types::*;
 
 use super::base::{base_html, brand_mark};
 use super::HASH;
 
-fn manage_shell(title: &str, content: &str, active: &str, base_url: &str) -> String {
+fn manage_shell(
+    title: &str,
+    content: &str,
+    active: &str,
+    base_url: &str,
+    locale: &Locale,
+) -> String {
     let nav_items = [
         ("Dashboard", "/manage"),
         ("Tenants", "/manage/tenants"),
@@ -38,7 +45,7 @@ fn manage_shell(title: &str, content: &str, active: &str, base_url: &str) -> Str
         content = content,
     );
 
-    base_html(title, &inner)
+    base_html(title, &inner, locale)
 }
 
 pub fn dashboard_html(
@@ -46,6 +53,7 @@ pub fn dashboard_html(
     tenant_count: usize,
     health: &crate::handlers::health::HealthReport,
     base_url: &str,
+    locale: &Locale,
 ) -> String {
     let health_panel = health_panel_html(health);
     let content = format!(
@@ -89,7 +97,13 @@ pub fn dashboard_html(
         base_url = base_url,
     );
 
-    manage_shell("Management - Concierge", &content, "Dashboard", base_url)
+    manage_shell(
+        "Management - Concierge",
+        &content,
+        "Dashboard",
+        base_url,
+        locale,
+    )
 }
 
 fn health_panel_html(report: &crate::handlers::health::HealthReport) -> String {
@@ -141,7 +155,7 @@ fn health_panel_html(report: &crate::handlers::health::HealthReport) -> String {
     )
 }
 
-pub fn tenants_list_html(tenants: &[Tenant], base_url: &str) -> String {
+pub fn tenants_list_html(tenants: &[Tenant], base_url: &str, locale: &Locale) -> String {
     let rows: String = tenants
         .iter()
         .map(|t| {
@@ -192,7 +206,7 @@ pub fn tenants_list_html(tenants: &[Tenant], base_url: &str) -> String {
         empty = empty,
     );
 
-    manage_shell("Tenants - Concierge", &content, "Tenants", base_url)
+    manage_shell("Tenants - Concierge", &content, "Tenants", base_url, locale)
 }
 
 pub fn tenant_detail_html(
@@ -201,6 +215,7 @@ pub fn tenant_detail_html(
     ig: &[InstagramAccount],
     addrs: &[EmailAddress],
     base_url: &str,
+    locale: &Locale,
 ) -> String {
     let wa_list: String = wa
         .iter()
@@ -244,7 +259,7 @@ pub fn tenant_detail_html(
     </div>
     <button class="btn ghost sm btn-danger" hx-delete="{base_url}/manage/tenants/{id}" hx-confirm="Delete this tenant and ALL their data?">Delete tenant</button>
   </div>
-  <div id="toast"></div>
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="card p-18 mb-16">
     <h3 class="mb-12">Plan</h3>
     <form hx-put="{base_url}/manage/tenants/{id}" hx-target="{hash}toast" hx-swap="innerHTML">
@@ -314,10 +329,11 @@ pub fn tenant_detail_html(
         &content,
         "Tenants",
         base_url,
+        locale,
     )
 }
 
-pub fn audit_html(log: &[serde_json::Value], base_url: &str) -> String {
+pub fn audit_html(log: &[serde_json::Value], base_url: &str, locale: &Locale) -> String {
     let rows: String = log
         .iter()
         .map(|entry| {
@@ -377,10 +393,16 @@ pub fn audit_html(log: &[serde_json::Value], base_url: &str) -> String {
         empty = empty,
     );
 
-    manage_shell("Audit Log - Concierge", &content, "Audit Log", base_url)
+    manage_shell(
+        "Audit Log - Concierge",
+        &content,
+        "Audit Log",
+        base_url,
+        locale,
+    )
 }
 
-pub fn billing_overview_html(base_url: &str) -> String {
+pub fn billing_overview_html(base_url: &str, locale: &Locale) -> String {
     let content = format!(
         r##"<div class="page-pad">
   <div class="eyebrow">Billing</div>
@@ -409,5 +431,5 @@ pub fn billing_overview_html(base_url: &str) -> String {
         hash = HASH,
     );
 
-    manage_shell("Billing - Concierge", &content, "Billing", base_url)
+    manage_shell("Billing - Concierge", &content, "Billing", base_url, locale)
 }

@@ -26,12 +26,13 @@ pub async fn handle_lead_forms_admin(
         .collect();
 
     let method = req.method();
+    let locale = crate::locale::Locale::from_request(&req);
 
     match (method, path_parts.as_slice()) {
         // List all lead forms
         (Method::Get, []) => {
             let forms = list_lead_forms(&kv, tenant_id).await?;
-            Response::from_html(admin_lead_forms_list_html(&forms, base_url))
+            Response::from_html(admin_lead_forms_list_html(&forms, base_url, &locale))
         }
 
         // Create new lead form (GET /admin/lead-forms/new or POST /admin/lead-forms)
@@ -75,6 +76,7 @@ pub async fn handle_lead_forms_admin(
                 &form,
                 &whatsapp_accounts,
                 base_url,
+                &locale,
             ))
         }
 

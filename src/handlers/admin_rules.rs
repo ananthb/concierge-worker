@@ -183,6 +183,7 @@ pub async fn handle_rules(
 ) -> Result<Response> {
     let kv = env.kv("KV")?;
     let method = req.method();
+    let locale = crate::locale::Locale::from_request(&req);
 
     let Some((channel, rest)) = parse_path(path) else {
         return Response::error("Not Found", 404);
@@ -197,7 +198,9 @@ pub async fn handle_rules(
     let rest_slice: Vec<&str> = rest.iter().copied().collect();
     match (method, rest_slice.as_slice()) {
         // List page
-        (Method::Get, []) => Response::from_html(rules_list_html(&cfg, &channel, base_url)),
+        (Method::Get, []) => {
+            Response::from_html(rules_list_html(&cfg, &channel, base_url, &locale))
+        }
 
         // New-rule form
         (Method::Get, ["new"]) => Response::from_html(rule_form_html(
@@ -206,6 +209,7 @@ pub async fn handle_rules(
             base_url,
             "Add a rule",
             allow_no_gate,
+            &locale,
         )),
 
         // Create rule
@@ -234,6 +238,7 @@ pub async fn handle_rules(
             base_url,
             "Edit default reply",
             allow_no_gate,
+            &locale,
         )),
 
         // Update default rule
@@ -279,6 +284,7 @@ pub async fn handle_rules(
                 base_url,
                 rule_form_title(&existing),
                 allow_no_gate,
+                &locale,
             ))
         }
 

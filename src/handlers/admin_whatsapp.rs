@@ -26,12 +26,13 @@ pub async fn handle_whatsapp_admin(
         .collect();
 
     let method = req.method();
+    let locale = crate::locale::Locale::from_request(&req);
 
     match (method, path_parts.as_slice()) {
         // List all WhatsApp accounts
         (Method::Get, []) => {
             let accounts = list_whatsapp_accounts(&kv, tenant_id).await?;
-            Response::from_html(admin_whatsapp_list_html(&accounts, base_url))
+            Response::from_html(admin_whatsapp_list_html(&accounts, base_url, &locale))
         }
 
         // Embedded Signup page
@@ -53,7 +54,7 @@ pub async fn handle_whatsapp_admin(
                 .await?;
 
             Response::from_html(admin_whatsapp_signup_html(
-                base_url, &app_id, &config_id, &state,
+                base_url, &app_id, &config_id, &state, &locale,
             ))
         }
 
@@ -89,7 +90,7 @@ pub async fn handle_whatsapp_admin(
             if account.tenant_id != tenant_id {
                 return Response::error("Not found", 404);
             }
-            Response::from_html(admin_whatsapp_edit_html(&account, base_url))
+            Response::from_html(admin_whatsapp_edit_html(&account, base_url, &locale))
         }
 
         // Update WhatsApp account

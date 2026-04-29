@@ -6,12 +6,13 @@
 
 use crate::approvals::queue_reason_label;
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::types::{PendingApproval, QueueReason};
 
 use super::base::{app_shell, base_html};
 use super::HASH;
 
-pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str) -> String {
+pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str, locale: &Locale) -> String {
     let list = approvals_list_inner_html(rows);
     // SSE listener fires on every push; HTMX refetches /list when it
     // hears the event. Polling every 30s is the belt-and-suspenders
@@ -22,6 +23,9 @@ pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str) -> String {
   <p class="muted mb-16">AI drafts that paused for review. Approve, reject, or edit and send.</p>
 
   <div id="approvals-list"
+    role="region"
+    aria-live="polite"
+    aria-atomic="false"
     hx-get="/admin/approvals/list"
     hx-trigger="sse:approval-changed, every 30s"
     hx-swap="outerHTML">
@@ -30,8 +34,8 @@ pub fn approvals_page_html(rows: &[PendingApproval], base_url: &str) -> String {
 </div>"##,
         list = list,
     );
-    let page = app_shell(&body, "Approvals", base_url);
-    base_html("Approvals - Concierge", &page)
+    let page = app_shell(&body, "Approvals", base_url, locale);
+    base_html("Approvals - Concierge", &page, locale)
 }
 
 /// Render just the inner list. Returned by GET `/admin/approvals/list`,
@@ -41,6 +45,9 @@ pub fn approvals_list_html(rows: &[PendingApproval]) -> String {
     let inner = approvals_list_inner_html(rows);
     format!(
         r##"<div id="approvals-list"
+  role="region"
+  aria-live="polite"
+  aria-atomic="false"
   hx-get="/admin/approvals/list"
   hx-trigger="sse:approval-changed, every 30s"
   hx-swap="outerHTML">

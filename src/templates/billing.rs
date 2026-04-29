@@ -178,8 +178,8 @@ pub fn billing_overview_with_addresses_html(
         address_card = address_card,
     );
 
-    let page = app_shell(&content, "Billing", base_url);
-    base_html("Billing - Concierge", &page)
+    let page = app_shell(&content, "Billing", base_url, locale);
+    base_html("Billing - Concierge", &page, locale)
 }
 
 pub fn checkout_html(
@@ -245,7 +245,7 @@ document.getElementById("pay-btn").addEventListener("click", function() {{
         return_to = return_to,
     );
 
-    base_html("Checkout - Concierge", &content)
+    base_html("Checkout - Concierge", &content, locale)
 }
 
 /// Checkout for one extra email address (one-time, ₹99 / $1).
@@ -306,5 +306,5 @@ document.getElementById("pay-btn").addEventListener("click", function() {{
         base_url = base_url,
     );
 
-    base_html("Extra email address: Concierge", &content)
+    base_html("Extra email address: Concierge", &content, locale)
 }

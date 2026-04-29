@@ -31,6 +31,7 @@ pub async fn handle_approvals(
     let db = env.d1("DB")?;
     let method = req.method();
     let _ = base_url;
+    let locale = crate::locale::Locale::from_request(&req);
 
     // Strip the "/admin/approvals" prefix; what remains is "" for the
     // index page or "/{id}/{action}" for per-approval actions.
@@ -39,7 +40,7 @@ pub async fn handle_approvals(
     match (method, rest) {
         (Method::Get, "" | "/") => {
             let rows = approvals::list_pending(&db, tenant_id).await?;
-            Response::from_html(approvals_page_html(&rows, base_url))
+            Response::from_html(approvals_page_html(&rows, base_url, &locale))
         }
 
         (Method::Get, "/list") => {

@@ -23,9 +23,11 @@ pub async fn handle_billing(
         .filter(|s| !s.is_empty())
         .collect();
 
+    let locale = crate::locale::Locale::from_request(&req);
+
     match (method, parts.as_slice()) {
         // Billing overview — grant-credits form lives here.
-        (Method::Get, []) => Response::from_html(tmpl::billing_overview_html(base_url)),
+        (Method::Get, []) => Response::from_html(tmpl::billing_overview_html(base_url, &locale)),
 
         // Grant credits to a tenant with expiry
         (Method::Post, ["grant", tenant_id]) => {

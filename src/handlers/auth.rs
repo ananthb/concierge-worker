@@ -29,6 +29,7 @@ struct GoogleUserInfo {
 /// Handle auth routes (/auth/*)
 pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> Result<Response> {
     let base_url = get_base_url(&req);
+    let locale = crate::locale::Locale::from_request(&req);
 
     match (method, path) {
         (Method::Get, "/auth/login") => {
@@ -55,6 +56,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 &google_client_id,
                 &meta_app_id,
                 last_provider.as_deref(),
+                &locale,
             );
 
             Ok(Response::from_html(html)?)

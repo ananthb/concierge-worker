@@ -16,6 +16,7 @@ pub async fn handle_wizard(
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;
     let mut state = get_onboarding(&kv, tenant_id).await?;
+    let locale = crate::locale::Locale::from_request(&req);
 
     let sub = path
         .strip_prefix("/admin/wizard")
@@ -29,7 +30,8 @@ pub async fn handle_wizard(
     if req.method() == Method::Get {
         if let Some(requested) = OnboardingStep::from_wire(sub) {
             if requested.index() <= state.step.index() {
-                return render_step(requested, &state, &kv, &env, tenant_id, base_url).await;
+                return render_step(requested, &state, &kv, &env, tenant_id, base_url, &locale)
+                    .await;
             }
             let headers = Headers::new();
             headers.set(
@@ -146,6 +148,7 @@ pub async fn handle_wizard(
                 &env,
                 tenant_id,
                 base_url,
+                &locale,
             )
             .await
         }
@@ -173,6 +176,7 @@ pub async fn handle_wizard(
                 &env,
                 tenant_id,
                 base_url,
+                &locale,
             )
             .await
         }
@@ -280,9 +284,12 @@ async fn render_step(
     env: &Env,
     tenant_id: &str,
     base_url: &str,
+    locale: &crate::locale::Locale,
 ) -> Result<Response> {
     match step {
-        OnboardingStep::Basics => Response::from_html(basics_html(&state.business, base_url)),
+        OnboardingStep::Basics => {
+            Response::from_html(basics_html(&state.business, base_url, locale))
+        }
         OnboardingStep::Channels => {
             let wa = list_whatsapp_accounts(kv, tenant_id).await?;
             let ig = list_instagram_accounts(kv, tenant_id).await?;
@@ -302,6 +309,7 @@ async fn render_step(
                 tenant_id,
                 discord.as_ref(),
                 base_url,
+                locale,
             ))
         }
         OnboardingStep::Notifications => {
@@ -310,12 +318,14 @@ async fn render_step(
                 &state.notifications,
                 dc_installed,
                 base_url,
+                locale,
             ))
         }
         OnboardingStep::Replies => Response::from_html(replies_html(
             &state.persona,
             state.default_wait_seconds,
             base_url,
+            locale,
         )),
         OnboardingStep::Launch => {
             let email_addrs = get_email_addresses(kv, tenant_id).await?;
@@ -327,8 +337,17 @@ async fn render_step(
             let tenant = crate::storage::get_tenant(&db, tenant_id)
                 .await?
                 .unwrap_or_default();
-            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
-            Response::from_html(launch_html(&email_addrs, &base_domain, &locale, base_url))
+            // Use tenant's stored locale for the launch step (which contains
+            // pricing). Falls back to the request locale if tenant has no
+            // currency set.
+            let tenant_locale =
+                crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
+            Response::from_html(launch_html(
+                &email_addrs,
+                &base_domain,
+                &tenant_locale,
+                base_url,
+            ))
         }
     }
 }

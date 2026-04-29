@@ -6,12 +6,13 @@
 //! decides which source variant to construct.
 
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::personas;
 use crate::types::{PersonaConfig, PersonaPreset, PersonaSafetyStatus, PersonaSource};
 
 use super::base::{app_shell, base_html};
 
-pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str) -> String {
+pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str, locale: &Locale) -> String {
     // Active mode + a shadow copy of every field so switching modes doesn't
     // lose user input.
     let (active_mode, active_preset_slug, builder, custom_prompt) = match &persona.source {
@@ -95,40 +96,41 @@ pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str) -> String {
       </div>
 
       <!-- BUILDER -->
-      <div x-show="mode === 'builder'" x-cloak>
+      <div x-show="mode === 'builder'" x-cloak :aria-hidden="mode !== 'builder'">
         <p class="muted fs-13 mb-12">Fill in the fields and we'll compose the prompt for you. Switch to Custom mode if you want to write the whole thing yourself.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
-            <label class="eyebrow lbl">Type of business</label>
-            <input class="input" name="biz_type" x-model="builder.biz_type" placeholder="florist, hair salon, cafe...">
+            <label for="persona-biz-type" class="eyebrow lbl">Type of business</label>
+            <input id="persona-biz-type" class="input" name="biz_type" x-model="builder.biz_type" placeholder="florist, hair salon, cafe...">
           </div>
           <div>
-            <label class="eyebrow lbl">City (optional)</label>
-            <input class="input" name="city" x-model="builder.city" placeholder="Chennai, Berlin...">
+            <label for="persona-city" class="eyebrow lbl">City (optional)</label>
+            <input id="persona-city" class="input" name="city" x-model="builder.city" placeholder="Chennai, Berlin...">
           </div>
           <div>
-            <label class="eyebrow lbl">Tone</label>
-            <input class="input" name="tone" x-model="builder.tone" placeholder="warm and friendly, concise and professional...">
+            <label for="persona-tone" class="eyebrow lbl">Tone</label>
+            <input id="persona-tone" class="input" name="tone" x-model="builder.tone" placeholder="warm and friendly, concise and professional...">
           </div>
           <div>
-            <label class="eyebrow lbl">Never (one boundary)</label>
-            <input class="input" name="never" x-model="builder.never" placeholder="quote prices, promise dates...">
+            <label for="persona-never" class="eyebrow lbl">Never (one boundary)</label>
+            <input id="persona-never" class="input" name="never" x-model="builder.never" placeholder="quote prices, promise dates...">
           </div>
         </div>
         <div class="mt-12">
-          <label class="eyebrow lbl">Catch-phrases (one per line, max 5)</label>
-          <textarea class="textarea" name="catch_phrases" x-model="builder.catch_phrases" rows="3" placeholder="One catch-phrase per line"></textarea>
+          <label for="persona-catch-phrases" class="eyebrow lbl">Catch-phrases (one per line, max 5)</label>
+          <textarea id="persona-catch-phrases" class="textarea" name="catch_phrases" x-model="builder.catch_phrases" rows="3" placeholder="One catch-phrase per line"></textarea>
         </div>
         <div class="mt-12">
-          <label class="eyebrow lbl">Off-topic subjects (one per line, max 10)</label>
-          <textarea class="textarea" name="off_topics" x-model="builder.off_topics" rows="3" placeholder="politics, medical advice, refunds..."></textarea>
+          <label for="persona-off-topics" class="eyebrow lbl">Off-topic subjects (one per line, max 10)</label>
+          <textarea id="persona-off-topics" class="textarea" name="off_topics" x-model="builder.off_topics" rows="3" placeholder="politics, medical advice, refunds..."></textarea>
         </div>
       </div>
 
       <!-- CUSTOM -->
-      <div x-show="mode === 'custom'" x-cloak>
+      <div x-show="mode === 'custom'" x-cloak :aria-hidden="mode !== 'custom'">
         <p class="muted fs-13 mb-12">Write the entire system prompt yourself. Up to 2000 characters.</p>
-        <textarea class="textarea mono" name="custom_prompt" x-model="customPrompt" rows="12" maxlength="2000" placeholder="You are a helpful assistant for..."></textarea>
+        <label for="persona-custom-prompt" class="sr-only">System prompt</label>
+        <textarea id="persona-custom-prompt" class="textarea mono" name="custom_prompt" x-model="customPrompt" rows="12" maxlength="2000" placeholder="You are a helpful assistant for..."></textarea>
         <p class="muted fs-12 mt-4"><span x-text="customPrompt.length"></span> / 2000</p>
       </div>
 
@@ -155,8 +157,8 @@ pub fn persona_admin_html(persona: &PersonaConfig, base_url: &str) -> String {
         x_data = build_x_data(active_mode, active_preset_slug, &builder, &custom_prompt),
     );
 
-    let page = app_shell(&body, "Persona", base_url);
-    base_html("Persona — Concierge", &page)
+    let page = app_shell(&body, "Persona", base_url, locale);
+    base_html("Persona — Concierge", &page, locale)
 }
 
 fn render_safety_badge(persona: &PersonaConfig) -> String {

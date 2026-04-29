@@ -24,11 +24,13 @@ pub async fn handle_tenants(
         .filter(|s| !s.is_empty())
         .collect();
 
+    let locale = crate::locale::Locale::from_request(&req);
+
     match (method, parts.as_slice()) {
         // List all tenants
         (Method::Get, []) => {
             let tenants = list_tenants(db).await?;
-            Response::from_html(tmpl::tenants_list_html(&tenants, base_url))
+            Response::from_html(tmpl::tenants_list_html(&tenants, base_url, &locale))
         }
 
         // View single tenant
@@ -41,7 +43,7 @@ pub async fn handle_tenants(
             let ig = list_instagram_accounts(kv, id).await?;
             let addrs = get_email_addresses(kv, id).await?;
             Response::from_html(tmpl::tenant_detail_html(
-                &tenant, &wa, &ig, &addrs, base_url,
+                &tenant, &wa, &ig, &addrs, base_url, &locale,
             ))
         }
 

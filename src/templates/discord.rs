@@ -1,13 +1,14 @@
 //! Discord management page: install CTA + channel picker + uninstall.
 
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::types::DiscordConfig;
 
 use super::base::{app_shell, base_html};
 use super::HASH;
 
 /// Render a "Connect Discord" CTA for tenants that have no `DiscordConfig`.
-pub fn install_cta_html(from: &str, base_url: &str) -> String {
+pub fn install_cta_html(from: &str, base_url: &str, locale: &Locale) -> String {
     let install_href = if from.is_empty() {
         format!("{base_url}/admin/discord/install")
     } else {
@@ -38,8 +39,8 @@ pub fn install_cta_html(from: &str, base_url: &str) -> String {
         icon = discord_icon(),
     );
 
-    let page = app_shell(&content, "Settings", base_url);
-    base_html("Connect Discord - Concierge", &page)
+    let page = app_shell(&content, "Settings", base_url, locale);
+    base_html("Connect Discord - Concierge", &page, locale)
 }
 
 /// Render the installed-management page: show guild, pick channels, uninstall.
@@ -48,6 +49,7 @@ pub fn manage_html(
     channels: &[botrelay::discord::GuildChannel],
     from: &str,
     base_url: &str,
+    locale: &Locale,
 ) -> String {
     let back_href = back_href_for(from, base_url);
     let guild = cfg.guild_name.as_deref().unwrap_or("Discord server");
@@ -115,8 +117,8 @@ pub fn manage_html(
     <p class="muted m-0 mb-16 fs-14">Pick where we should post to. Per-rule overrides still win over these defaults.</p>
 
     <div class="form-group">
-      <label class="eyebrow lbl">Approvals channel</label>
-      <select class="select" name="approval_channel_id">{approval_opts}</select>
+      <label for="dc-approval-channel" class="eyebrow lbl">Approvals channel</label>
+      <select id="dc-approval-channel" class="select" name="approval_channel_id">{approval_opts}</select>
       <small class="muted fs-12">AI drafts land here for you to approve or reject.</small>
     </div>
 
@@ -129,8 +131,8 @@ pub fn manage_html(
     </div>
 
     <div class="form-group">
-      <label class="eyebrow lbl">Always reply in these channels</label>
-      <select class="select" name="inbound_channel_ids" multiple size="6" x-model="channels">{channel_opts}</select>
+      <label for="dc-inbound-channels" class="eyebrow lbl">Always reply in these channels</label>
+      <select id="dc-inbound-channels" class="select" name="inbound_channel_ids" multiple size="6" x-model="channels">{channel_opts}</select>
       <small class="muted fs-12">Hold Cmd/Ctrl to multi-select. The bot will respond to every message in each chosen channel.</small>
     </div>
 
@@ -141,22 +143,22 @@ pub fn manage_html(
       <label><input type="checkbox" name="auto_reply_enabled" value="true" x-model="ar_enabled"> Enabled</label>
     </div>
 
-    <div class="form-group" x-show="ar_enabled" x-cloak>
-      <label class="eyebrow lbl">Mode</label>
-      <select class="select" name="auto_reply_mode" x-model="ar_mode">
+    <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
+      <label for="dc-ar-mode" class="eyebrow lbl">Mode</label>
+      <select id="dc-ar-mode" class="select" name="auto_reply_mode" x-model="ar_mode">
         <option value="canned">Static (canned text: free)</option>
         <option value="prompt">AI (uses 1 credit per reply)</option>
       </select>
     </div>
 
-    <div class="form-group" x-show="ar_enabled" x-cloak>
-      <label class="eyebrow lbl"><span x-text="ar_mode === 'prompt' ? 'System prompt' : 'Reply text'"></span></label>
-      <textarea class="textarea" name="auto_reply_prompt" rows="3">{ar_prompt}</textarea>
+    <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
+      <label for="dc-ar-prompt" class="eyebrow lbl"><span x-text="ar_mode === 'prompt' ? 'System prompt' : 'Reply text'"></span></label>
+      <textarea id="dc-ar-prompt" class="textarea" name="auto_reply_prompt" rows="3">{ar_prompt}</textarea>
     </div>
 
-    <div class="form-group" x-show="ar_enabled" x-cloak>
-      <label class="eyebrow lbl">Wait before replying: <span x-text="wait_seconds === 0 ? 'instant' : wait_seconds + 's'"></span></label>
-      <input type="range" min="0" max="30" step="1" name="wait_seconds" x-model.number="wait_seconds" style="accent-color:var(--accent)">
+    <div class="form-group" x-show="ar_enabled" x-cloak :aria-hidden="!ar_enabled">
+      <label for="dc-wait" class="eyebrow lbl">Wait before replying: <span x-text="wait_seconds === 0 ? 'instant' : wait_seconds + 's'"></span></label>
+      <input id="dc-wait" type="range" min="0" max="30" step="1" name="wait_seconds" x-model.number="wait_seconds" style="accent-color:var(--accent)">
       <small class="muted fs-12">0 = reply immediately. Higher values let users send a burst of messages and get one combined reply.</small>
     </div>
 
@@ -165,7 +167,7 @@ pub fn manage_html(
     <div class="row gap-8 mt-16" style="justify-content:flex-end">
       <button type="submit" class="btn primary">Save</button>
     </div>
-    <div id="dc-toast" class="mt-8"></div>
+    <div id="dc-toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
   </form>
 </div>"##,
         back_href = back_href,
@@ -197,8 +199,8 @@ pub fn manage_html(
             serde_json::to_string(&cfg.inbound_channel_ids).unwrap_or_else(|_| "[]".into()),
     );
 
-    let page = app_shell(&content, "Settings", base_url);
-    base_html("Discord - Concierge", &page)
+    let page = app_shell(&content, "Settings", base_url, locale);
+    base_html("Discord - Concierge", &page, locale)
 }
 
 fn back_href_for(from: &str, base_url: &str) -> String {

@@ -1,11 +1,13 @@
 //! Base HTML wrappers: new cream/paper design system
 
 use crate::helpers::html_escape;
+use crate::i18n::t;
+use crate::locale::Locale;
 
 pub const CSS: &str = r##"
 :root {
   --cream: #F5EFE4; --cream-2: #EFE7D6; --paper: #FBF7EE;
-  --ink: #1B1814; --ink-2: #3A332B; --muted: #7A6E5E;
+  --ink: #1B1814; --ink-2: #3A332B; --muted: #5E5246;
   --hair: #D9CEB8; --hair-2: #C7BA9E;
   --accent: #E86A2C; --accent-2: #C8541C; --accent-soft: #F9D9C2;
   --sage: #6E8A5C; --plum: #6B3E5C; --sky: #3A6B8A; --butter: #E8C66A;
@@ -90,6 +92,10 @@ a { color:var(--accent); }
 .link-reset{text-decoration:none;color:inherit}
 [x-cloak]{display:none!important}
 .inline{display:inline} .block{display:block} .hidden{display:none}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip-link{position:absolute;left:-9999px;top:8px;z-index:9999;padding:8px 14px;background:var(--ink);color:var(--cream);border-radius:8px;text-decoration:none;font-size:13px}
+.skip-link:focus,.skip-link:focus-visible{left:8px}
+.app-main{display:contents}
 .w-full{width:100%}
 .text-warn{color:var(--warn)} .text-ok{color:var(--ok)}
 .lbl{display:block;margin-bottom:6px}
@@ -380,8 +386,9 @@ code {
 ::-webkit-scrollbar-track { background:transparent; }
 "##;
 
-/// Logo inline SVG for use in templates.
-pub const LOGO_INLINE: &str = r##"<svg width="30" height="30" viewBox="0 0 100 100" style="display:block"><circle cx="50" cy="50" r="48" fill="var(--accent)"/><path d="M28 40a22 22 0 0 1 44 0v20a22 22 0 0 1-44 0" stroke="#FBF7EE" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="50" cy="52" r="5.5" fill="#FBF7EE"/></svg>"##;
+/// Logo inline SVG for use in templates. Always rendered next to a textual
+/// brand name, so it's marked decorative for assistive tech.
+pub const LOGO_INLINE: &str = r##"<svg width="30" height="30" viewBox="0 0 100 100" style="display:block" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="48" fill="var(--accent)"/><path d="M28 40a22 22 0 0 1 44 0v20a22 22 0 0 1-44 0" stroke="#FBF7EE" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="50" cy="52" r="5.5" fill="#FBF7EE"/></svg>"##;
 
 pub fn brand_mark() -> String {
     format!(
@@ -393,7 +400,7 @@ pub fn brand_mark() -> String {
 /// Shared header for public marketing pages (home, /features, /pricing,
 /// /docs). `active` is the slug of the current page so the matching nav
 /// item lights up: pass "" to highlight nothing.
-pub fn public_nav_html(active: &str) -> String {
+pub fn public_nav_html(active: &str, locale: &Locale) -> String {
     let item = |slug: &str, label: &str, href: &str| -> String {
         let cls = if slug == active {
             "btn sm primary"
@@ -402,11 +409,18 @@ pub fn public_nav_html(active: &str) -> String {
         };
         format!(r#"<a href="{href}" class="{cls}">{label}</a>"#)
     };
-    let features = item("features", "Features", "/features");
-    let pricing = item("pricing", "Pricing", "/pricing");
-    let docs = r#"<a href="https://ananthb.github.io/concierge/" class="btn ghost sm" target="_blank" rel="noopener">Docs &uarr;</a>"#;
-    let github = r#"<a href="https://github.com/ananthb/concierge" class="btn ghost sm" target="_blank" rel="noopener">Open source &uarr;</a>"#;
-    let signin = r#"<a href="/auth/login" class="btn primary sm">Sign in</a>"#;
+    let features = item("features", &t(locale, "nav-features"), "/features");
+    let pricing = item("pricing", &t(locale, "nav-pricing"), "/pricing");
+    let docs_label = t(locale, "nav-docs");
+    let docs = format!(
+        r#"<a href="https://ananthb.github.io/concierge/" class="btn ghost sm" target="_blank" rel="noopener">{docs_label}</a>"#,
+    );
+    let github_label = t(locale, "nav-open-source");
+    let github = format!(
+        r#"<a href="https://github.com/ananthb/concierge" class="btn ghost sm" target="_blank" rel="noopener">{github_label}</a>"#,
+    );
+    let signin_label = t(locale, "nav-sign-in");
+    let signin = format!(r#"<a href="/auth/login" class="btn primary sm">{signin_label}</a>"#,);
     format!(
         r#"<header class="site-header">
   {brand}
@@ -470,7 +484,8 @@ mod footer_tests {
 
     #[test]
     fn features_has_one_footer() {
-        let s = crate::templates::features::features_html();
+        let l = crate::locale::Locale::default_inr();
+        let s = crate::templates::features::features_html(&l);
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "features");
         // Also catch any stray <footer> tag with a different class.
         assert_eq!(count(&s, "<footer"), 1, "features any-footer");
@@ -478,63 +493,109 @@ mod footer_tests {
 
     #[test]
     fn pricing_has_one_footer() {
-        let s = crate::templates::onboarding::pricing_html("INR");
+        let l = crate::locale::Locale::default_inr();
+        let s = crate::templates::onboarding::pricing_html("INR", &l);
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "pricing");
     }
 
     #[test]
     fn terms_has_one_footer() {
-        let s = crate::legal::terms_of_service_html();
+        let l = crate::locale::Locale::default_inr();
+        let s = crate::legal::terms_of_service_html(&l);
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "terms");
     }
 
     #[test]
     fn privacy_has_one_footer() {
-        let s = crate::legal::privacy_policy_html();
+        let l = crate::locale::Locale::default_inr();
+        let s = crate::legal::privacy_policy_html(&l);
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "privacy");
+    }
+
+    #[test]
+    fn footer_resolves_keys_in_both_locales() {
+        for l in [
+            crate::locale::Locale::default_inr(),
+            crate::locale::Locale::default_usd(),
+        ] {
+            let s = super::footer(&l);
+            assert!(s.contains("Features"), "footer-features in {}", l.langid);
+            assert!(
+                s.contains("Privacy Policy"),
+                "footer-privacy in {}",
+                l.langid
+            );
+        }
+    }
+
+    #[test]
+    fn html_lang_matches_locale() {
+        let inr = crate::locale::Locale::default_inr();
+        let usd = crate::locale::Locale::default_usd();
+        let s_inr = super::base_html("t", "<p>x</p>", &inr);
+        let s_usd = super::base_html("t", "<p>x</p>", &usd);
+        assert!(s_inr.contains(r#"<html lang="en-IN">"#));
+        assert!(s_usd.contains(r#"<html lang="en-US">"#));
     }
 }
 
 /// Shared footer for all pages.
-pub fn footer() -> &'static str {
-    r##"<footer class="site-footer">
-  <a href="/features" class="muted">Features</a> &middot;
-  <a href="/pricing" class="muted">Pricing</a> &middot;
-  <a href="https://ananthb.github.io/concierge/" class="muted" target="_blank" rel="noopener">Docs</a> &middot;
-  <a href="https://github.com/ananthb/concierge" class="muted">Open-source</a> &middot;
-  <a href="https://www.gnu.org/licenses/agpl-3.0.html" class="muted">AGPL-3.0</a> &middot;
-  <a href="/terms" class="muted">Terms</a> &middot;
-  <a href="/privacy" class="muted">Privacy</a>
-</footer>"##
+pub fn footer(locale: &Locale) -> String {
+    format!(
+        r##"<footer class="site-footer">
+  <a href="/features" class="muted">{features}</a> &middot;
+  <a href="/pricing" class="muted">{pricing}</a> &middot;
+  <a href="https://ananthb.github.io/concierge/" class="muted" target="_blank" rel="noopener">{docs}</a> &middot;
+  <a href="https://github.com/ananthb/concierge" class="muted">{open_source}</a> &middot;
+  <a href="https://www.gnu.org/licenses/agpl-3.0.html" class="muted">{licence}</a> &middot;
+  <a href="/terms" class="muted">{terms}</a> &middot;
+  <a href="/privacy" class="muted">{privacy}</a>
+</footer>"##,
+        features = t(locale, "footer-features"),
+        pricing = t(locale, "footer-pricing"),
+        docs = t(locale, "footer-docs"),
+        open_source = t(locale, "footer-open-source"),
+        licence = t(locale, "footer-licence"),
+        terms = t(locale, "footer-terms"),
+        privacy = t(locale, "footer-privacy"),
+    )
 }
 
-/// OpenGraph / meta description tags for a page.
+/// OpenGraph / meta description tags for a page. `og_type` stays static
+/// (it's an enumerated technical value, not user-facing copy); description
+/// and og_title come from translated strings.
 pub struct PageMeta {
-    pub description: &'static str,
-    pub og_title: &'static str,
+    pub description: String,
+    pub og_title: String,
     pub og_type: &'static str, // "website", "article", etc.
 }
 
-impl Default for PageMeta {
-    fn default() -> Self {
+impl PageMeta {
+    /// Default meta for pages that don't set their own description.
+    pub fn default_for(locale: &Locale) -> Self {
         Self {
-            description: "Automated customer messaging for small businesses. Auto-reply across WhatsApp, Instagram DMs, and email. 100 replies free every month.",
-            og_title: "Concierge",
+            description: t(locale, "meta-default-description"),
+            og_title: "Concierge".to_string(),
             og_type: "website",
         }
     }
 }
 
 /// Base HTML wrapper for all pages.
-pub fn base_html(title: &str, content: &str) -> String {
-    base_html_with_meta(title, content, &PageMeta::default())
+pub fn base_html(title: &str, content: &str, locale: &Locale) -> String {
+    base_html_with_meta(title, content, &PageMeta::default_for(locale), locale)
 }
 
 /// Base HTML wrapper with custom meta tags.
-pub fn base_html_with_meta(title: &str, content: &str, meta: &PageMeta) -> String {
+pub fn base_html_with_meta(title: &str, content: &str, meta: &PageMeta, locale: &Locale) -> String {
+    let lang = locale.langid.to_string();
+    let skip_link = t(locale, "app-nav-skip-link");
+    let copy_default = t(locale, "js-copy-button-default");
+    let copy_copied = t(locale, "js-copy-button-copied");
+    let htmx_error = t(locale, "js-htmx-error-toast");
     format!(
         r##"<!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -560,23 +621,30 @@ pub fn base_html_with_meta(title: &str, content: &str, meta: &PageMeta) -> Strin
 <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js" integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/htmx-ext-json-enc@2.0.3/json-enc.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
 <style>{css}</style>
 </head>
-<body>
-<div class="app-root">{content}{footer}</div>
+<body data-i18n-copy-default="{copy_default}" data-i18n-copy-copied="{copy_copied}" data-i18n-htmx-error="{htmx_error}">
+<a href="#main" class="skip-link">{skip_link}</a>
+<div class="app-root"><main id="main" class="app-main">{content}</main>{footer}</div>
 <script>
 function copyUrl(btn, url) {{
+    var copied = document.body.dataset.i18nCopyCopied || 'Copied!';
+    var def = document.body.dataset.i18nCopyDefault || 'Copy';
     navigator.clipboard.writeText(url).then(function() {{
-        btn.textContent = 'Copied!';
+        btn.textContent = copied;
+        var toast = document.getElementById('toast');
+        if (toast) {{ toast.innerHTML = '<div class="success">' + copied + '</div>'; }}
         setTimeout(function() {{
-            btn.textContent = 'Copy';
+            btn.textContent = def;
         }}, 2000);
     }});
 }}
 document.addEventListener("htmx:responseError", function() {{
   var t = document.getElementById("toast");
-  if (t) {{ t.innerHTML = '<div class="error">Something went wrong. Please try again.</div>'; }}
+  var msg = document.body.dataset.i18nHtmxError || 'Something went wrong. Please try again.';
+  if (t) {{ t.innerHTML = '<div class="error">' + msg + '</div>'; }}
 }});
 // Send CSRF token with all HTMX requests
 document.addEventListener("htmx:configRequest", function(e) {{
@@ -586,64 +654,85 @@ document.addEventListener("htmx:configRequest", function(e) {{
 </script>
 </body>
 </html>"##,
+        lang = html_escape(&lang),
         title = html_escape(title),
-        description = html_escape(meta.description),
-        og_title = html_escape(meta.og_title),
+        description = html_escape(&meta.description),
+        og_title = html_escape(&meta.og_title),
         og_type = meta.og_type,
+        skip_link = html_escape(&skip_link),
+        copy_default = html_escape(&copy_default),
+        copy_copied = html_escape(&copy_copied),
+        htmx_error = html_escape(&htmx_error),
         content = content,
         css = CSS,
-        footer = footer(),
+        footer = footer(locale),
     )
 }
 
 /// Branded "we're temporarily offline" page. Used when essentials are
 /// missing: see `handlers::health::essentials_missing`.
-pub fn maintenance_html() -> String {
+pub fn maintenance_html(locale: &Locale) -> String {
     let body = format!(
         r##"<header class="site-header">{brand}</header>
 <section class="page narrow ta-center">
-  <div class="display" style="margin-top:2rem">Be right back.</div>
-  <p class="lead" style="margin:0 auto 1.5rem;max-width:520px">Concierge is briefly unavailable while we finish a configuration change. We'll be back in a few minutes: thanks for your patience.</p>
-  <p class="muted fs-13">If this persists, please check back shortly.</p>
+  <h1 class="display" style="margin-top:2rem">{headline}</h1>
+  <p class="lead" style="margin:0 auto 1.5rem;max-width:520px">{body_text}</p>
+  <p class="muted fs-13">{tail}</p>
 </section>"##,
         brand = brand_mark(),
+        headline = t(locale, "maintenance-headline"),
+        body_text = t(locale, "maintenance-body"),
+        tail = t(locale, "maintenance-tail"),
     );
-    base_html("Concierge is offline", &body)
+    base_html(&t(locale, "maintenance-title"), &body, locale)
 }
 
-/// Wrap content in the app shell (top nav + main area).
-pub fn app_shell(content: &str, active_nav: &str, base_url: &str) -> String {
-    let nav_items = [
-        ("Overview", "/admin"),
-        ("Approvals", "/admin/approvals"),
-        ("Channels", "/admin/whatsapp"),
-        ("Email Routing", "/admin/email"),
-        ("Billing", "/admin/billing"),
-        ("Settings", "/admin/settings"),
+/// Wrap content in the app shell (top nav + main area). The shell does
+/// NOT wrap `content` in `<main>` because callers may already have one;
+/// the surrounding `base_html` provides the `<main>` landmark.
+pub fn app_shell(content: &str, active_nav: &str, base_url: &str, locale: &Locale) -> String {
+    // Each entry: (active_key, FTL key, href).
+    // active_key matches the `active_nav` arg (kept as English for stable
+    // cross-locale routing — callers don't have to translate it too).
+    let nav_items: [(&str, &str, &str); 6] = [
+        ("Overview", "app-nav-overview", "/admin"),
+        ("Approvals", "app-nav-approvals", "/admin/approvals"),
+        ("Channels", "app-nav-channels", "/admin/whatsapp"),
+        ("Email", "app-nav-email", "/admin/email"),
+        ("Billing", "app-nav-billing", "/admin/billing"),
+        ("Settings", "app-nav-settings", "/admin/settings"),
     ];
 
     let nav: String = nav_items
         .iter()
-        .map(|(label, href)| {
-            let class = if *label == active_nav { " active" } else { "" };
+        .map(|(slug, key, href)| {
+            let class = if *slug == active_nav { " active" } else { "" };
+            let label = t(locale, key);
             format!(r#"<a class="{class}" href="{base_url}{href}">{label}</a>"#)
         })
         .collect();
+
+    let nav_aria = t(locale, "app-nav-aria-label");
+    let status = t(locale, "app-nav-status-live");
+    let logout_aria = t(locale, "app-nav-logout-aria");
 
     format!(
         r#"<div class="app">
   <header class="app-top">
     {brand}
-    <nav class="app-nav">{nav}</nav>
+    <nav class="app-nav" aria-label="{nav_aria}">{nav}</nav>
     <div class="row gap-12">
-      <span class="chip ok">live</span>
-      <a href="{base_url}/auth/logout" class="avatar">X</a>
+      <span class="chip ok">{status}</span>
+      <a href="{base_url}/auth/logout" class="avatar" aria-label="{logout_aria}">X</a>
     </div>
   </header>
   {content}
 </div>"#,
         brand = brand_mark(),
         nav = nav,
+        nav_aria = html_escape(&nav_aria),
+        status = html_escape(&status),
+        logout_aria = html_escape(&logout_aria),
         base_url = base_url,
         content = content,
     )

@@ -27,11 +27,12 @@ pub async fn handle_persona_admin(
 ) -> Result<Response> {
     let kv = env.kv("KV")?;
     let method = req.method();
+    let locale = crate::locale::Locale::from_request(&req);
     let mut state = get_onboarding(&kv, tenant_id).await?;
 
     match (method, path) {
         (Method::Get, "/admin/persona") => {
-            Response::from_html(persona_admin_html(&state.persona, base_url))
+            Response::from_html(persona_admin_html(&state.persona, base_url, &locale))
         }
 
         (Method::Post, "/admin/persona") => {

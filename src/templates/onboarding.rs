@@ -1,6 +1,7 @@
 //! Onboarding wizard templates
 
 use crate::helpers::html_escape;
+use crate::i18n::t;
 use crate::types::*;
 
 use super::base::{base_html, base_html_with_meta, brand_mark, PageMeta};
@@ -27,15 +28,17 @@ fn js_attr_escape(s: &str) -> String {
     out
 }
 
+/// Step-id keys (English, used as routing slugs and as the stable `active`
+/// argument for `wizard_shell`). The user-visible label comes from FTL.
 const STEPS: &[(&str, &str)] = &[
-    ("basics", "The basics"),
-    ("channels", "Plug in"),
-    ("notifications", "Heads up"),
-    ("replies", "Replies"),
-    ("launch", "Ship it"),
+    ("basics", "wizard-step-basics-label"),
+    ("channels", "wizard-step-channels-label"),
+    ("notifications", "wizard-step-notifications-label"),
+    ("replies", "wizard-step-replies-label"),
+    ("launch", "wizard-step-launch-label"),
 ];
 
-fn rail_html(current: &str, progress_expr: &str) -> String {
+fn rail_html(current: &str, progress_expr: &str, locale: &crate::locale::Locale) -> String {
     let idx = STEPS.iter().position(|(id, _)| *id == current).unwrap_or(0);
 
     let segs: String = STEPS
@@ -60,7 +63,7 @@ fn rail_html(current: &str, progress_expr: &str) -> String {
     let labels: String = STEPS
         .iter()
         .enumerate()
-        .map(|(i, (_, label))| {
+        .map(|(i, (_, key))| {
             let class = if i < idx {
                 "done"
             } else if i == idx {
@@ -68,6 +71,7 @@ fn rail_html(current: &str, progress_expr: &str) -> String {
             } else {
                 ""
             };
+            let label = t(locale, key);
             format!(r#"<span class="{class}">{label}</span>"#)
         })
         .collect();
@@ -87,6 +91,7 @@ fn wizard_shell(
     x_data: &str,
     progress_expr: &str,
     content: &str,
+    locale: &crate::locale::Locale,
 ) -> String {
     let idx = STEPS.iter().position(|(id, _)| *id == step).unwrap_or(0);
 
@@ -96,25 +101,26 @@ fn wizard_shell(
     {brand}
     <div class="rail-wrap">{rail}<div class="rail-counter mono muted">{step_num}/{total}</div></div>
     <div class="top-right">
-      <a href="/auth/logout" class="btn ghost sm">Sign out</a>
+      <a href="/auth/logout" class="btn ghost sm">{signout}</a>
     </div>
   </header>
   <main>{content}</main>
 </div>"#,
         brand = brand_mark(),
-        rail = rail_html(step, progress_expr),
+        rail = rail_html(step, progress_expr, locale),
         step_num = idx + 1,
         total = STEPS.len(),
         x_data = x_data,
         content = content,
+        signout = t(locale, "wizard-signout"),
     );
 
-    base_html(&format!("Concierge - Setup"), &inner)
+    base_html(&t(locale, "wizard-title"), &inner, locale)
 }
 
 pub fn welcome_html(_base_url: &str, locale: &crate::locale::Locale) -> String {
     use crate::i18n::t;
-    let header = super::base::public_nav_html("");
+    let header = super::base::public_nav_html("", locale);
 
     let content = format!(
         r#"{header}
@@ -151,17 +157,24 @@ pub fn welcome_html(_base_url: &str, locale: &crate::locale::Locale) -> String {
         hash = HASH,
     );
 
-    base_html("Concierge - Automated customer messaging", &content)
+    base_html("Concierge - Automated customer messaging", &content, locale)
 }
 
-pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> String {
-    let biz_type_options = [
-        ("", "Select type..."),
-        ("unregistered", "Unregistered / Individual"),
-        ("sole_proprietorship", "Sole Proprietorship"),
-        ("partnership", "Partnership"),
-        ("pvt_ltd", "Private Limited"),
-        ("llp", "LLP"),
+pub fn basics_html(
+    business: &crate::types::BusinessInfo,
+    base_url: &str,
+    locale: &crate::locale::Locale,
+) -> String {
+    let biz_type_options: [(&str, String); 6] = [
+        ("", t(locale, "wizard-basics-type-default")),
+        ("unregistered", t(locale, "wizard-basics-type-unregistered")),
+        (
+            "sole_proprietorship",
+            t(locale, "wizard-basics-type-sole-prop"),
+        ),
+        ("partnership", t(locale, "wizard-basics-type-partnership")),
+        ("pvt_ltd", t(locale, "wizard-basics-type-pvt-ltd")),
+        ("llp", t(locale, "wizard-basics-type-llp")),
     ];
     let biz_type_html: String = biz_type_options
         .iter()
@@ -177,55 +190,55 @@ pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> Str
 
     let content = format!(
         r#"<section class="page narrow">
-  <div class="section-label"><span class="mono muted">01 / 05</span><span class="eyebrow">The basics</span></div>
-  <h2 class="display-md">Tell us about you.</h2>
-  <p class="lead">For invoicing and compliance. Your details are never shared.</p>
+  <div class="section-label"><span class="mono muted">01 / 05</span><span class="eyebrow">{eyebrow}</span></div>
+  <h2 class="display-md">{headline}</h2>
+  <p class="lead">{lead}</p>
   <form hx-post="{base_url}/admin/wizard/basics" hx-target="body" hx-swap="innerHTML">
     <div class="card p-24">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div>
-          <label class="eyebrow lbl">Brand name *</label>
-          <input class="input" name="name" value="{name}" placeholder="Blossom Florist" required x-model="name">
+          <label for="biz-name" class="eyebrow lbl">{lbl_name}</label>
+          <input id="biz-name" class="input" name="name" value="{name}" placeholder="{ph_name}" required aria-required="true" x-model="name">
         </div>
         <div>
-          <label class="eyebrow lbl">Your name *</label>
-          <input class="input" name="contact_name" value="{contact_name}" placeholder="Full name">
+          <label for="biz-contact-name" class="eyebrow lbl">{lbl_contact}</label>
+          <input id="biz-contact-name" class="input" name="contact_name" value="{contact_name}" placeholder="{ph_contact}">
         </div>
         <div>
-          <label class="eyebrow lbl">Phone *</label>
-          <input class="input" type="tel" name="phone" value="{phone}" placeholder="+91 98765 43210" required x-model="phone">
+          <label for="biz-phone" class="eyebrow lbl">{lbl_phone}</label>
+          <input id="biz-phone" class="input" type="tel" name="phone" value="{phone}" placeholder="{ph_phone}" required aria-required="true" x-model="phone">
         </div>
         <div>
-          <label class="eyebrow lbl">Entity type</label>
-          <select class="select" name="business_type" x-model="bizType">{biz_type_html}</select>
+          <label for="biz-type" class="eyebrow lbl">{lbl_type}</label>
+          <select id="biz-type" class="select" name="business_type" x-model="bizType">{biz_type_html}</select>
         </div>
       </div>
-      <div class="mt-16" x-show="bizType &amp;&amp; bizType !== 'unregistered'" x-cloak style="grid-template-columns:1fr 1fr;gap:16px;display:grid">
+      <div class="mt-16" x-show="bizType &amp;&amp; bizType !== 'unregistered'" x-cloak :aria-hidden="!(bizType &amp;&amp; bizType !== 'unregistered')" style="grid-template-columns:1fr 1fr;gap:16px;display:grid">
         <div>
-          <label class="eyebrow lbl">PAN</label>
-          <input class="input" name="pan" value="{pan}" placeholder="ABCDE1234F" style="text-transform:uppercase">
+          <label for="biz-pan" class="eyebrow lbl">{lbl_pan}</label>
+          <input id="biz-pan" class="input" name="pan" value="{pan}" placeholder="{ph_pan}" style="text-transform:uppercase">
         </div>
         <div>
-          <label class="eyebrow lbl">GSTIN <span class="muted">(optional)</span></label>
-          <input class="input" name="gstin" value="{gstin}" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase">
+          <label for="biz-gstin" class="eyebrow lbl">{lbl_gstin_pre} <span class="muted">{lbl_gstin_suf}</span></label>
+          <input id="biz-gstin" class="input" name="gstin" value="{gstin}" placeholder="{ph_gstin}" style="text-transform:uppercase">
         </div>
         <div style="grid-column:1/-1">
-          <label class="eyebrow lbl">Registered address</label>
-          <textarea class="textarea" name="address" rows="2" placeholder="Shop 12, Main Road...">{address}</textarea>
+          <label for="biz-address" class="eyebrow lbl">{lbl_address}</label>
+          <textarea id="biz-address" class="textarea" name="address" rows="2" placeholder="{ph_address}">{address}</textarea>
         </div>
         <div>
-          <label class="eyebrow lbl">State</label>
-          <input class="input" name="state" value="{state}" placeholder="Tamil Nadu">
+          <label for="biz-state" class="eyebrow lbl">{lbl_state}</label>
+          <input id="biz-state" class="input" name="state" value="{state}" placeholder="{ph_state}">
         </div>
         <div>
-          <label class="eyebrow lbl">Pincode</label>
-          <input class="input" name="pincode" value="{pincode}" placeholder="600001" pattern="[0-9]{{6}}" maxlength="6">
+          <label for="biz-pincode" class="eyebrow lbl">{lbl_pincode}</label>
+          <input id="biz-pincode" class="input" name="pincode" value="{pincode}" placeholder="{ph_pincode}" pattern="[0-9]{{6}}" maxlength="6">
         </div>
       </div>
     </div>
     <div class="between mt-36">
-      <a href="/" class="btn ghost">&larr; Back</a>
-      <button class="btn primary" type="submit" :disabled="!(name &amp;&amp; name.trim() &amp;&amp; phone &amp;&amp; phone.trim())">Continue &rarr;</button>
+      <a href="/" class="btn ghost">{back}</a>
+      <button class="btn primary" type="submit" :disabled="!(name &amp;&amp; name.trim() &amp;&amp; phone &amp;&amp; phone.trim())">{cont}</button>
     </div>
   </form>
 </section>"#,
@@ -239,6 +252,29 @@ pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> Str
         address = html_escape(&business.address),
         state = html_escape(&business.state),
         pincode = html_escape(&business.pincode),
+        eyebrow = t(locale, "wizard-basics-eyebrow"),
+        headline = t(locale, "wizard-basics-headline"),
+        lead = t(locale, "wizard-basics-lead"),
+        lbl_name = t(locale, "wizard-basics-label-name"),
+        lbl_contact = t(locale, "wizard-basics-label-contact"),
+        lbl_phone = t(locale, "wizard-basics-label-phone"),
+        lbl_type = t(locale, "wizard-basics-label-type"),
+        lbl_pan = t(locale, "wizard-basics-label-pan"),
+        lbl_gstin_pre = t(locale, "wizard-basics-label-gstin-prefix"),
+        lbl_gstin_suf = t(locale, "wizard-basics-label-gstin-suffix"),
+        lbl_address = t(locale, "wizard-basics-label-address"),
+        lbl_state = t(locale, "wizard-basics-label-state"),
+        lbl_pincode = t(locale, "wizard-basics-label-pincode"),
+        ph_name = t(locale, "wizard-basics-placeholder-name"),
+        ph_contact = t(locale, "wizard-basics-placeholder-contact"),
+        ph_phone = t(locale, "wizard-basics-placeholder-phone"),
+        ph_pan = t(locale, "wizard-basics-placeholder-pan"),
+        ph_gstin = t(locale, "wizard-basics-placeholder-gstin"),
+        ph_address = t(locale, "wizard-basics-placeholder-address"),
+        ph_state = t(locale, "wizard-basics-placeholder-state"),
+        ph_pincode = t(locale, "wizard-basics-placeholder-pincode"),
+        back = t(locale, "wizard-back"),
+        cont = t(locale, "wizard-continue"),
     );
 
     let x_data = format!(
@@ -250,7 +286,7 @@ pub fn basics_html(business: &crate::types::BusinessInfo, base_url: &str) -> Str
     let progress_expr =
         "((name && name.trim() ? 0.4 : 0) + (phone && phone.trim() ? 0.4 : 0) + (bizType ? 0.2 : 0))";
 
-    wizard_shell("basics", base_url, &x_data, progress_expr, &content)
+    wizard_shell("basics", base_url, &x_data, progress_expr, &content, locale)
 }
 
 pub fn connect_html(
@@ -262,6 +298,7 @@ pub fn connect_html(
     tenant_id: &str,
     discord: Option<&crate::types::DiscordConfig>,
     base_url: &str,
+    locale: &crate::locale::Locale,
 ) -> String {
     let ig_card = channel_card(
         "ig",
@@ -382,7 +419,14 @@ pub fn connect_html(
     let progress_expr =
         "((ig ? 0.3 : 0) + (wa ? 0.3 : 0) + (dc ? 0.2 : 0) + (emails > 0 ? 0.2 : 0))";
 
-    wizard_shell("channels", base_url, &x_data, progress_expr, &content)
+    wizard_shell(
+        "channels",
+        base_url,
+        &x_data,
+        progress_expr,
+        &content,
+        locale,
+    )
 }
 
 /// Props for a channel card. Shared between the wizard Channels step and the
@@ -474,18 +518,21 @@ fn channel_card(
 }
 
 pub fn channel_icon(key: &str) -> &'static str {
+    // All icons are decorative — they render next to a textual channel name
+    // (e.g. "Instagram DMs"), so AT users get the name from the label, not
+    // the icon.
     match key {
         "ig" => {
-            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor"/></svg>"#
+            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor"/></svg>"#
         }
         "wa" => {
-            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 20l1.3-4.1A8 8 0 1 1 8.2 18.8L4 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#
+            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 20l1.3-4.1A8 8 0 1 1 8.2 18.8L4 20z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#
         }
         "discord" => {
-            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M7 7c1.4-.7 3-1 5-1s3.6.3 5 1l1 1 1.5 4.5c.2 2-.3 3.8-1.5 5.5-1 .3-2 .5-3 .5l-1-1.5c.5-.2 1-.4 1.5-.8-.3-.2-.8-.4-1.2-.5-2 .7-4.6.7-6.6 0-.4.1-.9.3-1.2.5.5.4 1 .6 1.5.8L6 17.5c-1 0-2-.2-3-.5-1.2-1.7-1.7-3.5-1.5-5.5L3 7l1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>"#
+            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M7 7c1.4-.7 3-1 5-1s3.6.3 5 1l1 1 1.5 4.5c.2 2-.3 3.8-1.5 5.5-1 .3-2 .5-3 .5l-1-1.5c.5-.2 1-.4 1.5-.8-.3-.2-.8-.4-1.2-.5-2 .7-4.6.7-6.6 0-.4.1-.9.3-1.2.5.5.4 1 .6 1.5.8L6 17.5c-1 0-2-.2-3-.5-1.2-1.7-1.7-3.5-1.5-5.5L3 7l1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>"#
         }
         "mail" => {
-            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 6.5l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#
+            r#"<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 6.5l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>"#
         }
         _ => "",
     }
@@ -495,6 +542,7 @@ pub fn notifications_html(
     config: &crate::types::NotificationConfig,
     discord_installed: bool,
     base_url: &str,
+    locale: &crate::locale::Locale,
 ) -> String {
     use crate::types::DigestCadence;
     let cadences = [
@@ -586,10 +634,22 @@ pub fn notifications_html(
     );
     let progress_expr = "((approval.discord || approval.email) ? 1.0 : 0)";
 
-    wizard_shell("notifications", base_url, &x_data, progress_expr, &content)
+    wizard_shell(
+        "notifications",
+        base_url,
+        &x_data,
+        progress_expr,
+        &content,
+        locale,
+    )
 }
 
-pub fn replies_html(persona: &PersonaConfig, default_wait_seconds: u32, base_url: &str) -> String {
+pub fn replies_html(
+    persona: &PersonaConfig,
+    default_wait_seconds: u32,
+    base_url: &str,
+    locale: &crate::locale::Locale,
+) -> String {
     let current_slug = match &persona.source {
         PersonaSource::Preset(p) => p.slug(),
         _ => "",
@@ -662,7 +722,14 @@ pub fn replies_html(persona: &PersonaConfig, default_wait_seconds: u32, base_url
     );
     let progress_expr = "(preset ? 1.0 : 0.0)";
 
-    wizard_shell("replies", base_url, &x_data, progress_expr, &content)
+    wizard_shell(
+        "replies",
+        base_url,
+        &x_data,
+        progress_expr,
+        &content,
+        locale,
+    )
 }
 
 pub fn launch_html(
@@ -691,17 +758,19 @@ pub fn launch_html(
     } else {
         format!(
             r#"<div class="card p-22 mb-16">
-  <div class="eyebrow mb-8">Email addresses</div>
-  <p class="muted mb-12 fs-14">These addresses are live. Inbound mail will be auto-replied if you turn on auto-reply for them in Email.</p>
+  <div class="eyebrow mb-8">{eyebrow}</div>
+  <p class="muted mb-12 fs-14">{body}</p>
   {email_rows}
-</div>"#
+</div>"#,
+            eyebrow = t(locale, "wizard-launch-email-eyebrow"),
+            body = t(locale, "wizard-launch-email-body"),
         )
     };
 
     let credits_section = format!(
         r#"<div class="mb-16">
   {slider}
-  <p class="muted ta-center mt-8 fs-12">Optional: 100 replies are free every month. Top up later from Billing if you need.</p>
+  <p class="muted ta-center mt-8 fs-12">{note}</p>
 </div>"#,
         slider = crate::templates::credit_slider::slider_html(
             locale,
@@ -710,23 +779,28 @@ pub fn launch_html(
                 return_to: "/admin/wizard/launch",
             },
         ),
+        note = t(locale, "wizard-launch-credits-note"),
     );
 
-    let status_card = r#"<div class="card p-22" style="border-color:var(--ok);background:linear-gradient(135deg,var(--paper),#E8F0DE)">
+    let status_card = format!(
+        r#"<div class="card p-22" style="border-color:var(--ok);background:linear-gradient(135deg,var(--paper),#E8F0DE)">
     <div class="row gap-12">
       <span class="dot ok"></span>
       <div>
-        <div class="fw-600">Ready to go live</div>
-        <p class="muted fs-14 m-0 mt-4">Hit finish to open your dashboard. Connect channels, set up email rules, and start receiving auto-replies.</p>
+        <div class="fw-600">{headline}</div>
+        <p class="muted fs-14 m-0 mt-4">{body}</p>
       </div>
     </div>
-  </div>"#;
+  </div>"#,
+        headline = t(locale, "wizard-launch-status-headline"),
+        body = t(locale, "wizard-launch-status-body"),
+    );
 
     let content = format!(
         r##"<section class="page narrow">
-  <div class="section-label"><span class="mono muted">05 / 05</span><span class="eyebrow">Ship it</span></div>
-  <h2 class="display-md">You're all set.</h2>
-  <p class="lead">Your concierge is configured and ready to handle messages. Here's a summary of what's next.</p>
+  <div class="section-label"><span class="mono muted">05 / 05</span><span class="eyebrow">{eyebrow}</span></div>
+  <h2 class="display-md">{headline}</h2>
+  <p class="lead">{lead}</p>
 
   {email_section}
   {credits_section}
@@ -734,46 +808,57 @@ pub fn launch_html(
   {status_card}
 
   <div class="between mt-36">
-    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML">&larr; Back</button>
-    <button class="btn primary" hx-post="{base_url}/admin/wizard/complete" hx-target="body">Finish setup &rarr;</button>
+    <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML">{back}</button>
+    <button class="btn primary" hx-post="{base_url}/admin/wizard/complete" hx-target="body">{finish}</button>
   </div>
 </section>"##,
         email_section = email_section,
         credits_section = credits_section,
         status_card = status_card,
         base_url = base_url,
+        eyebrow = t(locale, "wizard-launch-eyebrow"),
+        headline = t(locale, "wizard-launch-headline"),
+        lead = t(locale, "wizard-launch-lead"),
+        back = t(locale, "wizard-back"),
+        finish = t(locale, "wizard-launch-finish"),
     );
 
     // Progress on the launch step is always full: addresses are live the
     // moment they're added (no payment gate any more).
     let _ = email_addresses;
-    let _ = locale;
     let x_data = "{}".to_string();
     let progress_expr = "1";
 
-    wizard_shell("launch", base_url, &x_data, progress_expr, &content)
+    wizard_shell("launch", base_url, &x_data, progress_expr, &content, locale)
 }
 
 /// Public pricing page at /pricing. The `?c=usd` query param swaps the
 /// display currency without changing the visitor's UI language.
-pub fn pricing_html(default_currency: &str) -> String {
+pub fn pricing_html(default_currency: &str, locale: &crate::locale::Locale) -> String {
     use crate::helpers::format_money;
-    use crate::locale::{Currency, Locale};
+    use crate::locale::Currency;
 
     // Public pricing page. Visitors aren't logged in, so the slider's
     // checkout button is replaced with a sign-in CTA. The ?c= query param
-    // carries the chosen currency so the toggle is shareable.
-    let locale = if default_currency.eq_ignore_ascii_case("usd") {
-        Locale::default_usd()
+    // carries the chosen currency so the toggle is shareable. We keep the
+    // visitor's UI language from `locale` and only swap the display
+    // currency.
+    let display_currency = if default_currency.eq_ignore_ascii_case("usd") {
+        Currency::Usd
     } else {
-        Locale::default_inr()
+        Currency::Inr
     };
+    let locale = crate::locale::Locale {
+        langid: locale.langid.clone(),
+        currency: display_currency,
+    };
+    let signin_label = crate::i18n::t(&locale, "pricing-slider-cta-signin");
     let slider = crate::templates::credit_slider::slider_html(
         &locale,
         "",
         crate::templates::credit_slider::SliderMode::Preview {
             cta_href: "/auth/login",
-            cta_label: "Sign in to buy",
+            cta_label: &signin_label,
         },
     );
     let per_reply = match locale.currency {
@@ -789,39 +874,54 @@ pub fn pricing_html(default_currency: &str) -> String {
         Currency::Inr => ("btn sm", "btn ghost sm"),
     };
 
-    let nav = super::base::public_nav_html("pricing");
+    let nav = super::base::public_nav_html("pricing", &locale);
+    let inr_label = crate::i18n::t(&locale, "pricing-currency-inr-label");
+    let usd_label = crate::i18n::t(&locale, "pricing-currency-usd-label");
     let content = format!(
         r##"{nav}
 <article class="legal">
   <div class="between">
-    <h1 class="m-0">{per_reply} per AI reply. Everything else is free.</h1>
-    <div class="row gap-8">
-      <a href="/pricing?c=inr" class="{inr_cls}" title="Indian rupees" aria-label="Indian rupees">&#x20B9;</a>
-      <a href="/pricing?c=usd" class="{usd_cls}" title="US dollars" aria-label="US dollars">$</a>
+    <h1 class="m-0">{per_reply} {headline_suffix}</h1>
+    <div class="row gap-8" role="group" aria-label="Display currency">
+      <a href="/pricing?c=inr" class="{inr_cls}" title="{inr_label}" aria-label="{inr_label}">&#x20B9;</a>
+      <a href="/pricing?c=usd" class="{usd_cls}" title="{usd_label}" aria-label="{usd_label}">$</a>
     </div>
   </div>
-  <p class="muted">100 free AI replies every account every month. After that, top up with as many credits as you want: no tiers, no contracts. Purchased credits never expire.</p>
+  <p class="muted">{lead}</p>
 
   <div style="margin:24px 0">{slider}</div>
 
   <div class="card p-18">
-    <div class="eyebrow mb-8">What costs a credit?</div>
+    <div class="eyebrow mb-8">{credits_eyebrow}</div>
     <ul class="muted m-0">
-      <li><strong>AI auto-replies</strong> on WhatsApp, Instagram, email, or Discord: <strong>1 credit each.</strong></li>
-      <li><strong>Static auto-replies</strong> (canned text you wrote yourself): always <strong>free</strong>.</li>
-      <li>Inbound messages, notification CCs/BCCs, Discord relay, slash commands: always <strong>free</strong>.</li>
+      <li>{credits_li_1}</li>
+      <li>{credits_li_2}</li>
+      <li>{credits_li_3}</li>
     </ul>
   </div>
 
-  <h2 style="margin-top:2rem">Email addresses</h2>
-  <p class="muted">Each address you set up at <code>name@cncg.email</code> can auto-reply to inbound mail. Replies go to the original sender; you and your team get a copy via Cc/Bcc.</p>
+  <h2 style="margin-top:2rem">{email_h}</h2>
+  <p class="muted">{email_body}</p>
 
   <div class="card p-18" style="margin:24px 0">
-    <p class="m-0"><strong>1 address free per account.</strong> Need more? <strong>{address_price}</strong> per extra address, one-time, never expires.</p>
-    <p class="muted" style="margin:8px 0 0">Static replies stay free; AI replies draw from your credit balance above.</p>
+    <p class="m-0">{quota_prefix} <strong>{address_price}</strong> {quota_suffix}</p>
+    <p class="muted" style="margin:8px 0 0">{billing_note}</p>
   </div>
 </article>"##,
         nav = nav,
+        inr_label = crate::helpers::html_escape(&inr_label),
+        usd_label = crate::helpers::html_escape(&usd_label),
+        headline_suffix = crate::i18n::t(&locale, "pricing-headline-prefix"),
+        lead = crate::i18n::t(&locale, "pricing-lead"),
+        credits_eyebrow = crate::i18n::t(&locale, "pricing-credits-eyebrow"),
+        credits_li_1 = crate::i18n::t(&locale, "pricing-credits-li-1"),
+        credits_li_2 = crate::i18n::t(&locale, "pricing-credits-li-2"),
+        credits_li_3 = crate::i18n::t(&locale, "pricing-credits-li-3"),
+        email_h = crate::i18n::t(&locale, "pricing-email-heading"),
+        email_body = crate::i18n::t(&locale, "pricing-email-body"),
+        quota_prefix = crate::i18n::t(&locale, "pricing-email-quota-prefix"),
+        quota_suffix = crate::i18n::t(&locale, "pricing-email-quota-suffix"),
+        billing_note = crate::i18n::t(&locale, "pricing-email-billing-note"),
         per_reply = per_reply,
         address_price = address_price,
         slider = slider,
@@ -833,9 +933,10 @@ pub fn pricing_html(default_currency: &str) -> String {
         "Pricing - Concierge",
         &content,
         &PageMeta {
-            description: "Simple, prepaid pricing for Concierge. ₹2 / $0.02 per AI reply, no tiers. Static auto-replies free. 100 free AI replies every month. 1 free email address; ₹99 / $1 per extra address.",
-            og_title: "Concierge Pricing",
-            ..PageMeta::default()
+            description: crate::i18n::t(&locale, "pricing-meta-description"),
+            og_title: crate::i18n::t(&locale, "pricing-og-title"),
+            og_type: "website",
         },
+        &locale,
     )
 }

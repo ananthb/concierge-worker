@@ -21,6 +21,7 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
     };
 
     let base_url = get_base_url(&req);
+    let locale = crate::locale::Locale::from_request(&req);
 
     // CSRF validation on state-changing requests
     if matches!(method, Method::Post | Method::Put | Method::Delete) {
@@ -58,6 +59,7 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             &ig,
             dc.as_ref(),
             &tenant_id,
+            &locale,
         ));
     }
 
@@ -202,6 +204,7 @@ pub async fn handle_admin(req: Request, env: Env, path: &str, method: Method) ->
             &email_addrs,
             &base_url,
             !onboarding.risk_gate_banner_dismissed,
+            &locale,
         ))?;
         resp.headers_mut().set("Cache-Control", "no-store")?;
         return Ok(resp);

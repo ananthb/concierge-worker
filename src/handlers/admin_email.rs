@@ -22,6 +22,7 @@ pub async fn handle_email_admin(
 ) -> Result<Response> {
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;
+    let locale = crate::locale::Locale::from_request(&req);
 
     let path_parts: Vec<&str> = path
         .strip_prefix("/admin/email")
@@ -47,6 +48,7 @@ pub async fn handle_email_admin(
                 &tenant,
                 &base_domain,
                 base_url,
+                &locale,
             ))
         }
 
@@ -128,7 +130,7 @@ pub async fn handle_email_admin(
                 Some(a) => a,
                 None => return Response::error("Not found", 404),
             };
-            Response::from_html(email_address_html(&addr, &base_domain, base_url))
+            Response::from_html(email_address_html(&addr, &base_domain, base_url, &locale))
         }
 
         // Update auto-reply config.

@@ -233,8 +233,10 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         || path.starts_with("/admin")
         || path.starts_with("/whatsapp/signup")
         || path.starts_with("/instagram/");
+    let request_locale = locale::Locale::from_request(&req);
     if needs_essentials && !handlers::health::essentials_missing(&env).is_empty() {
-        let mut resp = Response::from_html(templates::base::maintenance_html())?.with_status(503);
+        let mut resp = Response::from_html(templates::base::maintenance_html(&request_locale))?
+            .with_status(503);
         let h = resp.headers_mut();
         h.set("Retry-After", "60")?;
         h.set("Cache-Control", "no-store")?;
@@ -243,17 +245,17 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
 
     // Terms of Service
     if path == "/terms" {
-        return Response::from_html(legal::terms_of_service_html());
+        return Response::from_html(legal::terms_of_service_html(&request_locale));
     }
 
     // Privacy Policy
     if path == "/privacy" {
-        return Response::from_html(legal::privacy_policy_html());
+        return Response::from_html(legal::privacy_policy_html(&request_locale));
     }
 
     // Marketing features overview
     if path == "/features" {
-        return Response::from_html(templates::features::features_html());
+        return Response::from_html(templates::features::features_html(&request_locale));
     }
 
     // Pricing page. ?c=usd|inr overrides the geo-IP default so the toggle
@@ -273,7 +275,10 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
                 "usd".into()
             }
         });
-        return Response::from_html(templates::onboarding::pricing_html(&currency));
+        return Response::from_html(templates::onboarding::pricing_html(
+            &currency,
+            &request_locale,
+        ));
     }
 
     // Data deletion callback (Facebook requirement)
@@ -283,7 +288,7 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
 
     // Notification-recipient verification: opened from an emailed link.
     if let Some(token) = path.strip_prefix("/email/verify/") {
-        return handle_email_verify(env, token).await;
+        return handle_email_verify(env, token, &request_locale).await;
     }
 
     // Auth routes (login, callback, logout)
@@ -351,12 +356,13 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     Response::error("Not Found", 404)
 }
 
-async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
+async fn handle_email_verify(env: Env, token: &str, locale: &locale::Locale) -> Result<Response> {
     use templates::admin_email::email_verify_result_html;
 
     if token.is_empty() {
         return Response::from_html(email_verify_result_html(
             "That verification link is invalid.",
+            locale,
         ));
     }
 
@@ -366,6 +372,7 @@ async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
         None => {
             return Response::from_html(email_verify_result_html(
                 "This link has expired or was already used. If you still need to confirm, ask the account owner to add you again.",
+                locale,
             ))
         }
     };
@@ -377,6 +384,7 @@ async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
                 let _ = storage::delete_email_verification_token(&kv, token).await;
                 return Response::from_html(email_verify_result_html(
                     "The address this notification was for is no longer active.",
+                    locale,
                 ));
             }
         };
@@ -396,6 +404,7 @@ async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
     if !found {
         return Response::from_html(email_verify_result_html(
             "This recipient has been removed. No further action needed.",
+            locale,
         ));
     }
 
@@ -403,6 +412,7 @@ async fn handle_email_verify(env: Env, token: &str) -> Result<Response> {
     storage::save_email_address(&kv, &payload.tenant_id, &addr).await?;
     Response::from_html(email_verify_result_html(
         "You're verified: replies sent from this Concierge address will now copy you.",
+        locale,
     ))
 }
 

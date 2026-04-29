@@ -25,6 +25,7 @@ pub async fn handle_management(
     let kv = env.kv("KV")?;
     let db = env.d1("DB")?;
     let base_url = crate::handlers::get_base_url(&req);
+    let locale = crate::locale::Locale::from_request(&req);
 
     let sub = path
         .strip_prefix("/manage")
@@ -49,12 +50,13 @@ pub async fn handle_management(
                 tenant_count,
                 &report,
                 &base_url,
+                &locale,
             ))
         }
 
         (Method::Get, "audit") => {
             let log = audit::get_audit_log(&db, 100).await?;
-            Response::from_html(tmpl::audit_html(&log, &base_url))
+            Response::from_html(tmpl::audit_html(&log, &base_url, &locale))
         }
 
         _ => Response::error("Not Found", 404),

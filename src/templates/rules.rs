@@ -5,6 +5,7 @@
 
 use crate::handlers::admin_rules::ChannelRef;
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::types::{
     default_match_threshold, ApprovalPolicy, ReplyConfig, ReplyMatcher, ReplyResponse, ReplyRule,
 };
@@ -12,7 +13,12 @@ use crate::types::{
 use super::base::{app_shell, base_html};
 use super::HASH;
 
-pub fn rules_list_html(cfg: &ReplyConfig, channel: &ChannelRef<'_>, base_url: &str) -> String {
+pub fn rules_list_html(
+    cfg: &ReplyConfig,
+    channel: &ChannelRef<'_>,
+    base_url: &str,
+    locale: &Locale,
+) -> String {
     let rules_base = channel.rules_base(base_url);
     let back = channel.back_url(base_url);
     let channel_label = html_escape(channel.label());
@@ -60,8 +66,8 @@ pub fn rules_list_html(cfg: &ReplyConfig, channel: &ChannelRef<'_>, base_url: &s
         default_summary = default_summary,
     );
 
-    let page = app_shell(&body, "Rules", base_url);
-    base_html("Reply rules - Concierge", &page)
+    let page = app_shell(&body, "Rules", base_url, locale);
+    base_html("Reply rules - Concierge", &page, locale)
 }
 
 fn rule_row_html(rule: &ReplyRule, idx: usize, last_idx: usize, rules_base: &str) -> String {
@@ -96,17 +102,19 @@ fn rule_row_html(rule: &ReplyRule, idx: usize, last_idx: usize, rules_base: &str
     let id = html_escape(&rule.id);
     let up_btn = if idx > 0 {
         format!(
-            r#"<button class="btn ghost icon" hx-post="{rules_base}/{id}/move/up" hx-swap="none" title="Move up">&uarr;</button>"#
+            r#"<button class="btn ghost icon" hx-post="{rules_base}/{id}/move/up" hx-swap="none" title="Move up" aria-label="Move rule up">&uarr;</button>"#
         )
     } else {
-        r#"<span class="btn ghost icon" style="visibility:hidden">&uarr;</span>"#.to_string()
+        r#"<span class="btn ghost icon" style="visibility:hidden" aria-hidden="true">&uarr;</span>"#
+            .to_string()
     };
     let down_btn = if idx < last_idx {
         format!(
-            r#"<button class="btn ghost icon" hx-post="{rules_base}/{id}/move/down" hx-swap="none" title="Move down">&darr;</button>"#
+            r#"<button class="btn ghost icon" hx-post="{rules_base}/{id}/move/down" hx-swap="none" title="Move down" aria-label="Move rule down">&darr;</button>"#
         )
     } else {
-        r#"<span class="btn ghost icon" style="visibility:hidden">&darr;</span>"#.to_string()
+        r#"<span class="btn ghost icon" style="visibility:hidden" aria-hidden="true">&darr;</span>"#
+            .to_string()
     };
 
     format!(
@@ -178,6 +186,7 @@ pub fn rule_form_html(
     base_url: &str,
     title: impl AsRef<str>,
     allow_no_gate: bool,
+    locale: &Locale,
 ) -> String {
     let rules_base = channel.rules_base(base_url);
     let title = html_escape(title.as_ref());
@@ -257,18 +266,18 @@ pub fn rule_form_html(
     <label class="row gap-6"><input type="radio" name="matcher_kind" value="prompt" x-model="matcherKind"> Prompt (AI intent)</label>
   </div>
 
-  <div x-show="matcherKind === 'keyword'" x-cloak>
-    <label class="eyebrow lbl">Keywords (comma- or newline-separated)</label>
-    <textarea class="textarea mono" name="keywords" rows="2" placeholder="hours, open, closed">{keywords_val}</textarea>
+  <div x-show="matcherKind === 'keyword'" x-cloak :aria-hidden="matcherKind !== 'keyword'">
+    <label for="rule-keywords" class="eyebrow lbl">Keywords (comma- or newline-separated)</label>
+    <textarea id="rule-keywords" class="textarea mono" name="keywords" rows="2" placeholder="hours, open, closed">{keywords_val}</textarea>
     <p class="muted fs-12 mt-4">Case-insensitive. Matches if the inbound message contains any of these.</p>
   </div>
 
-  <div x-show="matcherKind === 'prompt'" x-cloak>
-    <label class="eyebrow lbl">Description</label>
-    <input class="input" name="description" maxlength="200" value="{description_val}" placeholder="asks about hours">
+  <div x-show="matcherKind === 'prompt'" x-cloak :aria-hidden="matcherKind !== 'prompt'">
+    <label for="rule-description" class="eyebrow lbl">Description</label>
+    <input id="rule-description" class="input" name="description" maxlength="200" value="{description_val}" placeholder="asks about hours">
     <p class="muted fs-12 mt-4">Describe the kind of message that should match. We embed this and compare against incoming messages.</p>
-    <label class="eyebrow lbl mt-12">Threshold: <span class="mono" x-text="threshold.toFixed(2)"></span></label>
-    <input type="range" min="0.5" max="0.95" step="0.01" name="threshold" x-model.number="threshold" style="width:100%;accent-color:var(--accent)">
+    <label for="rule-threshold" class="eyebrow lbl mt-12">Threshold: <span class="mono" x-text="threshold.toFixed(2)"></span></label>
+    <input id="rule-threshold" type="range" min="0.5" max="0.95" step="0.01" name="threshold" x-model.number="threshold" style="width:100%;accent-color:var(--accent)">
     <p class="muted fs-12 mt-4">Higher = stricter match. Default 0.72.</p>
   </div>
 </div>"##,
@@ -287,19 +296,20 @@ pub fn rule_form_html(
 
   <form class="card p-22" {method_attr}="{action_url}" hx-target="body" hx-swap="innerHTML" x-ref="form">
     <div class="form-group">
-      <label class="eyebrow lbl">Label</label>
-      <input class="input" name="label" maxlength="80" value="{label_val}" placeholder="Pricing questions" required>
+      <label for="rule-label" class="eyebrow lbl">Label</label>
+      <input id="rule-label" class="input" name="label" maxlength="80" value="{label_val}" placeholder="Pricing questions" required aria-required="true">
     </div>
 
     {matcher_block}
 
     <div class="form-group">
-      <label class="eyebrow lbl">Respond with</label>
-      <div class="row gap-12 mb-12">
+      <label class="eyebrow lbl" id="rule-respond-with-label">Respond with</label>
+      <div class="row gap-12 mb-12" role="radiogroup" aria-labelledby="rule-respond-with-label">
         <label class="row gap-6"><input type="radio" name="response_kind" value="canned" x-model="responseKind"> Canned text (free, no AI)</label>
         <label class="row gap-6"><input type="radio" name="response_kind" value="prompt" x-model="responseKind"> AI prompt (1 credit per reply)</label>
       </div>
-      <textarea class="textarea" name="response_text" rows="5" maxlength="2000" placeholder="Hi! Here's what we recommend..." required>{response_text}</textarea>
+      <label for="rule-response-text" class="sr-only">Reply text</label>
+      <textarea id="rule-response-text" class="textarea" name="response_text" rows="5" maxlength="2000" placeholder="Hi! Here's what we recommend..." required aria-required="true">{response_text}</textarea>
       <p class="muted fs-12 mt-4" x-show="responseKind === 'prompt'" x-cloak>This text is appended to your persona prompt and sent to the LLM.</p>
     </div>
 
@@ -335,8 +345,8 @@ pub fn rule_form_html(
         ),
     );
 
-    let page = app_shell(&body, "Rules", base_url);
-    base_html("Edit rule - Concierge", &page)
+    let page = app_shell(&body, "Rules", base_url, locale);
+    base_html("Edit rule - Concierge", &page, locale)
 }
 
 fn approval_block_html(approval_kind: &str, allow_no_gate: bool) -> String {
@@ -371,9 +381,12 @@ fn approval_block_html(approval_kind: &str, allow_no_gate: bool) -> String {
 
 fn no_gate_modal_html() -> &'static str {
     r##"<div x-show="noGateModalOpen" x-cloak
+  role="dialog" aria-modal="true" aria-labelledby="no-gate-title"
+  x-trap.noscroll.inert="noGateModalOpen"
+  @keydown.escape.window="noGateModalOpen = false; noGateAck1 = false; noGateAck2 = false; approvalKind = 'auto'"
   style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000">
   <div class="card p-22" style="max-width:560px;width:90%">
-    <h2 class="display-xs mb-8">Turn off the safety check for this rule</h2>
+    <h2 id="no-gate-title" class="display-xs mb-8">Turn off the safety check for this rule</h2>
     <p class="muted fs-13 mb-12">The risk gate normally pauses an AI reply for your review when it:</p>
     <ul class="muted fs-13 mb-12" style="margin-left:18px">
       <li>Mentions money, prices, refunds, or discounts</li>

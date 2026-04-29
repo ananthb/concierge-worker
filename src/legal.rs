@@ -1,114 +1,168 @@
 //! Legal pages: Terms of Service and Privacy Policy
 
+use crate::i18n::t;
+use crate::locale::Locale;
 use crate::templates::base::{base_html_with_meta, brand_mark, PageMeta};
 
-pub fn terms_of_service_html() -> String {
+pub fn terms_of_service_html(locale: &Locale) -> String {
     let content = format!(
         r##"<header class="site-header">
   {brand}
-  <div style="margin-left:auto"><a href="/" class="btn ghost sm">&larr; Home</a></div>
+  <div style="margin-left:auto"><a href="/" class="btn ghost sm">{home}</a></div>
 </header>
 <article class="legal">
-  <h1>Terms of Service</h1>
-  <p class="muted">Effective April 26, 2026</p>
+  <h1>{h1}</h1>
+  <p class="muted">{effective}</p>
 
-  <h2>1. Service</h2>
-  <p>Concierge ("the Service") is a messaging automation platform operated by Calculon Tech at concierge.calculon.tech. By using the Service you agree to these terms.</p>
+  <h2>{h2_service}</h2>
+  <p>{p_service}</p>
 
-  <h2>2. Accounts</h2>
-  <p>You sign in with Google OAuth. You are responsible for the activity on your account and the phone numbers and Instagram accounts you connect.</p>
+  <h2>{h2_accounts}</h2>
+  <p>{p_accounts}</p>
 
-  <h2>3. Acceptable Use</h2>
-  <p>You must not use the Service to send spam, unsolicited messages, or any content that violates applicable law. You must comply with Meta's WhatsApp Business Policy and Instagram Platform Policy.</p>
+  <h2>{h2_acceptable}</h2>
+  <p>{p_acceptable}</p>
 
-  <h2>4. Data</h2>
-  <p>We store the minimum data needed to operate: your email, connected account metadata, and message logs. See our <a href="/privacy">Privacy Policy</a> for details. You can delete all your data at any time from Settings.</p>
+  <h2>{h2_data}</h2>
+  <p>{p_data}</p>
 
-  <h2>5. No Warranty</h2>
-  <p>The Service is provided "as is" without warranty of any kind. We do not guarantee uptime, message delivery, or API availability.</p>
+  <h2>{h2_warranty}</h2>
+  <p>{p_warranty}</p>
 
-  <h2>6. AI-generated replies</h2>
-  <p>The Service uses third-party large language models to draft replies on your behalf. AI output may be incorrect, incomplete, misleading, or inappropriate for your context. You are solely responsible for the content sent from your connected accounts, including AI-drafted messages. You are responsible for reviewing your persona prompt and reply rules to ensure outputs comply with applicable law and platform policies (Meta WhatsApp Business Policy, Instagram Platform Policy, Discord Terms of Service).</p>
-  <p><strong>Calculon Tech disclaims all liability for AI-generated content sent via the Service</strong>, including without limitation factual errors, regulatory or platform-policy violations, defamatory content, missed appointments, mispriced quotes, and any commercial loss arising from AI replies. The persona safety check is a best-effort automated screen and does not constitute review or approval of any specific message.</p>
+  <h2>{h2_ai}</h2>
+  <p>{p_ai_1}</p>
+  <p>{p_ai_2}</p>
 
-  <h2>7. Limitation of Liability</h2>
-  <p>To the maximum extent permitted by law, Calculon Tech is not liable for any indirect, incidental, consequential, or special damages arising from your use of the Service, including damages arising from AI-generated replies and any business consequence thereof.</p>
+  <h2>{h2_liability}</h2>
+  <p>{p_liability}</p>
 
-  <h2>8. Changes</h2>
-  <p>We may update these terms. Continued use after changes constitutes acceptance.</p>
+  <h2>{h2_changes}</h2>
+  <p>{p_changes}</p>
 
-  <h2>9. Contact</h2>
-  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge">github.com/ananthb/concierge</a>.</p>
+  <h2>{h2_contact}</h2>
+  <p>{p_contact}</p>
 </article>"##,
         brand = brand_mark(),
+        home = t(locale, "legal-back-home"),
+        h1 = t(locale, "terms-h1"),
+        effective = t(locale, "terms-effective"),
+        h2_service = t(locale, "terms-h2-service"),
+        p_service = t(locale, "terms-p-service"),
+        h2_accounts = t(locale, "terms-h2-accounts"),
+        p_accounts = t(locale, "terms-p-accounts"),
+        h2_acceptable = t(locale, "terms-h2-acceptable"),
+        p_acceptable = t(locale, "terms-p-acceptable"),
+        h2_data = t(locale, "terms-h2-data"),
+        p_data = t(locale, "terms-p-data"),
+        h2_warranty = t(locale, "terms-h2-warranty"),
+        p_warranty = t(locale, "terms-p-warranty"),
+        h2_ai = t(locale, "terms-h2-ai"),
+        p_ai_1 = t(locale, "terms-p-ai-1"),
+        p_ai_2 = t(locale, "terms-p-ai-2"),
+        h2_liability = t(locale, "terms-h2-liability"),
+        p_liability = t(locale, "terms-p-liability"),
+        h2_changes = t(locale, "terms-h2-changes"),
+        p_changes = t(locale, "terms-p-changes"),
+        h2_contact = t(locale, "terms-h2-contact"),
+        p_contact = t(locale, "terms-p-contact"),
     );
 
+    let title = t(locale, "terms-title");
     base_html_with_meta(
-        "Terms of Service | Concierge",
+        &title,
         &content,
         &PageMeta {
-            description: "Terms of Service for Concierge, an automated messaging platform for small businesses.",
-            og_title: "Terms of Service | Concierge",
-            ..PageMeta::default()
+            description: t(locale, "terms-meta-description"),
+            og_title: title.clone(),
+            og_type: "article",
         },
+        locale,
     )
 }
 
-pub fn privacy_policy_html() -> String {
+pub fn privacy_policy_html(locale: &Locale) -> String {
     let content = format!(
         r##"<header class="site-header">
   {brand}
-  <div style="margin-left:auto"><a href="/" class="btn ghost sm">&larr; Home</a></div>
+  <div style="margin-left:auto"><a href="/" class="btn ghost sm">{home}</a></div>
 </header>
 <article class="legal">
-  <h1>Privacy Policy</h1>
-  <p class="muted">Effective April 26, 2026</p>
+  <h1>{h1}</h1>
+  <p class="muted">{effective}</p>
 
-  <h2>What we collect</h2>
+  <h2>{h2_collect}</h2>
   <ul>
-    <li><strong>Account info:</strong> your Google email and name (from OAuth sign-in)</li>
-    <li><strong>Connected accounts:</strong> WhatsApp phone number IDs, Instagram page IDs, and encrypted access tokens</li>
-    <li><strong>Message logs:</strong> inbound/outbound WhatsApp and Instagram messages processed by auto-reply</li>
-    <li><strong>Lead form submissions:</strong> phone numbers submitted through your lead capture forms</li>
-    <li><strong>Persona prompts and reply rules:</strong> the AI persona text you write and the rule descriptions you configure</li>
+    <li>{li_account}</li>
+    <li>{li_connected}</li>
+    <li>{li_logs}</li>
+    <li>{li_leads}</li>
+    <li>{li_persona}</li>
   </ul>
 
-  <h2>How we use it</h2>
-  <p>Solely to operate the Service: routing messages, generating auto-replies, and displaying your admin dashboard. We do not sell, share, or use your data for advertising.</p>
+  <h2>{h2_use}</h2>
+  <p>{p_use}</p>
 
-  <h2>Where it's stored</h2>
-  <p>Data is stored on Cloudflare's infrastructure (D1 database and KV store). Sensitive tokens are encrypted with AES-256-GCM.</p>
+  <h2>{h2_storage}</h2>
+  <p>{p_storage}</p>
 
-  <h2>AI processing</h2>
-  <p>Inbound message text and your persona prompt are sent to Cloudflare Workers AI to draft replies and to classify message intent and persona safety. Cloudflare's AI processing terms apply. Persona prompts are also classified by an automated safety scanner; the scanner's category labels are logged for abuse review and not shared. AI-generated replies may be incorrect or inappropriate. See our <a href="/terms">Terms of Service</a> for the liability disclaimer.</p>
+  <h2>{h2_ai}</h2>
+  <p>{p_ai}</p>
 
-  <h2>Third parties</h2>
-  <p>We interact with Meta's WhatsApp and Instagram APIs on your behalf. We use Cloudflare Workers AI for AI-powered auto-replies and intent classification. No other third parties receive your data.</p>
+  <h2>{h2_third}</h2>
+  <p>{p_third}</p>
 
-  <h2>Data retention</h2>
-  <p>Data is retained while your account is active. You can delete all your data at any time from <a href="/admin/settings">Settings</a>.</p>
+  <h2>{h2_retention}</h2>
+  <p>{p_retention}</p>
 
-  <h2>Data deletion</h2>
-  <p>To delete your account and all associated data:</p>
+  <h2>{h2_deletion}</h2>
+  <p>{p_deletion_prefix}</p>
   <ul>
-    <li>Go to <a href="/admin/settings">Settings</a> and click "Delete Account"</li>
-    <li>Or remove the Concierge app from your <a href="https://www.facebook.com/settings?tab=business_tools">Facebook Business Integrations</a></li>
+    <li>{li_deletion_1}</li>
+    <li>{li_deletion_2}</li>
   </ul>
-  <p>Deletion is immediate and irreversible.</p>
+  <p>{p_deletion_suffix}</p>
 
-  <h2>Contact</h2>
-  <p>Questions? Open an issue at <a href="https://github.com/ananthb/concierge">github.com/ananthb/concierge</a>.</p>
+  <h2>{h2_contact}</h2>
+  <p>{p_contact}</p>
 </article>"##,
         brand = brand_mark(),
+        home = t(locale, "legal-back-home"),
+        h1 = t(locale, "privacy-h1"),
+        effective = t(locale, "privacy-effective"),
+        h2_collect = t(locale, "privacy-h2-collect"),
+        li_account = t(locale, "privacy-li-account"),
+        li_connected = t(locale, "privacy-li-connected"),
+        li_logs = t(locale, "privacy-li-logs"),
+        li_leads = t(locale, "privacy-li-leads"),
+        li_persona = t(locale, "privacy-li-persona"),
+        h2_use = t(locale, "privacy-h2-use"),
+        p_use = t(locale, "privacy-p-use"),
+        h2_storage = t(locale, "privacy-h2-storage"),
+        p_storage = t(locale, "privacy-p-storage"),
+        h2_ai = t(locale, "privacy-h2-ai"),
+        p_ai = t(locale, "privacy-p-ai"),
+        h2_third = t(locale, "privacy-h2-third"),
+        p_third = t(locale, "privacy-p-third"),
+        h2_retention = t(locale, "privacy-h2-retention"),
+        p_retention = t(locale, "privacy-p-retention"),
+        h2_deletion = t(locale, "privacy-h2-deletion"),
+        p_deletion_prefix = t(locale, "privacy-p-deletion-prefix"),
+        li_deletion_1 = t(locale, "privacy-li-deletion-1"),
+        li_deletion_2 = t(locale, "privacy-li-deletion-2"),
+        p_deletion_suffix = t(locale, "privacy-p-deletion-suffix"),
+        h2_contact = t(locale, "privacy-h2-contact"),
+        p_contact = t(locale, "privacy-p-contact"),
     );
 
+    let title = t(locale, "privacy-title");
     base_html_with_meta(
-        "Privacy Policy | Concierge",
+        &title,
         &content,
         &PageMeta {
-            description: "Privacy Policy for Concierge. We store the minimum data needed to operate and you can delete everything at any time.",
-            og_title: "Privacy Policy | Concierge",
-            ..PageMeta::default()
+            description: t(locale, "privacy-meta-description"),
+            og_title: title.clone(),
+            og_type: "article",
         },
+        locale,
     )
 }

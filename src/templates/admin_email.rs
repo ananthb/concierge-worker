@@ -2,6 +2,7 @@
 //! edit (auto-reply config + notification recipients).
 
 use crate::helpers::html_escape;
+use crate::locale::Locale;
 use crate::types::*;
 
 use super::base::{app_shell, base_html};
@@ -13,6 +14,7 @@ pub fn email_dashboard_html(
     tenant: &Tenant,
     base_domain: &str,
     base_url: &str,
+    locale: &Locale,
 ) -> String {
     let used = addrs.len() as u32;
     let quota = tenant.email_address_quota();
@@ -58,7 +60,8 @@ pub fn email_dashboard_html(
         format!(
             r#"<div class="card p-0" style="overflow:hidden">
                 <table>
-                    <thead><tr><th>Address</th><th>Auto-reply</th><th>Notify</th><th></th></tr></thead>
+                    <caption class="sr-only">Concierge email addresses</caption>
+                    <thead><tr><th scope="col">Address</th><th scope="col">Auto-reply</th><th scope="col">Notify</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
                     <tbody>{address_rows}</tbody>
                 </table>
             </div>"#,
@@ -86,7 +89,7 @@ pub fn email_dashboard_html(
                         <button class="btn primary" type="submit">Add</button>
                     </div>
                 </form>
-                <div id="toast" class="mt-8"></div>
+                <div id="toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
             </div>"##,
             HASH = HASH,
             base_url = base_url,
@@ -108,12 +111,17 @@ pub fn email_dashboard_html(
         add_form = add_form,
     );
 
-    let page = app_shell(&body, "Email", base_url);
-    base_html("Email: Concierge", &page)
+    let page = app_shell(&body, "Email", base_url, locale);
+    base_html("Email: Concierge", &page, locale)
 }
 
 /// Per-address edit page.
-pub fn email_address_html(addr: &EmailAddress, base_domain: &str, base_url: &str) -> String {
+pub fn email_address_html(
+    addr: &EmailAddress,
+    base_domain: &str,
+    base_url: &str,
+    locale: &Locale,
+) -> String {
     let full = format!("{}@{}", addr.local_part, base_domain);
 
     let static_selected = addr.auto_reply.default_is_canned();
@@ -137,25 +145,25 @@ pub fn email_address_html(addr: &EmailAddress, base_domain: &str, base_url: &str
                 </label>
             </div>
             <div class="form-group">
-                <label>Default reply mode</label>
-                <select class="select" name="mode">
+                <label for="email-mode">Default reply mode</label>
+                <select id="email-mode" class="select" name="mode">
                     <option value="canned" {static_sel}>Static: same canned reply every time</option>
                     <option value="prompt" {ai_sel}>AI: generate a reply for each message (uses 1 credit)</option>
                 </select>
             </div>
             <div class="form-group">
-                <label>Default reply text / AI prompt</label>
-                <textarea class="textarea" name="prompt" rows="6" placeholder="In static mode this exact text is sent. In AI mode, this is the system prompt for the model.">{prompt}</textarea>
+                <label for="email-prompt">Default reply text / AI prompt</label>
+                <textarea id="email-prompt" class="textarea" name="prompt" rows="6" placeholder="In static mode this exact text is sent. In AI mode, this is the system prompt for the model.">{prompt}</textarea>
             </div>
             <div class="form-group">
-                <label>Wait before replying ({wait}s)</label>
-                <input class="input" name="wait_seconds" type="number" min="0" max="120" value="{wait}">
+                <label for="email-wait">Wait before replying ({wait}s)</label>
+                <input id="email-wait" class="input" name="wait_seconds" type="number" min="0" max="120" value="{wait}">
                 <p class="muted fs-12 mt-4">Lets clusters of forwarded messages collapse into one reply. 0 = reply immediately.</p>
             </div>
             <div class="row gap-8">
                 <button class="btn primary" type="submit">Save</button>
             </div>
-            <div id="auto-toast" class="mt-8"></div>
+            <div id="auto-toast" class="mt-8" role="status" aria-live="polite" aria-atomic="true"></div>
         </form>"##,
         HASH = HASH,
         base_url = base_url,
@@ -210,7 +218,8 @@ pub fn email_address_html(addr: &EmailAddress, base_domain: &str, base_url: &str
     let recipients_section = format!(
         r##"<div class="card p-0" style="overflow:hidden">
             <table>
-                <thead><tr><th>Address</th><th>Kind</th><th>Status</th><th></th></tr></thead>
+                <caption class="sr-only">Notification recipients</caption>
+                <thead><tr><th scope="col">Address</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>{recipient_rows}</tbody>
             </table>
         </div>
@@ -248,14 +257,14 @@ pub fn email_address_html(addr: &EmailAddress, base_domain: &str, base_url: &str
         recipients_section = recipients_section,
     );
 
-    let page = app_shell(&body, "Email", base_url);
-    base_html(&format!("{full}: Concierge"), &page)
+    let page = app_shell(&body, "Email", base_url, locale);
+    base_html(&format!("{full}: Concierge"), &page, locale)
 }
 
 /// Public verification page rendered when a recipient clicks the link
 /// from the verification email. The handler decides which variant to
 /// show (success / already / expired).
-pub fn email_verify_result_html(message: &str) -> String {
+pub fn email_verify_result_html(message: &str, locale: &Locale) -> String {
     let body = format!(
         r#"<div class="page-pad ta-center">
             <h1 class="display-md mb-12">Email verification</h1>
@@ -264,5 +273,5 @@ pub fn email_verify_result_html(message: &str) -> String {
         </div>"#,
         message = html_escape(message),
     );
-    base_html("Email verification: Concierge", &body)
+    base_html("Email verification: Concierge", &body, locale)
 }
