@@ -49,12 +49,27 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
                 .secret("META_APP_ID")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
+            let wa_config_id = env
+                .var("WHATSAPP_SIGNUP_CONFIG_ID")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+
+            // CSRF nonce for the public WhatsApp Embedded Signup flow. Stored
+            // in KV with a distinct prefix so it can't be confused with the
+            // admin-side `wa_signup_state:` keys (which carry a tenant_id).
+            let wa_state = generate_token()?;
+            kv.put(&format!("wa_pubsignup_state:{}", wa_state), "1")?
+                .expiration_ttl(600)
+                .execute()
+                .await?;
 
             let last_provider = get_cookie(&req, "last_provider");
             let html = auth_login_html(
                 &base_url,
                 &google_client_id,
                 &meta_app_id,
+                &wa_config_id,
+                &wa_state,
                 last_provider.as_deref(),
                 &locale,
             );
@@ -360,7 +375,7 @@ pub async fn handle_auth(req: Request, env: Env, path: &str, method: Method) -> 
     }
 }
 
-async fn create_session_and_redirect(
+pub(super) async fn create_session_and_redirect(
     _req: &Request,
     kv: &kv::KvStore,
     tenant_id: &str,

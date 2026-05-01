@@ -11,7 +11,9 @@ use super::HASH;
 pub fn auth_login_html(
     base_url: &str,
     google_client_id: &str,
-    _meta_app_id: &str,
+    meta_app_id: &str,
+    wa_config_id: &str,
+    wa_state: &str,
     last_provider: Option<&str>,
     locale: &Locale,
 ) -> String {
@@ -22,34 +24,116 @@ pub fn auth_login_html(
         urlencoding::encode(&redirect_uri),
         urlencoding::encode("openid email profile"),
     );
-    let fb_url = format!("{}/auth/facebook", base_url);
+    let fb_redirect_uri = format!("{}/auth/facebook/callback", base_url);
+    let fb_url = format!(
+        "https://www.facebook.com/{}/dialog/oauth?client_id={}&redirect_uri={}&scope=email&response_type=code",
+        crate::META_API_VERSION,
+        urlencoding::encode(meta_app_id),
+        urlencoding::encode(&fb_redirect_uri),
+    );
 
-    let google_svg = r##"<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>"##;
-    let fb_svg = r##"<svg width="18" height="18" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>"##;
+    // Brand-correct icons. Each renders well on its own button background:
+    // Google = white button + multicolor G; Facebook = blue button + white f;
+    // WhatsApp = green button + white speech-bubble.
+    let google_svg = r##"<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>"##;
+    let fb_svg = r##"<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13.397 20.997v-8.196h2.765l.411-3.209h-3.176V7.548c0-.926.258-1.56 1.587-1.56h1.684V3.127A22.336 22.336 0 0 0 14.201 3c-2.444 0-4.122 1.492-4.122 4.231v2.355H7.332v3.209h2.753v8.202h3.312z"/></svg>"##;
+    let wa_svg = r##"<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>"##;
 
     let google_label = t(locale, "admin-login-google");
-    let fb_continue = t(locale, "admin-login-facebook-continue");
-    let fb_secondary = t(locale, "admin-login-facebook-secondary");
+    let fb_label = t(locale, "admin-login-facebook-continue");
+    let wa_label = t(locale, "admin-login-whatsapp");
 
-    let (primary_btn, secondary_btn) = if last_provider == Some("facebook") {
-        (
-            format!(
-                r#"<a href="{fb_url}" class="btn primary lg w-full jc-center">{fb_svg} {fb_continue}</a>"#,
-            ),
-            format!(
-                r#"<a href="{google_url}" class="btn ghost w-full jc-center">{google_svg} {google_label}</a>"#,
-                google_url = html_escape(&google_url),
-            ),
-        )
+    let google_btn = format!(
+        r#"<a href="{google_url}" class="btn brand-google lg w-full jc-center">{google_svg} {google_label}</a>"#,
+        google_url = html_escape(&google_url),
+    );
+    let fb_btn = format!(
+        r#"<a href="{fb_url}" class="btn brand-facebook lg w-full jc-center">{fb_svg} {fb_label}</a>"#,
+        fb_url = html_escape(&fb_url),
+    );
+    // WhatsApp button is JS-driven (Meta Embedded Signup). If the page lacks
+    // the Meta app id, omit the button rather than render a dud.
+    let wa_btn = if meta_app_id.is_empty() {
+        String::new()
     } else {
-        (
-            format!(
-                r#"<a href="{google_url}" class="btn primary lg w-full jc-center">{google_svg} {google_label}</a>"#,
-                google_url = html_escape(&google_url),
-            ),
-            format!(
-                r#"<a href="{fb_url}" class="btn ghost w-full jc-center">{fb_svg} {fb_secondary}</a>"#,
-            ),
+        format!(
+            r#"<button type="button" id="wa-signup-btn" class="btn brand-whatsapp lg w-full jc-center" onclick="launchWhatsAppSignup()">{wa_svg} {wa_label}</button>"#,
+        )
+    };
+
+    // Order buttons so the user's last-used provider is on top, but every
+    // button shares the same brand-coloured weight so none looks "preferred".
+    let buttons = match last_provider {
+        Some("facebook") => format!("{fb_btn}\n      {google_btn}\n      {wa_btn}"),
+        Some("whatsapp") => format!("{wa_btn}\n      {google_btn}\n      {fb_btn}"),
+        _ => format!("{google_btn}\n      {fb_btn}\n      {wa_btn}"),
+    };
+
+    let wa_error = t(locale, "admin-login-whatsapp-error");
+    let wa_connecting = t(locale, "admin-login-whatsapp-connecting");
+    let wa_script = if meta_app_id.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+<script>
+window.fbAsyncInit = function() {{
+    FB.init({{ appId: '{app_id}', autoLogAppEvents: true, xfbml: true, version: '{api_version}' }});
+}};
+function launchWhatsAppSignup() {{
+    var btn = document.getElementById('wa-signup-btn');
+    var errDiv = document.getElementById('wa-signup-error');
+    var origLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = '{connecting}';
+    errDiv.textContent = '';
+    var loginConfig = {{
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {{ featureType: '', sessionInfoVersion: '3' }}
+    }};
+    var configId = '{config_id}';
+    if (configId) {{
+        loginConfig.config_id = configId;
+    }} else {{
+        loginConfig.scope = 'whatsapp_business_management,whatsapp_business_messaging,email,public_profile';
+    }}
+    FB.login(function(response) {{
+        if (response.authResponse && response.authResponse.code) {{
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{base_url}/whatsapp/signup/public-callback';
+            var codeInput = document.createElement('input');
+            codeInput.type = 'hidden'; codeInput.name = 'code';
+            codeInput.value = response.authResponse.code;
+            form.appendChild(codeInput);
+            var stateInput = document.createElement('input');
+            stateInput.type = 'hidden'; stateInput.name = 'state';
+            stateInput.value = '{state}';
+            form.appendChild(stateInput);
+            if (response.authResponse.phone_number_id) {{
+                var phoneInput = document.createElement('input');
+                phoneInput.type = 'hidden'; phoneInput.name = 'phone_number_id';
+                phoneInput.value = response.authResponse.phone_number_id;
+                form.appendChild(phoneInput);
+            }}
+            document.body.appendChild(form);
+            form.submit();
+        }} else {{
+            btn.disabled = false;
+            btn.innerHTML = origLabel;
+            errDiv.textContent = '{error}';
+        }}
+    }}, loginConfig);
+}}
+</script>"#,
+            app_id = html_escape(meta_app_id),
+            api_version = crate::META_API_VERSION,
+            config_id = html_escape(wa_config_id),
+            base_url = html_escape(base_url),
+            state = html_escape(wa_state),
+            connecting = html_escape(&wa_connecting),
+            error = html_escape(&wa_error),
         )
     };
 
@@ -58,15 +142,15 @@ pub fn auth_login_html(
     <div style="margin-bottom:2rem">{logo}
     <div class="serif mt-8" style="font-size:28px">Concierge</div></div>
     <p class="muted" style="margin-bottom:2rem">{tagline}</p>
+    <div id="wa-signup-error" class="text-warn mb-12" role="alert" aria-live="assertive"></div>
     <div class="stack gap-12">
-      {primary_btn}
-      {secondary_btn}
+      {buttons}
     </div>
     <a href="/" class="btn ghost sm mt-24">{back}</a>
-</div>"#,
+</div>
+{wa_script}"#,
         logo = super::base::LOGO_INLINE,
-        primary_btn = primary_btn,
-        secondary_btn = secondary_btn,
+        buttons = buttons,
         tagline = t(locale, "admin-login-tagline"),
         back = t(locale, "admin-login-back"),
     );

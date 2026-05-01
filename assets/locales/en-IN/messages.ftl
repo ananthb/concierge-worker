@@ -184,9 +184,11 @@ admin-disabled = Disabled
 
 # Admin: login screen.
 admin-login-tagline = Sign in to manage your messaging channels.
-admin-login-google = Sign in with Google
+admin-login-google = Continue with Google
 admin-login-facebook-continue = Continue with Facebook
-admin-login-facebook-secondary = Sign in with Facebook
+admin-login-whatsapp = Continue with WhatsApp
+admin-login-whatsapp-connecting = Opening WhatsApp...
+admin-login-whatsapp-error = WhatsApp sign-up was cancelled. Please try again.
 admin-login-back = ← Back
 admin-login-title = Sign In - Concierge
 

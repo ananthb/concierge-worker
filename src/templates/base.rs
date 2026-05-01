@@ -45,6 +45,12 @@ a { color:var(--accent); }
 .btn.primary:hover { background:var(--accent-2); border-color:var(--accent-2); }
 .btn.ghost { background:transparent; color:var(--ink); border-color:var(--hair-2); }
 .btn.ghost:hover { background:rgba(27,24,20,.05); }
+.btn.brand-google { background:#fff; color:#1f1f1f; border-color:#dadce0; }
+.btn.brand-google:hover { background:#f8f9fa; border-color:#dadce0; }
+.btn.brand-facebook { background:#1877F2; color:#fff; border-color:#1877F2; }
+.btn.brand-facebook:hover { background:#166fe5; border-color:#166fe5; }
+.btn.brand-whatsapp { background:#25D366; color:#fff; border-color:#25D366; }
+.btn.brand-whatsapp:hover { background:#1ebe5a; border-color:#1ebe5a; }
 .btn.sm { padding:6px 12px; font-size:13px; }
 .btn.lg { padding:14px 22px; font-size:15px; }
 .btn.icon { padding:8px; }

@@ -131,8 +131,176 @@ pub async fn handle_whatsapp_signup(
             Ok(Response::empty()?.with_status(302).with_headers(headers))
         }
 
+        // POST /whatsapp/signup/public-callback: unauthenticated entry point
+        // from /auth/login. Mirrors the admin callback above, but creates a
+        // tenant from the Meta-supplied user info (email, fb_id, name) before
+        // saving the WhatsApp account.
+        (Method::Post, ["public-callback"]) => {
+            let kv = env.kv("KV")?;
+            let db = env.d1("DB")?;
+
+            let form = req.form_data().await?;
+
+            let state = match form.get("state") {
+                Some(FormEntry::Field(s)) => s,
+                _ => return redirect_error("/auth/login", "invalid_state"),
+            };
+            let state_key = format!("wa_pubsignup_state:{}", state);
+            match kv.get(&state_key).text().await? {
+                Some(_) => {
+                    kv.delete(&state_key).await?;
+                }
+                None => return redirect_error("/auth/login", "invalid_state"),
+            }
+
+            let code = match form.get("code") {
+                Some(FormEntry::Field(c)) if !c.is_empty() => c,
+                _ => return redirect_error("/auth/login", "missing_code"),
+            };
+
+            let js_phone_number_id = match form.get("phone_number_id") {
+                Some(FormEntry::Field(p)) if !p.is_empty() => Some(p),
+                _ => None,
+            };
+
+            let app_id = env
+                .secret("META_APP_ID")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let app_secret = env
+                .secret("META_APP_SECRET")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let platform_token = env
+                .secret("WHATSAPP_ACCESS_TOKEN")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let waba_id = env
+                .var("WHATSAPP_WABA_ID")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+
+            // Exchange the JS SDK code for a user-scoped token, then use it to
+            // identify who just connected.
+            let user_token = exchange_code(&code, &app_id, &app_secret).await?;
+            let (fb_id, fb_name, fb_email) = match fetch_fb_user_info(&user_token).await? {
+                Some(info) => info,
+                None => return redirect_error("/auth/login", "fb_user_info_failed"),
+            };
+
+            // Embedded Signup requires the user to grant `email`. If Meta
+            // returns no email we have nothing to key the tenant on, matching
+            // the Facebook OAuth fallback in handlers::auth.
+            if fb_email.is_empty() {
+                return redirect_error("/auth/login", "missing_email");
+            }
+
+            // Find-or-create tenant. Same precedence as /auth/facebook/callback:
+            // facebook_id → email → new tenant.
+            let tenant = if let Some(t) = get_tenant_by_facebook_id(&db, &fb_id).await? {
+                t
+            } else if let Some(mut t) = get_tenant_by_email(&db, &fb_email).await? {
+                t.facebook_id = Some(fb_id.clone());
+                t.updated_at = now_iso();
+                save_tenant(&db, &t).await?;
+                t
+            } else {
+                let signup_locale = crate::locale::Locale::from_request(&req);
+                let now = now_iso();
+                let tenant = Tenant {
+                    id: generate_id(),
+                    email: fb_email,
+                    name: fb_name,
+                    facebook_id: Some(fb_id),
+                    plan: crate::types::Plan::Free,
+                    locale: signup_locale.langid.to_string(),
+                    currency: signup_locale.currency,
+                    email_address_extras_purchased: 0,
+                    created_at: now.clone(),
+                    updated_at: now,
+                };
+                save_tenant(&db, &tenant).await?;
+                tenant
+            };
+
+            // Discover the phone number against the platform WABA (same as
+            // the admin-side flow above).
+            let (phone_number, phone_number_id) = if let Some(pnid) = js_phone_number_id {
+                match get_phone_number_details(&waba_id, &pnid, &platform_token).await? {
+                    Some((display_phone, _)) => (display_phone, pnid),
+                    None => return redirect_error("/auth/login", "phone_not_found"),
+                }
+            } else {
+                match discover_new_phone(&waba_id, &platform_token).await? {
+                    Some(result) => result,
+                    None => return redirect_error("/auth/login", "no_phone_numbers"),
+                }
+            };
+
+            // Dedupe: if the phone is already attached to some tenant, bail
+            // rather than silently re-bind it.
+            if get_whatsapp_account_by_phone(&kv, &phone_number_id)
+                .await?
+                .is_some()
+            {
+                return redirect_error("/auth/login", "already_connected");
+            }
+
+            let now = now_iso();
+            let account = WhatsAppAccount {
+                id: generate_id(),
+                tenant_id: tenant.id.clone(),
+                name: format!("WhatsApp {}", phone_number),
+                phone_number,
+                phone_number_id,
+                auto_reply: ReplyConfig::default(),
+                created_at: now.clone(),
+                updated_at: now,
+            };
+            save_whatsapp_account(&kv, &account).await?;
+
+            super::auth::create_session_and_redirect(&req, &kv, &tenant.id, "whatsapp").await
+        }
+
         _ => Response::error("Not Found", 404),
     }
+}
+
+/// Fetch (id, name, email) for the FB user behind an Embedded Signup token.
+/// Returns None if the Graph call fails outright; an empty email is left in
+/// place so the caller can decide how to handle it.
+async fn fetch_fb_user_info(user_token: &str) -> Result<Option<(String, Option<String>, String)>> {
+    let url = format!(
+        "https://graph.facebook.com/{}/me?fields=id,name,email&access_token={}",
+        crate::META_API_VERSION,
+        urlencoding::encode(user_token),
+    );
+    let mut init = RequestInit::new();
+    init.with_method(Method::Get);
+    let request = Request::new_with_init(&url, &init)?;
+    let mut response = Fetch::Request(request).send().await?;
+    if response.status_code() != 200 {
+        return Ok(None);
+    }
+    let body: serde_json::Value = response.json().await?;
+    let fb_id = body
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if fb_id.is_empty() {
+        return Ok(None);
+    }
+    let fb_name = body
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let fb_email = body
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    Ok(Some((fb_id, fb_name, fb_email)))
 }
 
 fn redirect_error(base: &str, error: &str) -> Result<Response> {
