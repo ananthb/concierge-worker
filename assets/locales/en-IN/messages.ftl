@@ -54,7 +54,7 @@ js-htmx-error-toast = Something went wrong. Please try again.
 # Welcome / landing page (/).
 welcome-eyebrow = // automated customer engagement
 welcome-headline = Hello. I'll be answering <br>every <em>DM, WhatsApp &amp; email</em> <br>so you don't have to.
-welcome-lead = Concierge is an automated customer-messaging service for small businesses. Connect your channels, set a tone, and I'll auto-reply across WhatsApp, Instagram, Discord, and email. 100 AI replies included every month; static replies don't draw from your credit balance.
+welcome-lead = Concierge is an automated customer-messaging service for small businesses. Connect your channels, set a tone, and I'll auto-reply across WhatsApp, Instagram, Discord, and email. 100 AI replies included every month.
 welcome-cta-primary = Get started →
 welcome-cta-secondary = See features
 
