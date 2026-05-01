@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS tenants (
     currency TEXT NOT NULL DEFAULT 'INR',
     locale TEXT NOT NULL DEFAULT 'en-IN',
     email_address_extras_purchased INTEGER NOT NULL DEFAULT 0,
+    -- Set the first time we observe a captured Razorpay payment for this
+    -- tenant. The sign-up wizard charges a small refundable amount as an
+    -- abuse-prevention check, and any other captured payment also flips
+    -- this. Used to gate wizard "Finish".
+    verified_at TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -165,6 +170,11 @@ CREATE TABLE IF NOT EXISTS pricing_config (
     email_pack_size INTEGER NOT NULL DEFAULT 5,
     -- Free monthly AI replies granted to every tenant.
     free_monthly_credits INTEGER NOT NULL DEFAULT 100,
+    -- Sign-up verification charge: the wizard collects this amount on a
+    -- real card and the webhook auto-refunds it. Stored in paise / cents
+    -- of the tenant's currency. Defaults: ₹1 / $1.
+    verification_amount_paise INTEGER NOT NULL DEFAULT 100,
+    verification_amount_cents INTEGER NOT NULL DEFAULT 100,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 INSERT OR IGNORE INTO pricing_config (id) VALUES (1);

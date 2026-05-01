@@ -67,6 +67,16 @@ pub async fn handle_billing(
                 ("address_price_cents", &mut cfg.address_price_cents, false),
                 ("email_pack_size", &mut cfg.email_pack_size, false),
                 ("free_monthly_credits", &mut cfg.free_monthly_credits, true),
+                (
+                    "verification_amount_paise",
+                    &mut cfg.verification_amount_paise,
+                    false,
+                ),
+                (
+                    "verification_amount_cents",
+                    &mut cfg.verification_amount_cents,
+                    false,
+                ),
             ] {
                 if let Some(n) = pick(key) {
                     if n < 0 || (n == 0 && !allow_zero) {

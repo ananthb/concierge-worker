@@ -48,6 +48,10 @@ fn row_to_tenant(row: &serde_json::Value) -> Tenant {
             .get("email_address_extras_purchased")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32,
+        verified_at: row
+            .get("verified_at")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         created_at: row
             .get("created_at")
             .and_then(|v| v.as_str())
@@ -100,9 +104,13 @@ pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
         Some(fb) => fb.as_str().into(),
         None => JsValue::NULL,
     };
+    let verified_val: JsValue = match &tenant.verified_at {
+        Some(v) => v.as_str().into(),
+        None => JsValue::NULL,
+    };
     db.prepare(
-        "INSERT INTO tenants (id, email, name, facebook_id, plan, locale, currency, email_address_extras_purchased, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "INSERT INTO tenants (id, email, name, facebook_id, plan, locale, currency, email_address_extras_purchased, verified_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            email = excluded.email,
            name = excluded.name,
@@ -111,6 +119,7 @@ pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
            locale = excluded.locale,
            currency = excluded.currency,
            email_address_extras_purchased = excluded.email_address_extras_purchased,
+           verified_at = excluded.verified_at,
            updated_at = excluded.updated_at",
     )
     .bind(&[
@@ -122,6 +131,7 @@ pub async fn save_tenant(db: &D1Database, tenant: &Tenant) -> Result<()> {
         tenant.locale.as_str().into(),
         tenant.currency.as_str().into(),
         JsValue::from(tenant.email_address_extras_purchased as f64),
+        verified_val,
         tenant.created_at.as_str().into(),
         tenant.updated_at.as_str().into(),
     ])?
@@ -1052,6 +1062,11 @@ pub struct PricingConfig {
     pub address_price_cents: i64,
     pub email_pack_size: i64,
     pub free_monthly_credits: i64,
+    /// Sign-up verification charge: small refundable amount we collect at
+    /// the end of the wizard to confirm a real card. The webhook
+    /// auto-refunds it after marking the tenant verified.
+    pub verification_amount_paise: i64,
+    pub verification_amount_cents: i64,
 }
 
 impl Default for PricingConfig {
@@ -1066,6 +1081,8 @@ impl Default for PricingConfig {
             address_price_cents: 100,
             email_pack_size: 5,
             free_monthly_credits: 100,
+            verification_amount_paise: 100,
+            verification_amount_cents: 100,
         }
     }
 }
@@ -1095,6 +1112,8 @@ pub async fn get_pricing_config(db: &D1Database) -> PricingConfig {
         address_price_cents: pick("address_price_cents", d.address_price_cents),
         email_pack_size: pick("email_pack_size", d.email_pack_size),
         free_monthly_credits: pick("free_monthly_credits", d.free_monthly_credits),
+        verification_amount_paise: pick("verification_amount_paise", d.verification_amount_paise),
+        verification_amount_cents: pick("verification_amount_cents", d.verification_amount_cents),
     }
 }
 
@@ -1109,6 +1128,8 @@ pub async fn update_pricing_config(db: &D1Database, p: &PricingConfig) -> Result
            address_price_cents = ?, \
            email_pack_size = ?, \
            free_monthly_credits = ?, \
+           verification_amount_paise = ?, \
+           verification_amount_cents = ?, \
            updated_at = datetime('now') \
          WHERE id = 1",
     )
@@ -1119,6 +1140,8 @@ pub async fn update_pricing_config(db: &D1Database, p: &PricingConfig) -> Result
         JsValue::from_f64(p.address_price_cents as f64),
         JsValue::from_f64(p.email_pack_size as f64),
         JsValue::from_f64(p.free_monthly_credits as f64),
+        JsValue::from_f64(p.verification_amount_paise as f64),
+        JsValue::from_f64(p.verification_amount_cents as f64),
     ])?
     .run()
     .await?;

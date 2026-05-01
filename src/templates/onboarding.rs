@@ -808,6 +808,8 @@ pub fn launch_html(
     locale: &crate::locale::Locale,
     base_url: &str,
     milli_price: i64,
+    verified: bool,
+    verification_amount: i64,
 ) -> String {
     let email_rows: String = email_addresses
         .iter()
@@ -854,8 +856,9 @@ pub fn launch_html(
         note = t(locale, "wizard-launch-credits-note"),
     );
 
-    let status_card = format!(
-        r#"<div class="card p-22" style="border-color:var(--ok);background:linear-gradient(135deg,var(--paper),#E8F0DE)">
+    let status_card = if verified {
+        format!(
+            r#"<div class="card p-22" style="border-color:var(--ok);background:linear-gradient(135deg,var(--paper),#E8F0DE)">
     <div class="row gap-12">
       <span class="dot ok"></span>
       <div>
@@ -864,9 +867,40 @@ pub fn launch_html(
       </div>
     </div>
   </div>"#,
-        headline = t(locale, "wizard-launch-status-headline"),
-        body = t(locale, "wizard-launch-status-body"),
-    );
+            headline = t(locale, "wizard-launch-status-headline"),
+            body = t(locale, "wizard-launch-status-body"),
+        )
+    } else {
+        let amount_label = crate::helpers::format_money(verification_amount, locale);
+        format!(
+            r##"<div class="card p-22" style="border-color:var(--accent)">
+    <div class="row gap-12" style="align-items:flex-start">
+      <span class="dot"></span>
+      <div class="flex-1">
+        <div class="fw-600">{headline}</div>
+        <p class="muted fs-14 m-0 mt-4 mb-12">{body}</p>
+        <form hx-post="{base_url}/admin/billing/verification" hx-target="body" hx-swap="innerHTML" hx-ext="json-enc">
+          <input type="hidden" name="return_to" value="/admin/wizard/launch">
+          <button type="submit" class="btn primary">{cta} ({amount})</button>
+          <span class="mono muted fs-11 ml-12">{refund}</span>
+        </form>
+      </div>
+    </div>
+  </div>"##,
+            base_url = base_url,
+            headline = t(locale, "wizard-launch-verify-headline"),
+            body = t(locale, "wizard-launch-verify-body"),
+            cta = t(locale, "wizard-launch-verify-cta"),
+            refund = t(locale, "wizard-launch-verify-refund"),
+            amount = amount_label,
+        )
+    };
+
+    let finish_attrs = if verified {
+        ""
+    } else {
+        " disabled aria-disabled=\"true\" title=\"Verify your account first\""
+    };
 
     let content = format!(
         r##"<section class="page narrow">
@@ -881,7 +915,7 @@ pub fn launch_html(
 
   <div class="between mt-36">
     <button class="btn ghost" hx-post="{base_url}/admin/wizard/goto" hx-vals='{{"to":"replies"}}' hx-target="body" hx-swap="innerHTML">{back}</button>
-    <button class="btn primary" hx-post="{base_url}/admin/wizard/complete" hx-target="body">{finish}</button>
+    <button class="btn primary" hx-post="{base_url}/admin/wizard/complete" hx-target="body"{finish_attrs}>{finish}</button>
   </div>
 </section>"##,
         email_section = email_section,
@@ -893,6 +927,7 @@ pub fn launch_html(
         lead = t(locale, "wizard-launch-lead"),
         back = t(locale, "wizard-back"),
         finish = t(locale, "wizard-launch-finish"),
+        finish_attrs = finish_attrs,
     );
 
     // Progress on the launch step is always full: addresses are live the
@@ -1092,6 +1127,47 @@ mod pricing_tests {
         assert!(html.contains("$0.003"), "headline usd price: {html}");
         // address_cents=200 → $2.00
         assert!(html.contains("$2"), "address usd missing: {html}");
+    }
+
+    #[test]
+    fn launch_html_unverified_shows_verify_cta_and_disables_finish() {
+        let l = crate::locale::Locale::default_inr();
+        let html = launch_html(&[], "example.com", &l, "https://x.test", 25_000, false, 100);
+        // Verify card surfaces the Razorpay-bound POST and the verify
+        // copy + amount.
+        assert!(
+            html.contains("/admin/billing/verification"),
+            "verify form action missing: {html}"
+        );
+        assert!(
+            html.contains("Verify your account"),
+            "verify headline missing"
+        );
+        assert!(html.contains("₹1"), "verify amount missing: {html}");
+        // Finish is gated: the button rendered with our `disabled` attr.
+        assert!(
+            html.contains("/admin/wizard/complete\" hx-target=\"body\" disabled"),
+            "finish button should carry the disabled attribute when unverified"
+        );
+    }
+
+    #[test]
+    fn launch_html_verified_enables_finish_and_hides_verify_card() {
+        let l = crate::locale::Locale::default_inr();
+        let html = launch_html(&[], "example.com", &l, "https://x.test", 25_000, true, 100);
+        assert!(
+            !html.contains("/admin/billing/verification"),
+            "verify form should be hidden when verified"
+        );
+        assert!(
+            html.contains("Ready to go live"),
+            "verified status card should render"
+        );
+        // The Finish button renders with no disabled attribute.
+        assert!(
+            !html.contains("/admin/wizard/complete\" hx-target=\"body\" disabled"),
+            "finish should not be disabled when verified"
+        );
     }
 
     #[test]

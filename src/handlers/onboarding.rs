@@ -255,7 +255,20 @@ pub async fn handle_wizard(
         // Complete the wizard. Email subdomains left unpaid stay Suspended —
         // the dashboard surfaces them with a banner so the user can subscribe
         // later from Email Routing.
+        //
+        // Refuse to finish if the tenant hasn't been through the
+        // refundable verification charge. This is the abuse-prevention
+        // gate for fresh sign-ups; any captured Razorpay payment counts
+        // (the webhook + verify handler flip the flag).
         "complete" => {
+            let tenant = get_tenant(&db, tenant_id).await?.unwrap_or_default();
+            if tenant.verified_at.is_none() {
+                return Response::from_html(
+                    r#"<div class="error">Verify your account before finishing setup.</div>"#
+                        .to_string(),
+                );
+            }
+
             state.completed = true;
             state.step = OnboardingStep::Launch;
             save_onboarding(&kv, tenant_id, &state).await?;
@@ -348,11 +361,12 @@ async fn render_step(
             let tenant_locale =
                 crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let cfg = crate::storage::get_pricing_config(&db).await;
-            let milli_price = if tenant_locale.currency == crate::locale::Currency::Usd {
-                cfg.unit_price_millicents
-            } else {
-                cfg.unit_price_millipaise
-            };
+            let (milli_price, verify_amount) =
+                if tenant_locale.currency == crate::locale::Currency::Usd {
+                    (cfg.unit_price_millicents, cfg.verification_amount_cents)
+                } else {
+                    (cfg.unit_price_millipaise, cfg.verification_amount_paise)
+                };
 
             Response::from_html(launch_html(
                 &email_addrs,
@@ -360,6 +374,8 @@ async fn render_step(
                 &tenant_locale,
                 base_url,
                 milli_price,
+                tenant.verified_at.is_some(),
+                verify_amount,
             ))
         }
     }

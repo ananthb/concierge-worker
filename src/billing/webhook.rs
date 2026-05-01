@@ -67,7 +67,44 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
                 .and_then(|v| v.as_str())
                 .unwrap_or("INR");
 
+            // Any captured payment proves the tenant has a working card,
+            // which is the entire point of the verification charge.
+            // Mark them verified before branching on `kind` so credit and
+            // address purchases also satisfy the wizard's verify gate.
+            mark_verified(&db, tenant_id).await?;
+
             match kind {
+                "verification" => {
+                    record_payment(
+                        &db,
+                        payment_id,
+                        tenant_id,
+                        payment.get("amount").and_then(|v| v.as_i64()).unwrap_or(0),
+                        currency,
+                        "verification",
+                    )
+                    .await?;
+                    // Auto-refund. If the API call fails we log and move
+                    // on — the tenant is already marked verified, so an
+                    // operator can issue the refund manually from the
+                    // Razorpay dashboard.
+                    let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
+                    let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
+                    match razorpay::refund_payment(&key_id, &key_secret, payment_id).await {
+                        Ok(refund) => {
+                            let refund_id =
+                                refund.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+                            console_log!(
+                                "Verified {tenant_id}; refunded {payment_id} as {refund_id}"
+                            );
+                        }
+                        Err(e) => {
+                            console_log!(
+                                "Verified {tenant_id}; auto-refund failed for {payment_id}: {e}"
+                            );
+                        }
+                    }
+                }
                 "address" => {
                     // notes.extras tells us how many addresses to grant. The
                     // default is the configured pack size (5) since one
@@ -138,6 +175,22 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
             Response::ok("OK")
         }
     }
+}
+
+/// Set `tenants.verified_at = now` if it isn't already. Safe to call on
+/// every captured payment; the SQL is a no-op when the column is set.
+/// We update directly instead of round-tripping via the Tenant struct so
+/// concurrent webhook + admin saves don't race over the column.
+async fn mark_verified(db: &D1Database, tenant_id: &str) -> Result<()> {
+    db.prepare(
+        "UPDATE tenants \
+            SET verified_at = datetime('now'), updated_at = datetime('now') \
+            WHERE id = ? AND verified_at IS NULL",
+    )
+    .bind(&[tenant_id.into()])?
+    .run()
+    .await?;
+    Ok(())
 }
 
 async fn is_payment_processed(db: &D1Database, payment_id: &str) -> Result<bool> {

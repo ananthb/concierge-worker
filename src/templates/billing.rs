@@ -250,6 +250,73 @@ document.getElementById("pay-btn").addEventListener("click", function() {{
     base_html("Checkout - Concierge", &content, locale)
 }
 
+/// Checkout for the sign-up verification charge. Razorpay captures the
+/// amount on a real card; the webhook records the capture, flips
+/// `tenants.verified_at`, and immediately refunds. The user lands back on
+/// `return_to` (the wizard launch step), which now lets them hit Finish.
+pub fn verification_checkout_html(
+    order_id: &str,
+    amount: i64,
+    locale: &Locale,
+    razorpay_key: &str,
+    tenant_id: &str,
+    return_to: &str,
+    base_url: &str,
+) -> String {
+    let currency = locale.currency.as_str();
+    let display_amount = format_money(amount, locale);
+    let content = format!(
+        r##"<div class="ta-center" style="max-width:480px;margin:4rem auto;padding:0 1rem">
+  <div class="card p-28">
+    <h2 class="display-sm">Verify your account</h2>
+    <p class="muted m-0 mt-8 mb-24">We charge a small amount to confirm a real card and then refund it right away. This keeps the platform free of abuse.</p>
+    <div class="stat-n serif mb-8">{display_amount}</div>
+    <p class="mono muted fs-11 mb-24">refunded automatically</p>
+    <button id="pay-btn" class="btn primary lg w-full">Verify with Razorpay</button>
+    <p class="mono muted fs-11 mt-12">Secure payment via Razorpay</p>
+  </div>
+  <a href="{base_url}{return_to}" class="btn ghost sm mt-16">&larr; Cancel</a>
+</div>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+document.getElementById("pay-btn").addEventListener("click", function() {{
+  var options = {{
+    key: "{key}",
+    amount: {amount},
+    currency: "{currency}",
+    order_id: "{order_id}",
+    name: "Concierge",
+    description: "Sign-up verification (refunded)",
+    notes: {{ tenant_id: "{tenant_id}", kind: "verification" }},
+    handler: function(response) {{
+      fetch("{base_url}/admin/billing/verify", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json"}},
+        body: JSON.stringify({{
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        }})
+      }}).then(function() {{ window.location.href = "{base_url}{return_to}"; }});
+    }},
+    theme: {{ color: "#E86A2C" }}
+  }};
+  new Razorpay(options).open();
+}});
+</script>"##,
+        display_amount = display_amount,
+        amount = amount,
+        currency = currency,
+        order_id = html_escape(order_id),
+        key = html_escape(razorpay_key),
+        tenant_id = html_escape(tenant_id),
+        base_url = base_url,
+        return_to = return_to,
+    );
+
+    base_html("Verify account: Concierge", &content, locale)
+}
+
 /// Checkout for a reply-email subscription pack. The price comes from
 /// `pricing_config.address_price_*` (default ₹99 / $1 per pack/month) and
 /// grants `email_pack_size` addresses (default 5) on payment success.

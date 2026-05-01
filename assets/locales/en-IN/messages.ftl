@@ -169,6 +169,10 @@ wizard-launch-finish = Finish setup →
 wizard-launch-email-eyebrow = Email addresses
 wizard-launch-email-body = These addresses are live. Inbound mail will be auto-replied if you turn on auto-reply for them in Email.
 wizard-launch-credits-note = Optional: 100 AI replies are included every month. Top up later from Billing if you need.
+wizard-launch-verify-headline = Verify your account
+wizard-launch-verify-body = We charge a small refundable amount to confirm a real card. This keeps the platform free of abuse and is required to finish setup.
+wizard-launch-verify-cta = Verify with Razorpay
+wizard-launch-verify-refund = refunded automatically
 
 # Admin: shared bits.
 admin-back = ← Back

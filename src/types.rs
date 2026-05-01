@@ -73,6 +73,11 @@ pub struct Tenant {
     /// pack size live in the singleton `pricing_config` row.
     #[serde(default)]
     pub email_address_extras_purchased: u32,
+    /// Set the first time we observe a captured Razorpay payment for this
+    /// tenant. The sign-up wizard charges a small refundable verification
+    /// amount; this flips on success and gates wizard "Finish".
+    #[serde(default)]
+    pub verified_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

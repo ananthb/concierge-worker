@@ -112,6 +112,55 @@ pub async fn handle_billing_admin(
             ))
         }
 
+        // Sign-up verification charge. Creates a Razorpay order with
+        // notes.kind="verification" so the webhook records the capture,
+        // marks the tenant verified, and auto-refunds. Used by the wizard
+        // launch step when the tenant hasn't already paid for anything.
+        (Method::Post, "verification") => {
+            let form: serde_json::Value = req.json().await.unwrap_or(serde_json::json!({}));
+            let return_to = form
+                .get("return_to")
+                .and_then(|v| v.as_str())
+                .filter(|p| p.starts_with('/') && !p.starts_with("//"))
+                .unwrap_or("/admin/wizard/launch")
+                .to_string();
+
+            let tenant = storage::get_tenant(&db, tenant_id)
+                .await?
+                .unwrap_or_default();
+            let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
+            let currency = locale.currency.as_str();
+
+            let cfg = storage::get_pricing_config(&db).await;
+            let amount = if locale.currency == crate::locale::Currency::Usd {
+                cfg.verification_amount_cents
+            } else {
+                cfg.verification_amount_paise
+            };
+
+            let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
+            let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
+
+            let receipt = generate_id();
+            let order = razorpay::create_order_with_notes(
+                &key_id,
+                &key_secret,
+                amount,
+                currency,
+                &receipt,
+                serde_json::json!({
+                    "tenant_id": tenant_id,
+                    "kind": "verification",
+                }),
+            )
+            .await?;
+            let order_id = order.get("id").and_then(|v| v.as_str()).unwrap_or("");
+
+            Response::from_html(tmpl::verification_checkout_html(
+                order_id, amount, &locale, &key_id, tenant_id, &return_to, base_url,
+            ))
+        }
+
         // Buy a reply-email subscription pack. Price + pack size come from
         // pricing_config (defaults ₹99 / $1 per pack/month, 5 addresses).
         // The order carries notes.kind="address" so the Razorpay webhook
@@ -180,6 +229,21 @@ pub async fn handle_billing_admin(
                     r#"<div class="error">Payment verification failed.</div>"#.to_string(),
                 );
             }
+
+            // A signed payment proves the tenant has a working card, which
+            // is what the wizard's verify gate is checking. Flip the flag
+            // here synchronously so a user returning to the launch page
+            // doesn't have to race the webhook. The webhook also flips it
+            // (idempotent), and it stays canonical for granting credits +
+            // auto-refunding the verification charge.
+            db.prepare(
+                "UPDATE tenants \
+                    SET verified_at = datetime('now'), updated_at = datetime('now') \
+                    WHERE id = ? AND verified_at IS NULL",
+            )
+            .bind(&[tenant_id.into()])?
+            .run()
+            .await?;
 
             // Redirect to billing page. Webhook will handle crediting.
             let headers = Headers::new();

@@ -58,6 +58,21 @@ pub async fn create_customer(
     razorpay_post(key_id, key_secret, "/customers", &payload).await
 }
 
+/// Refund a captured Razorpay payment in full. Used by the webhook to
+/// auto-refund the sign-up verification charge once we've recorded the
+/// capture. Returns the API response so callers can log the refund id.
+pub async fn refund_payment(
+    key_id: &str,
+    key_secret: &str,
+    payment_id: &str,
+) -> Result<serde_json::Value> {
+    // Empty body refunds the full captured amount; Razorpay accepts an
+    // optional `amount` to support partial refunds, but we always want full.
+    let payload = serde_json::json!({});
+    let path = format!("/payments/{payment_id}/refund");
+    razorpay_post(key_id, key_secret, &path, &payload).await
+}
+
 /// Verify a Razorpay payment signature (constant-time).
 pub fn verify_payment_signature(
     order_id: &str,

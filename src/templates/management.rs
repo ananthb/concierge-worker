@@ -487,12 +487,16 @@ pub fn billing_overview_html(
         address_price_cents: address_cents,
         email_pack_size,
         free_monthly_credits,
+        verification_amount_paise: verify_paise,
+        verification_amount_cents: verify_cents,
     } = cfg;
     // Display in major units: milli-paise / 100_000 = rupees, milli-cents / 100_000 = dollars.
     let paise_per_reply = format!("{:.2}", milli_paise as f64 / 100_000.0);
     let cents_per_reply = format!("{:.3}", milli_cents as f64 / 100_000.0);
     let address_inr = format!("{:.2}", address_paise as f64 / 100.0);
     let address_usd = format!("{:.2}", address_cents as f64 / 100.0);
+    let verify_inr = format!("{:.2}", verify_paise as f64 / 100.0);
+    let verify_usd = format!("{:.2}", verify_cents as f64 / 100.0);
 
     let scheduled_rows = scheduled_grants_table(scheduled, base_url);
     let schedule_msg = schedule_form_msg.unwrap_or("");
@@ -546,6 +550,21 @@ pub fn billing_overview_html(
           <div class="eyebrow mb-4">Monthly credits per tenant</div>
           <input class="input mono" name="free_monthly_credits" type="number" min="0" required value="{free_monthly_credits}">
           <div class="muted fs-11 mt-4">currently {free_monthly_credits} replies/month</div>
+        </label>
+      </div>
+
+      <h3 class="mb-8">Sign-up verification charge</h3>
+      <p class="muted mb-12">Small refundable amount we collect at the end of the wizard to confirm a real card. The webhook auto-refunds it as soon as Razorpay captures the payment.</p>
+      <div class="row gap-12 wrap mb-12">
+        <label class="flex-1" style="min-width:220px">
+          <div class="eyebrow mb-4">Verification charge (₹)</div>
+          <input class="input mono" name="verification_amount_paise" type="number" min="1" required value="{verify_paise}">
+          <div class="muted fs-11 mt-4">paise · currently ₹{verify_inr}</div>
+        </label>
+        <label class="flex-1" style="min-width:220px">
+          <div class="eyebrow mb-4">Verification charge ($)</div>
+          <input class="input mono" name="verification_amount_cents" type="number" min="1" required value="{verify_cents}">
+          <div class="muted fs-11 mt-4">cents · currently ${verify_usd}</div>
         </label>
       </div>
       <button class="btn sm" type="submit">Save settings</button>
@@ -625,6 +644,10 @@ pub fn billing_overview_html(
         cents_per_reply = cents_per_reply,
         address_inr = address_inr,
         address_usd = address_usd,
+        verify_paise = verify_paise,
+        verify_cents = verify_cents,
+        verify_inr = verify_inr,
+        verify_usd = verify_usd,
         scheduled_rows = scheduled_rows,
         schedule_msg = schedule_msg,
     );
@@ -647,6 +670,8 @@ mod tests {
             address_price_cents: 77,
             email_pack_size: 7,
             free_monthly_credits: 150,
+            verification_amount_paise: 199,
+            verification_amount_cents: 33,
         };
         let html = billing_overview_html("https://example.test", &l, cfg, &[], None);
 
