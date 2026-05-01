@@ -1038,28 +1038,91 @@ pub async fn save_tenant_billing(
 }
 
 // ============================================================================
-// Global Settings
+// Pricing config (single-row table)
 // ============================================================================
 
-/// Get a global setting from the DB. Falls back to None if not found or DB error.
-pub async fn get_global_setting(db: &D1Database, key: &str) -> Option<String> {
-    let res = db
-        .prepare("SELECT value FROM global_settings WHERE key = ?")
-        .bind(&[key.into()])
-        .ok()?
-        .first::<serde_json::Value>(None)
-        .await
-        .ok()??;
-    res.get("value")?.as_str().map(|s| s.to_string())
+/// Snapshot of the operator-controlled pricing settings. Mirrors the
+/// `pricing_config` table — there's exactly one row, seeded by the
+/// migration with the defaults this struct's `Default` impl returns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PricingConfig {
+    pub unit_price_millipaise: i64,
+    pub unit_price_millicents: i64,
+    pub address_price_paise: i64,
+    pub address_price_cents: i64,
+    pub email_pack_size: i64,
+    pub free_monthly_credits: i64,
 }
 
-/// Get a numeric pricing setting (in milli-units for reply price, or paise/cents
-/// for address price) from the DB. Falls back to `default` if not found.
-pub async fn get_config_price(db: &D1Database, key: &str, default: i64) -> i64 {
-    get_global_setting(db, key)
+impl Default for PricingConfig {
+    /// Mirrors the `DEFAULT` clauses in `pricing_config`. Used by tests
+    /// and as a safety net if the row somehow isn't there (it always is,
+    /// because the migration seeds it).
+    fn default() -> Self {
+        Self {
+            unit_price_millipaise: 10_000,
+            unit_price_millicents: 100,
+            address_price_paise: 9_900,
+            address_price_cents: 100,
+            email_pack_size: 5,
+            free_monthly_credits: 100,
+        }
+    }
+}
+
+/// Load the singleton pricing config row. If the row is missing (would
+/// only happen on a DB that skipped the migration seed), returns the
+/// Rust-side defaults so callers don't have to deal with an Option.
+pub async fn get_pricing_config(db: &D1Database) -> PricingConfig {
+    let row = db
+        .prepare("SELECT * FROM pricing_config WHERE id = 1")
+        .first::<serde_json::Value>(None)
         .await
-        .and_then(|s| s.parse::<i64>().ok())
-        .unwrap_or(default)
+        .ok()
+        .flatten();
+    let row = match row {
+        Some(r) => r,
+        None => return PricingConfig::default(),
+    };
+    let d = PricingConfig::default();
+    let pick = |key: &str, fallback: i64| -> i64 {
+        row.get(key).and_then(|v| v.as_i64()).unwrap_or(fallback)
+    };
+    PricingConfig {
+        unit_price_millipaise: pick("unit_price_millipaise", d.unit_price_millipaise),
+        unit_price_millicents: pick("unit_price_millicents", d.unit_price_millicents),
+        address_price_paise: pick("address_price_paise", d.address_price_paise),
+        address_price_cents: pick("address_price_cents", d.address_price_cents),
+        email_pack_size: pick("email_pack_size", d.email_pack_size),
+        free_monthly_credits: pick("free_monthly_credits", d.free_monthly_credits),
+    }
+}
+
+/// Persist the singleton pricing config. Updates every field at once;
+/// the form on `/manage/billing` always submits the full struct.
+pub async fn update_pricing_config(db: &D1Database, p: &PricingConfig) -> Result<()> {
+    db.prepare(
+        "UPDATE pricing_config SET \
+           unit_price_millipaise = ?, \
+           unit_price_millicents = ?, \
+           address_price_paise = ?, \
+           address_price_cents = ?, \
+           email_pack_size = ?, \
+           free_monthly_credits = ?, \
+           updated_at = datetime('now') \
+         WHERE id = 1",
+    )
+    .bind(&[
+        JsValue::from_f64(p.unit_price_millipaise as f64),
+        JsValue::from_f64(p.unit_price_millicents as f64),
+        JsValue::from_f64(p.address_price_paise as f64),
+        JsValue::from_f64(p.address_price_cents as f64),
+        JsValue::from_f64(p.email_pack_size as f64),
+        JsValue::from_f64(p.free_monthly_credits as f64),
+    ])?
+    .run()
+    .await?;
+    Ok(())
 }
 
 // ============================================================================

@@ -148,21 +148,26 @@ CREATE INDEX IF NOT EXISTS idx_pa_tenant_status
 CREATE INDEX IF NOT EXISTS idx_pa_status_created
     ON pending_approvals(status, created_at);
 
--- Global settings (pricing, feature flags, etc.)
-CREATE TABLE IF NOT EXISTS global_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
+-- Single-row pricing config. Operators edit these from /manage/billing;
+-- a fresh DB starts with the defaults baked into the CREATE TABLE below
+-- so the application never needs runtime fallbacks.
+--
+-- The `id = 1` CHECK + PRIMARY KEY pin this to exactly one row.
+CREATE TABLE IF NOT EXISTS pricing_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    -- Per-AI-reply rate, in milli-units (1/1000 of a paisa or cent).
+    unit_price_millipaise INTEGER NOT NULL DEFAULT 10000,
+    unit_price_millicents INTEGER NOT NULL DEFAULT 100,
+    -- Reply-email subscription: each pack of `email_pack_size` addresses
+    -- costs `address_price_*` (in paise / cents) per recurring period.
+    address_price_paise INTEGER NOT NULL DEFAULT 9900,
+    address_price_cents INTEGER NOT NULL DEFAULT 100,
+    email_pack_size INTEGER NOT NULL DEFAULT 5,
+    -- Free monthly AI replies granted to every tenant.
+    free_monthly_credits INTEGER NOT NULL DEFAULT 100,
     updated_at TEXT DEFAULT (datetime('now'))
 );
-
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('unit_price_millipaise', '10000');
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('unit_price_millicents', '100');
--- Reply-email subscription: each pack of N addresses costs `address_price_*`
--- (in paise / cents) per recurring period.
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('address_price_paise', '9900');
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('address_price_cents', '100');
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('email_pack_size', '5');
-INSERT OR IGNORE INTO global_settings (key, value) VALUES ('free_monthly_credits', '100');
+INSERT OR IGNORE INTO pricing_config (id) VALUES (1);
 
 -- Scheduled credit grants. The scheduled-grants cron picks every row where
 -- next_run_at <= now AND active = 1, grants `credits` to the targeted

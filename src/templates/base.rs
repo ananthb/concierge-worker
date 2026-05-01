@@ -491,10 +491,11 @@ mod footer_tests {
     #[test]
     fn features_has_one_footer() {
         let l = crate::locale::Locale::default_inr();
+        let cfg = crate::storage::PricingConfig::default();
         let s = crate::templates::features::features_html(
             &l,
-            crate::billing::UNIT_PRICE_MILLIPAISE,
-            crate::billing::UNIT_PRICE_MILLICENTS,
+            cfg.unit_price_millipaise,
+            cfg.unit_price_millicents,
         );
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "features");
         // Also catch any stray <footer> tag with a different class.
@@ -504,14 +505,15 @@ mod footer_tests {
     #[test]
     fn pricing_has_one_footer() {
         let l = crate::locale::Locale::default_inr();
+        let cfg = crate::storage::PricingConfig::default();
         let s = crate::templates::onboarding::pricing_html(
             "INR",
             &l,
-            crate::billing::UNIT_PRICE_MILLIPAISE,
-            crate::billing::UNIT_PRICE_MILLICENTS,
-            crate::billing::ADDRESS_PRICE_PAISE,
-            crate::billing::ADDRESS_PRICE_CENTS,
-            crate::billing::EMAIL_PACK_SIZE,
+            cfg.unit_price_millipaise,
+            cfg.unit_price_millicents,
+            cfg.address_price_paise,
+            cfg.address_price_cents,
+            cfg.email_pack_size,
         );
         assert_eq!(count(&s, r#"<footer class="site-footer">"#), 1, "pricing");
     }

@@ -476,15 +476,18 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
 pub fn billing_overview_html(
     base_url: &str,
     locale: &Locale,
-    milli_paise: i64,
-    milli_cents: i64,
-    address_paise: i64,
-    address_cents: i64,
-    email_pack_size: i64,
-    free_monthly_credits: i64,
+    cfg: crate::storage::PricingConfig,
     scheduled: &[crate::types::ScheduledGrant],
     schedule_form_msg: Option<&str>,
 ) -> String {
+    let crate::storage::PricingConfig {
+        unit_price_millipaise: milli_paise,
+        unit_price_millicents: milli_cents,
+        address_price_paise: address_paise,
+        address_price_cents: address_cents,
+        email_pack_size,
+        free_monthly_credits,
+    } = cfg;
     // Display in major units: milli-paise / 100_000 = rupees, milli-cents / 100_000 = dollars.
     let paise_per_reply = format!("{:.2}", milli_paise as f64 / 100_000.0);
     let cents_per_reply = format!("{:.3}", milli_cents as f64 / 100_000.0);
@@ -637,18 +640,15 @@ mod tests {
     fn billing_overview_renders_inputs_with_db_values() {
         let l = Locale::default_inr();
         // Use distinctive non-default numbers so we can assert they appear.
-        let html = billing_overview_html(
-            "https://example.test",
-            &l,
-            12_345, // milli-paise
-            234,    // milli-cents
-            5_555,  // address paise
-            77,     // address cents
-            7,      // email pack size
-            150,    // free monthly credits
-            &[],
-            None,
-        );
+        let cfg = crate::storage::PricingConfig {
+            unit_price_millipaise: 12_345,
+            unit_price_millicents: 234,
+            address_price_paise: 5_555,
+            address_price_cents: 77,
+            email_pack_size: 7,
+            free_monthly_credits: 150,
+        };
+        let html = billing_overview_html("https://example.test", &l, cfg, &[], None);
 
         // Form posts to the management settings endpoint.
         assert!(

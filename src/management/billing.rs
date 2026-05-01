@@ -29,82 +29,56 @@ pub async fn handle_billing(
     match (method, parts.as_slice()) {
         // Billing overview — grant-credits form and settings live here.
         (Method::Get, []) => {
-            let milli_paise = storage::get_config_price(
-                db,
-                "unit_price_millipaise",
-                billing::UNIT_PRICE_MILLIPAISE,
-            )
-            .await;
-            let milli_cents = storage::get_config_price(
-                db,
-                "unit_price_millicents",
-                billing::UNIT_PRICE_MILLICENTS,
-            )
-            .await;
-            let address_paise =
-                storage::get_config_price(db, "address_price_paise", billing::ADDRESS_PRICE_PAISE)
-                    .await;
-            let address_cents =
-                storage::get_config_price(db, "address_price_cents", billing::ADDRESS_PRICE_CENTS)
-                    .await;
-            let pack_size =
-                storage::get_config_price(db, "email_pack_size", billing::EMAIL_PACK_SIZE).await;
-            let free_monthly =
-                storage::get_config_price(db, "free_monthly_credits", billing::FREE_MONTHLY_AMOUNT)
-                    .await;
+            let cfg = storage::get_pricing_config(db).await;
             let scheduled = storage::list_scheduled_grants(db).await.unwrap_or_default();
 
             Response::from_html(tmpl::billing_overview_html(
-                base_url,
-                &locale,
-                milli_paise,
-                milli_cents,
-                address_paise,
-                address_cents,
-                pack_size,
-                free_monthly,
-                &scheduled,
-                None,
+                base_url, &locale, cfg, &scheduled, None,
             ))
         }
 
-        // Update global pricing settings
+        // Update pricing settings — operator submits the full PricingConfig
+        // shape; we validate each field is a positive integer (or 0 for
+        // free_monthly_credits, which we allow to be turned off) and write
+        // a single UPDATE.
         (Method::Post, ["settings"]) => {
             let form: serde_json::Value = req.json().await?;
-            let keys = [
-                "unit_price_millipaise",
-                "unit_price_millicents",
-                "address_price_paise",
-                "address_price_cents",
-                "email_pack_size",
-                "free_monthly_credits",
-            ];
-
-            for key in keys {
-                let raw = match form.get(key) {
-                    Some(serde_json::Value::String(s)) => s.clone(),
-                    Some(serde_json::Value::Number(n)) => n.to_string(),
-                    _ => continue,
+            let pick = |key: &str| -> Option<i64> {
+                let raw = match form.get(key)? {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    _ => return None,
                 };
-                let parsed: i64 = match raw.parse() {
-                    Ok(n) if n > 0 => n,
-                    _ => {
+                raw.parse::<i64>().ok()
+            };
+            let mut cfg = storage::get_pricing_config(db).await;
+            for (key, slot, allow_zero) in [
+                (
+                    "unit_price_millipaise",
+                    &mut cfg.unit_price_millipaise,
+                    false,
+                ),
+                (
+                    "unit_price_millicents",
+                    &mut cfg.unit_price_millicents,
+                    false,
+                ),
+                ("address_price_paise", &mut cfg.address_price_paise, false),
+                ("address_price_cents", &mut cfg.address_price_cents, false),
+                ("email_pack_size", &mut cfg.email_pack_size, false),
+                ("free_monthly_credits", &mut cfg.free_monthly_credits, true),
+            ] {
+                if let Some(n) = pick(key) {
+                    if n < 0 || (n == 0 && !allow_zero) {
                         return Response::from_html(format!(
                             r#"<div class="error">Invalid value for {}: must be a positive integer.</div>"#,
                             crate::helpers::html_escape(key),
-                        ))
+                        ));
                     }
-                };
-                let value = parsed.to_string();
-                db.prepare(
-                    "INSERT INTO global_settings (key, value, updated_at) \
-                     VALUES (?, ?, datetime('now')) \
-                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
-                )
-                .bind(&[key.into(), value.as_str().into()])?
-                .run()
-                .await?;
+                    *slot = n;
+                }
             }
+            storage::update_pricing_config(db, &cfg).await?;
 
             audit::log_action(
                 db,
@@ -330,31 +304,9 @@ async fn rerender_with_msg(
     locale: &crate::locale::Locale,
     msg: Option<&str>,
 ) -> Result<Response> {
-    let milli_paise =
-        storage::get_config_price(db, "unit_price_millipaise", billing::UNIT_PRICE_MILLIPAISE)
-            .await;
-    let milli_cents =
-        storage::get_config_price(db, "unit_price_millicents", billing::UNIT_PRICE_MILLICENTS)
-            .await;
-    let address_paise =
-        storage::get_config_price(db, "address_price_paise", billing::ADDRESS_PRICE_PAISE).await;
-    let address_cents =
-        storage::get_config_price(db, "address_price_cents", billing::ADDRESS_PRICE_CENTS).await;
-    let pack_size =
-        storage::get_config_price(db, "email_pack_size", billing::EMAIL_PACK_SIZE).await;
-    let free_monthly =
-        storage::get_config_price(db, "free_monthly_credits", billing::FREE_MONTHLY_AMOUNT).await;
+    let cfg = storage::get_pricing_config(db).await;
     let scheduled = storage::list_scheduled_grants(db).await.unwrap_or_default();
     Response::from_html(tmpl::billing_overview_html(
-        base_url,
-        locale,
-        milli_paise,
-        milli_cents,
-        address_paise,
-        address_cents,
-        pack_size,
-        free_monthly,
-        &scheduled,
-        msg,
+        base_url, locale, cfg, &scheduled, msg,
     ))
 }

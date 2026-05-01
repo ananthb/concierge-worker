@@ -251,7 +251,7 @@ document.getElementById("pay-btn").addEventListener("click", function() {{
 }
 
 /// Checkout for a reply-email subscription pack. The price comes from
-/// `global_settings.address_price_*` (default ₹99 / $1 per pack/month) and
+/// `pricing_config.address_price_*` (default ₹99 / $1 per pack/month) and
 /// grants `email_pack_size` addresses (default 5) on payment success.
 pub fn address_checkout_html(
     order_id: &str,

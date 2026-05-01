@@ -19,41 +19,20 @@ use crate::helpers::{current_month, days_from_now, end_of_month, now_iso};
 use crate::storage;
 use crate::types::{CreditEntry, CreditSource, TenantBilling};
 
-/// Default count of free credits granted to every tenant on the first
-/// access of a new calendar month. Operators can override by setting
-/// `free_monthly_credits` in `global_settings`.
-pub const FREE_MONTHLY_AMOUNT: i64 = 100;
-
-// ============================================================================
-// Pricing
-// ============================================================================
-//
-// Flat per-reply rate. No tiers, no discounts. The user picks any amount.
-pub const UNIT_PRICE_MILLIPAISE: i64 = 10_000; // ₹0.10 (10 paise) per reply
-pub const UNIT_PRICE_MILLICENTS: i64 = 100; // $0.001 (0.1 cents) per reply
+// Slider bounds for the credit purchase flow. These are pure UI knobs,
+// not pricing — keeping them as Rust constants because they don't make
+// sense to edit at runtime from /manage.
 pub const MIN_CREDITS: i64 = 500;
 pub const MAX_CREDITS: i64 = 1_000_000;
 
-// Reply-email subscription: ₹99 / $1 per pack of `EMAIL_PACK_SIZE`
-// addresses, billed monthly. (Subscription enforcement is not yet wired
-// through Razorpay; today the webhook just grants `EMAIL_PACK_SIZE`
-// extras per successful payment — see doc/billing.html for the plan.)
-pub const ADDRESS_PRICE_PAISE: i64 = 9900;
-pub const ADDRESS_PRICE_CENTS: i64 = 100;
-pub const EMAIL_PACK_SIZE: i64 = 5;
+// Per-currency pricing, the per-tenant free monthly credit grant, and
+// the reply-email pack size all live in the `pricing_config` table.
+// `storage::PricingConfig::default()` mirrors the SQL DEFAULT clauses
+// so tests and host-side callers can reference the same numbers.
 
 /// Total price in the smallest currency unit (paise / cents) for a given credit amount.
 pub fn calculate_total(credits: i64, milli_price: i64) -> i64 {
     (credits * milli_price + 500) / 1000
-}
-
-/// Per-extra-address price in the smallest currency unit (paise / cents).
-pub fn address_price(currency: &str) -> i64 {
-    if currency == "USD" {
-        ADDRESS_PRICE_CENTS
-    } else {
-        ADDRESS_PRICE_PAISE
-    }
 }
 
 /// Try to deduct one reply credit. Returns true if credit was available
@@ -61,7 +40,7 @@ pub fn address_price(currency: &str) -> i64 {
 /// Must be called BEFORE sending the reply.
 pub async fn try_deduct(db: &D1Database, tenant_id: &str) -> Result<bool> {
     let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
-    let monthly = storage::get_config_price(db, "free_monthly_credits", FREE_MONTHLY_AMOUNT).await;
+    let monthly = storage::get_pricing_config(db).await.free_monthly_credits;
     ensure_free_monthly(&mut billing, monthly);
     prune_expired(&mut billing);
     sort_credits(&mut billing);
@@ -147,12 +126,11 @@ pub fn refresh_billing(billing: &mut TenantBilling, monthly_amount: i64) {
     billing.credits.retain(|e| e.amount > 0);
 }
 
-/// Like `refresh_billing` but loads the monthly amount from D1, falling
-/// back to `FREE_MONTHLY_AMOUNT` if the setting is missing. Use this from
-/// async handlers; the sync variant is for tests / callers that already
-/// hold the value.
+/// Like `refresh_billing` but loads the monthly amount from the
+/// pricing-config row. Use this from async handlers; the sync variant
+/// is for tests and callers that already hold the value.
 pub async fn refresh_billing_async(db: &D1Database, billing: &mut TenantBilling) {
-    let monthly = storage::get_config_price(db, "free_monthly_credits", FREE_MONTHLY_AMOUNT).await;
+    let monthly = storage::get_pricing_config(db).await.free_monthly_credits;
     refresh_billing(billing, monthly);
 }
 

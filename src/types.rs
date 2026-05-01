@@ -70,9 +70,7 @@ pub struct Tenant {
     /// Cumulative reply-email-address quota the tenant has purchased.
     /// Each successful pack purchase bumps this by `email_pack_size`
     /// (default 5). Quota = this value (no implicit freebie). Pricing and
-    /// pack size live in `global_settings`; defaults are
-    /// `ADDRESS_PRICE_PAISE` / `ADDRESS_PRICE_CENTS` per pack and
-    /// `EMAIL_PACK_SIZE` addresses per pack.
+    /// pack size live in the singleton `pricing_config` row.
     #[serde(default)]
     pub email_address_extras_purchased: u32,
     pub created_at: String,
