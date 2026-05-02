@@ -293,6 +293,9 @@ code {
 .welcome-form .input { max-width:240px; }
 .display { font-family:var(--f-display); font-size:clamp(44px,6vw,82px); line-height:1.02; letter-spacing:-0.02em; margin:0 0 16px; }
 .display em { color:var(--accent); font-style:italic; }
+.hero-caret { display:inline-block; width:0.06em; height:0.86em; margin-left:0.04em; vertical-align:-0.08em; background:currentColor; animation:hero-caret-blink 0.85s steps(2,jump-none) infinite; }
+@keyframes hero-caret-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+@media (prefers-reduced-motion: reduce) { .hero-caret { display:none; } }
 .fineprint { margin-top:18px; color:var(--muted); font-size:12px; }
 
 /* Postcard */
@@ -503,6 +506,10 @@ mod footer_tests {
             &[
                 "welcome-eyebrow",
                 "welcome-headline",
+                "welcome-headline-2",
+                "welcome-headline-3",
+                "welcome-headline-4",
+                "welcome-headline-5",
                 "welcome-lead",
                 "welcome-cta-primary",
                 "welcome-cta-secondary",

@@ -122,12 +122,29 @@ pub fn welcome_html(_base_url: &str, locale: &crate::locale::Locale) -> String {
     use crate::i18n::t;
     let header = super::base::public_nav_html("", locale);
 
+    // Headline variants. The first is rendered statically so the page
+    // looks correct on first paint; the rest get rotated in by the
+    // typewriter script below.
+    let variants: [String; 5] = [
+        t(locale, "welcome-headline"),
+        t(locale, "welcome-headline-2"),
+        t(locale, "welcome-headline-3"),
+        t(locale, "welcome-headline-4"),
+        t(locale, "welcome-headline-5"),
+    ];
+    let variants_json = variants
+        .iter()
+        .map(|s| js_string_for_html(s))
+        .collect::<Vec<_>>()
+        .join(",");
+    let rotator = HERO_ROTATOR_JS.replace("__VARIANTS__", &format!("[{variants_json}]"));
+
     let content = format!(
         r#"{header}
 <section class="page welcome">
   <div class="welcome-left">
     <div class="eyebrow">{eyebrow}</div>
-    <h1 class="display">{headline}</h1>
+    <h1 class="display" id="hero-headline">{headline}</h1>
     <p class="lead">{lead}</p>
     <div class="row gap-12 wrap mt-16">
       <a href="/auth/login" class="btn primary lg">{cta_primary}</a>
@@ -147,18 +164,101 @@ pub fn welcome_html(_base_url: &str, locale: &crate::locale::Locale) -> String {
     </div>
     <div class="stamp">ON<br>DUTY<br>24/7</div>
   </aside>
-</section>"#,
+</section>
+{rotator}"#,
         header = header,
         eyebrow = t(locale, "welcome-eyebrow"),
-        headline = t(locale, "welcome-headline"),
+        headline = variants[0],
         lead = t(locale, "welcome-lead"),
         cta_primary = t(locale, "welcome-cta-primary"),
         cta_secondary = t(locale, "welcome-cta-secondary"),
         hash = HASH,
+        rotator = rotator,
     );
 
     base_html("Concierge - Automated customer messaging", &content, locale)
 }
+
+/// Wrap a string for safe inline-`<script>` embedding: produce a JSON
+/// double-quoted literal, then escape `<`, `>`, `&` so the text body
+/// can't end the surrounding `</script>` or otherwise interact with the
+/// HTML parser. The escapes survive JSON parsing intact at runtime.
+fn js_string_for_html(s: &str) -> String {
+    serde_json::to_string(s)
+        .unwrap_or_else(|_| String::from("\"\""))
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
+}
+
+/// Typewriter rotator for the welcome page hero. The static headline is
+/// rendered server-side; this script waits long enough for the visitor
+/// to read it, then backspaces and types out a different variant. The
+/// rotation pauses long enough that the change isn't disorienting, and
+/// is suppressed entirely when the user prefers reduced motion.
+const HERO_ROTATOR_JS: &str = r##"<script type="module" nonce="__CSP_NONCE__">
+((variants) => {
+  const el = document.getElementById('hero-headline');
+  if (!el || variants.length < 2) return;
+  const mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (mq && mq.matches) return;
+
+  const tokenize = (html) => {
+    const out = [];
+    let i = 0;
+    while (i < html.length) {
+      const c = html[i];
+      if (c === '<') {
+        const j = html.indexOf('>', i);
+        if (j < 0) { out.push(c); i += 1; continue; }
+        out.push(html.slice(i, j + 1));
+        i = j + 1;
+      } else if (c === '&') {
+        const j = html.indexOf(';', i);
+        if (j > -1 && j - i <= 8) { out.push(html.slice(i, j + 1)); i = j + 1; }
+        else { out.push(c); i += 1; }
+      } else {
+        out.push(c);
+        i += 1;
+      }
+    }
+    return out;
+  };
+  const isTag = (t) => t.length > 1 && t[0] === '<';
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const caret = '<span class="hero-caret" aria-hidden="true"></span>';
+
+  let current = tokenize(variants[0]);
+  let idx = 0;
+  const render = (showCaret) => {
+    el.innerHTML = current.join('') + (showCaret ? caret : '');
+  };
+
+  const cycle = async () => {
+    while (true) {
+      await sleep(15000 + Math.random() * 7000);
+      let next = idx;
+      while (next === idx) next = Math.floor(Math.random() * variants.length);
+      const target = tokenize(variants[next]);
+      while (current.length) {
+        const top = current.pop();
+        render(true);
+        if (!isTag(top)) await sleep(18 + Math.random() * 16);
+      }
+      await sleep(280);
+      for (const tok of target) {
+        current.push(tok);
+        render(true);
+        if (!isTag(tok)) await sleep(28 + Math.random() * 30);
+      }
+      await sleep(900);
+      render(false);
+      idx = next;
+    }
+  };
+  cycle().catch(() => {});
+})(__VARIANTS__);
+</script>"##;
 
 pub fn basics_html(
     business: &crate::types::BusinessInfo,
