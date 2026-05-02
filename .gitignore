@@ -31,5 +31,9 @@ wrangler.production.toml
 # Documentation build
 site/
 
+# Playwright
+playwright-report/
+test-results/
+
 # cachix/git-hooks.nix
 .pre-commit-config.yaml

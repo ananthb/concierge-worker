@@ -106,7 +106,8 @@
             echo "Concierge Worker dev environment"
             echo "  wrangler dev        - Start local dev server"
             echo "  wrangler deploy     - Deploy to Cloudflare"
-            echo "  npm run screenshots - Capture docs gallery PNGs"
+            echo "  npm test            - Run Playwright browser tests"
+            echo "  npm run screenshots - Regenerate docs gallery PNGs"
             echo "  nix flake check     - Run CI checks"
           '';
         };
