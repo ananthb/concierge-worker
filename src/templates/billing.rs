@@ -10,28 +10,18 @@ use super::credit_slider::{slider_html, SliderMode};
 /// Summary of credits by source, computed from the ledger.
 struct CreditSummary {
     total: i64,
-    free: i64,
-    free_expires: Option<String>,
     purchased: i64,
     granted: i64,
     granted_earliest_expiry: Option<String>,
 }
 
 fn summarize(billing: &TenantBilling) -> CreditSummary {
-    let mut free = 0i64;
-    let mut free_expires: Option<String> = None;
     let mut purchased = 0i64;
     let mut granted = 0i64;
     let mut granted_earliest: Option<String> = None;
 
     for entry in &billing.credits {
         match entry.source {
-            CreditSource::FreeMonthly => {
-                free += entry.amount;
-                if let Some(exp) = &entry.expires_at {
-                    free_expires = Some(exp.clone());
-                }
-            }
             CreditSource::Purchase => {
                 purchased += entry.amount;
             }
@@ -49,9 +39,7 @@ fn summarize(billing: &TenantBilling) -> CreditSummary {
     }
 
     CreditSummary {
-        total: free + purchased + granted,
-        free,
-        free_expires,
+        total: purchased + granted,
         purchased,
         granted,
         granted_earliest_expiry: granted_earliest,
@@ -81,14 +69,6 @@ pub fn billing_overview_with_addresses_html(
     let summary = summarize(billing);
 
     let total_class = if summary.total <= 0 { " text-warn" } else { "" };
-
-    let free_detail = match &summary.free_expires {
-        Some(exp) => format!(
-            r#"<div class="mono muted fs-11">expires {}</div>"#,
-            format_expiry(exp)
-        ),
-        None => String::new(),
-    };
 
     let granted_detail = if summary.granted > 0 {
         match &summary.granted_earliest_expiry {
@@ -145,11 +125,6 @@ pub fn billing_overview_with_addresses_html(
       <div class="mono muted fs-11">Total remaining</div>
     </div>
     <div class="card p-18 ta-center">
-      <div class="stat-n serif">{free}</div>
-      <div class="mono muted fs-11">Free this month</div>
-      {free_detail}
-    </div>
-    <div class="card p-18 ta-center">
       <div class="stat-n serif">{purchased}</div>
       <div class="mono muted fs-11">Purchased</div>
       <div class="mono muted fs-11">never expire</div>
@@ -170,8 +145,6 @@ pub fn billing_overview_with_addresses_html(
         base_url = base_url,
         total = summary.total,
         total_class = total_class,
-        free = summary.free,
-        free_detail = free_detail,
         purchased = summary.purchased,
         granted = summary.granted,
         granted_detail = granted_detail,

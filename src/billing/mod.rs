@@ -2,8 +2,8 @@
 //!
 //! Credits are stored as a ledger of entries, each with an optional expiry.
 //! - Purchased credits never expire.
-//! - Free monthly credits (100/month) expire at month's end.
-//! - Management grants expire after a configurable period (default 1 year).
+//! - Management grants (and recurring credit grants) expire after a
+//!   configurable period (or never, when `expires_in_days = 0`).
 //!
 //! Deduction happens BEFORE send (optimistic). If send fails,
 //! credits are restored. This prevents double-spend races.
@@ -15,7 +15,7 @@ pub mod webhook;
 
 use worker::*;
 
-use crate::helpers::{current_month, days_from_now, end_of_month, now_iso};
+use crate::helpers::{days_from_now, now_iso};
 use crate::storage;
 use crate::types::{CreditEntry, CreditSource, TenantBilling};
 
@@ -40,8 +40,6 @@ pub fn calculate_total(credits: i64, milli_price: i64) -> i64 {
 /// Must be called BEFORE sending the reply.
 pub async fn try_deduct(db: &D1Database, tenant_id: &str) -> Result<bool> {
     let mut billing = storage::get_tenant_billing(db, tenant_id).await?;
-    let monthly = storage::get_pricing_config(db).await.free_monthly_credits;
-    ensure_free_monthly(&mut billing, monthly);
     prune_expired(&mut billing);
     sort_credits(&mut billing);
 
@@ -114,35 +112,18 @@ pub async fn grant_with_expiry(
     storage::save_tenant_billing(db, tenant_id, &billing).await
 }
 
-/// Prepare billing for display — ensures free monthly credits and prunes expired.
-/// Call this before rendering billing UI.
-pub fn refresh_billing(billing: &mut TenantBilling, monthly_amount: i64) {
+/// Prepare billing for display — prunes expired entries and sorts the
+/// ledger so soonest-expiring credits are consumed first. Call this
+/// before rendering billing UI.
+pub fn refresh_billing(billing: &mut TenantBilling) {
     let now = now_iso();
-    let month = current_month();
-    let eom = end_of_month();
-    ensure_free_monthly_at(billing, &month, &eom, &now, monthly_amount);
     prune_expired_at(billing, &now);
     sort_credits(billing);
     billing.credits.retain(|e| e.amount > 0);
 }
 
-/// Like `refresh_billing` but loads the monthly amount from the
-/// pricing-config row. Use this from async handlers; the sync variant
-/// is for tests and callers that already hold the value.
-pub async fn refresh_billing_async(db: &D1Database, billing: &mut TenantBilling) {
-    let monthly = storage::get_pricing_config(db).await.free_monthly_credits;
-    refresh_billing(billing, monthly);
-}
-
 fn prune_expired(billing: &mut TenantBilling) {
     prune_expired_at(billing, &now_iso());
-}
-
-fn ensure_free_monthly(billing: &mut TenantBilling, amount: i64) {
-    let now = now_iso();
-    let month = current_month();
-    let eom = end_of_month();
-    ensure_free_monthly_at(billing, &month, &eom, &now, amount);
 }
 
 /// Remove expired credit entries.
@@ -151,32 +132,6 @@ fn prune_expired_at(billing: &mut TenantBilling, now: &str) {
         None => true,
         Some(exp) => exp.as_str() > now,
     });
-}
-
-/// Grant `amount` free monthly credits if not already granted this month.
-/// Removes any leftover free monthly entries from previous months.
-fn ensure_free_monthly_at(
-    billing: &mut TenantBilling,
-    month: &str,
-    eom: &str,
-    now: &str,
-    amount: i64,
-) {
-    if billing.free_month.as_deref() == Some(month) {
-        return;
-    }
-    // Remove any old free monthly entries
-    billing
-        .credits
-        .retain(|e| e.source != CreditSource::FreeMonthly);
-    // Add new free monthly credits
-    billing.credits.push(CreditEntry {
-        amount,
-        source: CreditSource::FreeMonthly,
-        expires_at: Some(eom.to_string()),
-        granted_at: now.to_string(),
-    });
-    billing.free_month = Some(month.to_string());
 }
 
 /// Sort credits by expiry: soonest first, never-expire last.
@@ -198,7 +153,6 @@ mod tests {
     fn make_billing(entries: Vec<CreditEntry>) -> TenantBilling {
         TenantBilling {
             credits: entries,
-            free_month: None,
             replies_used: 0,
         }
     }
@@ -228,7 +182,7 @@ mod tests {
     fn total_remaining_sums() {
         let b = make_billing(vec![
             entry(10, CreditSource::Purchase, None),
-            entry(50, CreditSource::FreeMonthly, Some("2099-12-31T23:59:59Z")),
+            entry(50, CreditSource::Grant, Some("2099-12-31T23:59:59Z")),
             entry(25, CreditSource::Grant, Some("2027-01-01T00:00:00Z")),
         ]);
         assert_eq!(b.total_remaining(), 85);
@@ -239,18 +193,20 @@ mod tests {
         let mut b = make_billing(vec![
             entry(10, CreditSource::Purchase, None),
             entry(5, CreditSource::Grant, Some("2027-06-01T00:00:00Z")),
-            entry(100, CreditSource::FreeMonthly, Some("2026-04-30T23:59:59Z")),
+            entry(100, CreditSource::Grant, Some("2026-04-30T23:59:59Z")),
         ]);
         sort_credits(&mut b);
-        assert_eq!(b.credits[0].source, CreditSource::FreeMonthly);
-        assert_eq!(b.credits[1].source, CreditSource::Grant);
+        // First two are grants ordered by expiry; the never-expire purchase
+        // sorts last.
+        assert_eq!(b.credits[0].amount, 100);
+        assert_eq!(b.credits[1].amount, 5);
         assert_eq!(b.credits[2].source, CreditSource::Purchase);
     }
 
     #[test]
     fn prune_expired_removes_old() {
         let mut b = make_billing(vec![
-            entry(50, CreditSource::FreeMonthly, Some("2020-01-31T23:59:59Z")),
+            entry(50, CreditSource::Grant, Some("2020-01-31T23:59:59Z")),
             entry(10, CreditSource::Purchase, None),
             entry(25, CreditSource::Grant, Some("2020-06-01T00:00:00Z")),
         ]);
@@ -267,98 +223,6 @@ mod tests {
         ]);
         prune_expired_at(&mut b, "2026-04-19T12:00:00Z");
         assert_eq!(b.credits.len(), 2);
-    }
-
-    #[test]
-    fn ensure_free_monthly_grants_once() {
-        let mut b = TenantBilling::default();
-        ensure_free_monthly_at(
-            &mut b,
-            "2026-04",
-            "2026-04-30T23:59:59Z",
-            "2026-04-19T00:00:00Z",
-            100,
-        );
-        assert_eq!(b.free_month, Some("2026-04".to_string()));
-        assert_eq!(b.credits.len(), 1);
-        assert_eq!(b.credits[0].amount, 100);
-        assert_eq!(b.credits[0].source, CreditSource::FreeMonthly);
-        assert_eq!(
-            b.credits[0].expires_at,
-            Some("2026-04-30T23:59:59Z".to_string())
-        );
-
-        // Second call same month — no-op
-        ensure_free_monthly_at(
-            &mut b,
-            "2026-04",
-            "2026-04-30T23:59:59Z",
-            "2026-04-19T00:00:00Z",
-            100,
-        );
-        assert_eq!(b.credits.len(), 1);
-    }
-
-    #[test]
-    fn ensure_free_monthly_replaces_old() {
-        let mut b = TenantBilling {
-            credits: vec![entry(
-                30,
-                CreditSource::FreeMonthly,
-                Some("2020-01-31T23:59:59Z"),
-            )],
-            free_month: Some("2020-01".to_string()),
-            replies_used: 0,
-        };
-        ensure_free_monthly_at(
-            &mut b,
-            "2026-04",
-            "2026-04-30T23:59:59Z",
-            "2026-04-19T00:00:00Z",
-            100,
-        );
-        assert_eq!(b.credits.len(), 1);
-        assert_eq!(b.credits[0].amount, 100); // fresh 100, not old 30
-        assert_eq!(b.free_month, Some("2026-04".to_string()));
-    }
-
-    #[test]
-    fn ensure_free_monthly_preserves_other_credits() {
-        let mut b = TenantBilling {
-            credits: vec![
-                entry(30, CreditSource::FreeMonthly, Some("2020-01-31T23:59:59Z")),
-                entry(500, CreditSource::Purchase, None),
-            ],
-            free_month: Some("2020-01".to_string()),
-            replies_used: 10,
-        };
-        ensure_free_monthly_at(
-            &mut b,
-            "2026-04",
-            "2026-04-30T23:59:59Z",
-            "2026-04-19T00:00:00Z",
-            100,
-        );
-        assert_eq!(b.credits.len(), 2);
-        assert_eq!(b.credits[0].source, CreditSource::Purchase);
-        assert_eq!(b.credits[0].amount, 500);
-        assert_eq!(b.credits[1].source, CreditSource::FreeMonthly);
-        assert_eq!(b.credits[1].amount, 100);
-    }
-
-    #[test]
-    fn ensure_free_monthly_uses_caller_amount() {
-        let mut b = TenantBilling::default();
-        // Operator overrode the default to 250.
-        ensure_free_monthly_at(
-            &mut b,
-            "2026-04",
-            "2026-04-30T23:59:59Z",
-            "2026-04-19T00:00:00Z",
-            250,
-        );
-        assert_eq!(b.credits.len(), 1);
-        assert_eq!(b.credits[0].amount, 250);
     }
 
     #[test]

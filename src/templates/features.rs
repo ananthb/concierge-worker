@@ -11,10 +11,10 @@ fn fmt_milli(milli: i64, symbol: &str, decimals: usize) -> String {
     format!("{}{:.*}", symbol, decimals, milli as f64 / 100_000.0)
 }
 
-pub fn features_html(locale: &Locale, milli_paise: i64, milli_cents: i64) -> String {
+pub fn features_html(locale: &Locale, cfg: &crate::storage::Pricing) -> String {
     let nav = public_nav_html("features", locale);
-    let inr_price = fmt_milli(milli_paise, "₹", 2);
-    let usd_price = fmt_milli(milli_cents, "$", 3);
+    let inr_price = fmt_milli(cfg.unit_price_milli("INR"), "₹", 2);
+    let usd_price = fmt_milli(cfg.unit_price_milli("USD"), "$", 3);
     let price_args: &[(&str, &str)] = &[("inr", &inr_price), ("usd", &usd_price)];
 
     let content = format!(

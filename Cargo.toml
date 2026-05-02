@@ -35,6 +35,10 @@ accept-language = "3"
 fluent = "0.16"
 fluent-syntax = "0.11"
 
+# Money handling: ISO 4217 metadata + locale-correct formatting (incl. INR
+# lakh grouping). Pure-Rust wasm-clean dep.
+rusty-money = "0.4"
+
 [profile.release]
 opt-level = "s"
 lto = true

@@ -983,9 +983,8 @@ pub async fn get_discord_config_by_tenant(
 // ============================================================================
 
 pub async fn get_tenant_billing(db: &D1Database, tenant_id: &str) -> Result<TenantBilling> {
-    let stmt = db.prepare(
-        "SELECT credits_json, free_month, replies_used FROM tenant_billing WHERE tenant_id = ?",
-    );
+    let stmt =
+        db.prepare("SELECT credits_json, replies_used FROM tenant_billing WHERE tenant_id = ?");
     let result = stmt
         .bind(&[tenant_id.into()])?
         .first::<serde_json::Value>(None)
@@ -998,17 +997,12 @@ pub async fn get_tenant_billing(db: &D1Database, tenant_id: &str) -> Result<Tena
                 .and_then(|v| v.as_str())
                 .unwrap_or("[]");
             let credits: Vec<CreditEntry> = serde_json::from_str(credits_json).unwrap_or_default();
-            let free_month = row
-                .get("free_month")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
             let replies_used = row
                 .get("replies_used")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
             Ok(TenantBilling {
                 credits,
-                free_month,
                 replies_used,
             })
         }
@@ -1023,23 +1017,17 @@ pub async fn save_tenant_billing(
 ) -> Result<()> {
     let credits_json = serde_json::to_string(&billing.credits)
         .map_err(|e| Error::from(format!("JSON error: {e}")))?;
-    let free_month_val: wasm_bindgen::JsValue = match &billing.free_month {
-        Some(m) => m.as_str().into(),
-        None => wasm_bindgen::JsValue::NULL,
-    };
     let stmt = db.prepare(
-        "INSERT INTO tenant_billing (tenant_id, credits_json, free_month, replies_used, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'))
+        "INSERT INTO tenant_billing (tenant_id, credits_json, replies_used, updated_at)
+         VALUES (?, ?, ?, datetime('now'))
          ON CONFLICT(tenant_id) DO UPDATE SET
            credits_json = excluded.credits_json,
-           free_month = excluded.free_month,
            replies_used = excluded.replies_used,
            updated_at = datetime('now')",
     );
     stmt.bind(&[
         tenant_id.into(),
         credits_json.as_str().into(),
-        free_month_val,
         (billing.replies_used as f64).into(),
     ])?
     .run()
@@ -1051,98 +1039,220 @@ pub async fn save_tenant_billing(
 // Pricing config (single-row table)
 // ============================================================================
 
-/// Snapshot of the operator-controlled pricing settings. Mirrors the
-/// `pricing_config` table — there's exactly one row, seeded by the
-/// migration with the defaults this struct's `Default` impl returns.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PricingConfig {
-    pub unit_price_millipaise: i64,
-    pub unit_price_millicents: i64,
-    pub address_price_paise: i64,
-    pub address_price_cents: i64,
-    pub email_pack_size: i64,
-    pub free_monthly_credits: i64,
-    /// Sign-up verification charge: small refundable amount we collect at
-    /// the end of the wizard to confirm a real card. The webhook
-    /// auto-refunds it after marking the tenant verified.
-    pub verification_amount_paise: i64,
-    pub verification_amount_cents: i64,
+/// What kind of price we're storing. The unit (minor or milli-minor) is
+/// determined by the concept and is the same across every currency, so
+/// operators can reason about a single number per concept-currency cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PricingConcept {
+    /// Per-AI-reply rate, in milli-minor units (1/1000 of paise / cent / etc).
+    /// Stored fine-grained so sub-minor prices fit (e.g. ₹0.10 = 10000 mp).
+    UnitPriceMilli,
+    /// Reply-email pack price per recurring period, in minor units.
+    AddressPrice,
+    /// Sign-up verification charge, in minor units.
+    VerificationAmount,
 }
 
-impl Default for PricingConfig {
-    /// Mirrors the `DEFAULT` clauses in `pricing_config`. Used by tests
-    /// and as a safety net if the row somehow isn't there (it always is,
-    /// because the migration seeds it).
-    fn default() -> Self {
-        Self {
-            unit_price_millipaise: 10_000,
-            unit_price_millicents: 100,
-            address_price_paise: 9_900,
-            address_price_cents: 100,
-            email_pack_size: 5,
-            free_monthly_credits: 100,
-            verification_amount_paise: 100,
-            verification_amount_cents: 100,
+impl PricingConcept {
+    pub const ALL: [PricingConcept; 3] = [
+        PricingConcept::UnitPriceMilli,
+        PricingConcept::AddressPrice,
+        PricingConcept::VerificationAmount,
+    ];
+
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            PricingConcept::UnitPriceMilli => "unit_price_milli",
+            PricingConcept::AddressPrice => "address_price",
+            PricingConcept::VerificationAmount => "verification_amount",
+        }
+    }
+
+    pub fn from_wire(s: &str) -> Option<Self> {
+        match s {
+            "unit_price_milli" => Some(PricingConcept::UnitPriceMilli),
+            "address_price" => Some(PricingConcept::AddressPrice),
+            "verification_amount" => Some(PricingConcept::VerificationAmount),
+            _ => None,
+        }
+    }
+
+    /// True when amounts for this concept are stored as 1/1000 of the
+    /// currency's minor unit. The slider needs this precision to offer
+    /// fractions of a paise / cent. All other concepts are plain minor.
+    pub fn is_milli(self) -> bool {
+        matches!(self, PricingConcept::UnitPriceMilli)
+    }
+
+    /// Human label for the management form.
+    pub fn label(self) -> &'static str {
+        match self {
+            PricingConcept::UnitPriceMilli => "Per-AI-reply rate",
+            PricingConcept::AddressPrice => "Reply-email pack price",
+            PricingConcept::VerificationAmount => "Sign-up verification charge",
+        }
+    }
+
+    /// Short caption explaining the unit on the form.
+    pub fn unit_caption(self) -> &'static str {
+        if self.is_milli() {
+            "milli-minor units (1/1000 of a paise / cent / fils)"
+        } else {
+            "minor units (paise / cents / fils)"
         }
     }
 }
 
-/// Load the singleton pricing config row. If the row is missing (would
-/// only happen on a DB that skipped the migration seed), returns the
-/// Rust-side defaults so callers don't have to deal with an Option.
-pub async fn get_pricing_config(db: &D1Database) -> PricingConfig {
-    let row = db
-        .prepare("SELECT * FROM pricing_config WHERE id = 1")
-        .first::<serde_json::Value>(None)
-        .await
-        .ok()
-        .flatten();
-    let row = match row {
-        Some(r) => r,
-        None => return PricingConfig::default(),
-    };
-    let d = PricingConfig::default();
-    let pick = |key: &str, fallback: i64| -> i64 {
-        row.get(key).and_then(|v| v.as_i64()).unwrap_or(fallback)
-    };
-    PricingConfig {
-        unit_price_millipaise: pick("unit_price_millipaise", d.unit_price_millipaise),
-        unit_price_millicents: pick("unit_price_millicents", d.unit_price_millicents),
-        address_price_paise: pick("address_price_paise", d.address_price_paise),
-        address_price_cents: pick("address_price_cents", d.address_price_cents),
-        email_pack_size: pick("email_pack_size", d.email_pack_size),
-        free_monthly_credits: pick("free_monthly_credits", d.free_monthly_credits),
-        verification_amount_paise: pick("verification_amount_paise", d.verification_amount_paise),
-        verification_amount_cents: pick("verification_amount_cents", d.verification_amount_cents),
+/// Operator-controlled pricing snapshot — currency-agnostic config plus a
+/// `(concept, currency_code)` map keyed by ISO 4217 code. Every currency
+/// uses the same unit per concept (see `PricingConcept::is_milli`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pricing {
+    pub email_pack_size: i64,
+    pub amounts: std::collections::BTreeMap<(PricingConcept, String), i64>,
+}
+
+impl Default for Pricing {
+    fn default() -> Self {
+        let mut amounts = std::collections::BTreeMap::new();
+        // Mirrors the migration's seeded INR + USD rows so callers always
+        // have a usable pricing snapshot even on a DB that skipped seeding.
+        amounts.insert((PricingConcept::UnitPriceMilli, "INR".into()), 10_000);
+        amounts.insert((PricingConcept::UnitPriceMilli, "USD".into()), 100);
+        amounts.insert((PricingConcept::AddressPrice, "INR".into()), 9_900);
+        amounts.insert((PricingConcept::AddressPrice, "USD".into()), 100);
+        amounts.insert((PricingConcept::VerificationAmount, "INR".into()), 100);
+        amounts.insert((PricingConcept::VerificationAmount, "USD".into()), 100);
+        Self {
+            email_pack_size: 5,
+            amounts,
+        }
     }
 }
 
-/// Persist the singleton pricing config. Updates every field at once;
-/// the form on `/manage/billing` always submits the full struct.
-pub async fn update_pricing_config(db: &D1Database, p: &PricingConfig) -> Result<()> {
+impl Pricing {
+    /// Look up the stored amount for a concept-currency pair. The unit
+    /// (minor vs milli-minor) is determined by `concept.is_milli()`.
+    pub fn amount(&self, concept: PricingConcept, currency_code: &str) -> Option<i64> {
+        self.amounts
+            .get(&(concept, currency_code.to_uppercase()))
+            .copied()
+    }
+
+    /// Per-AI-reply rate (milli-minor units) for a currency. Returns 0 if
+    /// the currency hasn't been configured — Razorpay calls will fail
+    /// loudly on a 0-amount order, which is the right behavior.
+    pub fn unit_price_milli(&self, currency_code: &str) -> i64 {
+        self.amount(PricingConcept::UnitPriceMilli, currency_code)
+            .unwrap_or(0)
+    }
+
+    /// Reply-email pack price (minor units) for a currency.
+    pub fn address_price(&self, currency_code: &str) -> i64 {
+        self.amount(PricingConcept::AddressPrice, currency_code)
+            .unwrap_or(0)
+    }
+
+    /// Sign-up verification charge (minor units) for a currency.
+    pub fn verification_amount(&self, currency_code: &str) -> i64 {
+        self.amount(PricingConcept::VerificationAmount, currency_code)
+            .unwrap_or(0)
+    }
+
+    /// Sorted list of currency codes that have at least one amount row.
+    pub fn currencies(&self) -> Vec<String> {
+        let mut seen = std::collections::BTreeSet::new();
+        for (_, code) in self.amounts.keys() {
+            seen.insert(code.clone());
+        }
+        seen.into_iter().collect()
+    }
+}
+
+/// Load the platform pricing snapshot: one singleton row for currency-
+/// agnostic settings plus the per-(concept, currency) amount table.
+pub async fn get_pricing(db: &D1Database) -> Pricing {
+    let mut p = Pricing::default();
+
+    // Currency-agnostic singleton.
+    if let Ok(Some(row)) = db
+        .prepare("SELECT email_pack_size FROM pricing_config WHERE id = 1")
+        .first::<serde_json::Value>(None)
+        .await
+    {
+        if let Some(n) = row.get("email_pack_size").and_then(|v| v.as_i64()) {
+            p.email_pack_size = n;
+        }
+    }
+
+    // Per-currency amounts. We treat the seeded defaults as a fallback so a
+    // DB that lost a row still renders sane prices; rows that *do* exist
+    // overwrite them.
+    if let Ok(rs) = db.prepare("SELECT * FROM pricing_amount").all().await {
+        if let Ok(rows) = rs.results::<serde_json::Value>() {
+            for row in rows {
+                let concept = row
+                    .get("concept")
+                    .and_then(|v| v.as_str())
+                    .and_then(PricingConcept::from_wire);
+                let code = row
+                    .get("currency_code")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_uppercase());
+                let amount = row.get("amount").and_then(|v| v.as_i64());
+                if let (Some(c), Some(code), Some(a)) = (concept, code, amount) {
+                    p.amounts.insert((c, code), a);
+                }
+            }
+        }
+    }
+
+    p
+}
+
+/// Persist a single (concept, currency) cell. Used by the management form
+/// for incremental edits — we don't update the whole table at once because
+/// the operator may have just typed one value.
+pub async fn upsert_pricing_amount(
+    db: &D1Database,
+    concept: PricingConcept,
+    currency_code: &str,
+    amount: i64,
+) -> Result<()> {
+    db.prepare(
+        "INSERT INTO pricing_amount (concept, currency_code, amount) \
+         VALUES (?, ?, ?) \
+         ON CONFLICT(concept, currency_code) DO UPDATE SET amount = excluded.amount",
+    )
+    .bind(&[
+        concept.as_wire().into(),
+        currency_code.to_uppercase().as_str().into(),
+        JsValue::from_f64(amount as f64),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Drop every row for a currency. Used when the operator removes a
+/// currency from the pricing form (e.g. they no longer want to sell in EUR).
+pub async fn delete_pricing_currency(db: &D1Database, currency_code: &str) -> Result<()> {
+    db.prepare("DELETE FROM pricing_amount WHERE currency_code = ?")
+        .bind(&[currency_code.to_uppercase().as_str().into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Persist the currency-agnostic settings (just `email_pack_size` for now).
+pub async fn update_pricing_config(db: &D1Database, email_pack_size: i64) -> Result<()> {
     db.prepare(
         "UPDATE pricing_config SET \
-           unit_price_millipaise = ?, \
-           unit_price_millicents = ?, \
-           address_price_paise = ?, \
-           address_price_cents = ?, \
            email_pack_size = ?, \
-           free_monthly_credits = ?, \
-           verification_amount_paise = ?, \
-           verification_amount_cents = ?, \
            updated_at = datetime('now') \
          WHERE id = 1",
     )
-    .bind(&[
-        JsValue::from_f64(p.unit_price_millipaise as f64),
-        JsValue::from_f64(p.unit_price_millicents as f64),
-        JsValue::from_f64(p.address_price_paise as f64),
-        JsValue::from_f64(p.address_price_cents as f64),
-        JsValue::from_f64(p.email_pack_size as f64),
-        JsValue::from_f64(p.free_monthly_credits as f64),
-        JsValue::from_f64(p.verification_amount_paise as f64),
-        JsValue::from_f64(p.verification_amount_cents as f64),
-    ])?
+    .bind(&[JsValue::from_f64(email_pack_size as f64)])?
     .run()
     .await?;
     Ok(())
@@ -1153,22 +1263,11 @@ pub async fn update_pricing_config(db: &D1Database, p: &PricingConfig) -> Result
 // ============================================================================
 
 fn parse_scheduled_grant(row: &serde_json::Value) -> Option<crate::types::ScheduledGrant> {
-    use crate::types::{GrantAudience, GrantCadence, ScheduledGrant};
+    use crate::types::{GrantCadence, ScheduledGrant};
 
     let id = row.get("id")?.as_str()?.to_string();
     let cadence_wire = row.get("cadence")?.as_str()?;
     let cadence = GrantCadence::from_wire(cadence_wire)?;
-    let audience_kind = row.get("audience_kind")?.as_str()?;
-    let emails_str = row
-        .get("audience_emails")
-        .and_then(|v| v.as_str())
-        .unwrap_or("[]");
-    let emails: Vec<String> = serde_json::from_str(emails_str).unwrap_or_default();
-    let audience = match audience_kind {
-        "everyone" => GrantAudience::Everyone,
-        "emails" => GrantAudience::Emails(emails),
-        _ => return None,
-    };
     let credits = row.get("credits")?.as_i64()?;
     let expires_in_days = row
         .get("expires_in_days")
@@ -1197,7 +1296,6 @@ fn parse_scheduled_grant(row: &serde_json::Value) -> Option<crate::types::Schedu
     Some(ScheduledGrant {
         id,
         cadence,
-        audience,
         credits,
         expires_in_days,
         last_run_at,
@@ -1238,25 +1336,15 @@ pub async fn insert_scheduled_grant(
     db: &D1Database,
     g: &crate::types::ScheduledGrant,
 ) -> Result<()> {
-    use crate::types::GrantAudience;
-    let (audience_kind, emails_json) = match &g.audience {
-        GrantAudience::Everyone => ("everyone", "[]".to_string()),
-        GrantAudience::Emails(es) => (
-            "emails",
-            serde_json::to_string(es).unwrap_or_else(|_| "[]".to_string()),
-        ),
-    };
     db.prepare(
         "INSERT INTO scheduled_grants \
-         (id, cadence, audience_kind, audience_emails, credits, expires_in_days, \
+         (id, cadence, credits, expires_in_days, \
           last_run_at, next_run_at, active, created_at, updated_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     )
     .bind(&[
         g.id.as_str().into(),
         g.cadence.as_wire().as_str().into(),
-        audience_kind.into(),
-        emails_json.as_str().into(),
         wasm_bindgen::JsValue::from_f64(g.credits as f64),
         wasm_bindgen::JsValue::from_f64(g.expires_in_days as f64),
         g.last_run_at

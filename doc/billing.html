@@ -142,53 +142,63 @@
 
 <p>Platform operators set the global per-reply and per-extra-address prices via the <a href="management.html">management panel</a> at <code>/manage/billing</code>. There is one flat rate per currency — no tiers, no packs.</p>
 
-<p>Six configurable columns live in the singleton <code>pricing_config</code> row. The <code>CREATE TABLE</code> statement in the migration defines the defaults — there is no fallback in code, no key-value indirection, and no separate seed step:</p>
+<p>Prices are stored per-currency, in each currency's own units — there's no exchange rate and no conversion. The schema is split into two tables:</p>
+
+<ul>
+  <li><code>pricing_config</code> — singleton (id = 1) holding currency-agnostic settings. Today that's just <code>email_pack_size</code> (default 5).</li>
+  <li><code>pricing_amount(concept, currency_code, amount)</code> — one row per <code>(concept, currency)</code> cell. Currency codes are ISO 4217 (INR, USD, EUR, JPY, KWD, …). The unit is determined by the concept and is the same for every currency.</li>
+</ul>
 
 <table>
   <thead>
-    <tr><th>Key</th><th>Unit</th><th>Default</th><th>Used by</th></tr>
+    <tr><th>Concept</th><th>Unit (every currency)</th><th>Used by</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>unit_price_millipaise</code></td><td>milli-paise (1/1000 paise)</td><td>10000 (₹0.10/reply)</td><td>INR Razorpay orders, INR pricing copy, slider preview</td></tr>
-    <tr><td><code>unit_price_millicents</code></td><td>milli-cents (1/1000 cent)</td><td>100 ($0.001/reply)</td><td>USD Razorpay orders, USD pricing copy, slider preview</td></tr>
-    <tr><td><code>address_price_paise</code></td><td>paise</td><td>9900 (₹99)</td><td>Reply-email subscription pack price per month (INR)</td></tr>
-    <tr><td><code>address_price_cents</code></td><td>cents</td><td>100 ($1)</td><td>Reply-email subscription pack price per month (USD)</td></tr>
-    <tr><td><code>email_pack_size</code></td><td>integer</td><td>5</td><td>Addresses granted per reply-email pack purchase</td></tr>
-    <tr><td><code>free_monthly_credits</code></td><td>integer</td><td>100</td><td>Replies granted to every tenant on the 1st of each calendar month (lazy: applied on next billing operation)</td></tr>
+    <tr><td><code>unit_price_milli</code></td><td>milli-minor (1/1000 of paise / cent / fils / …)</td><td>Per-AI-reply rate. Stored fine-grained so sub-minor prices fit (e.g. ₹0.10 = 10000 mp).</td></tr>
+    <tr><td><code>address_price</code></td><td>minor units</td><td>Reply-email pack price per recurring period.</td></tr>
+    <tr><td><code>verification_amount</code></td><td>minor units</td><td>Sign-up verification charge (auto-refunded).</td></tr>
   </tbody>
 </table>
 
-<p>Reply prices use milli-units so operators can set sub-paise/sub-cent prices (e.g. ₹0.10 per reply with high volumes). The <code>billing::calculate_total(credits, milli_price)</code> helper rounds the final purchase total to the nearest paise/cent. Reply-email pack prices are flat-unit (no rounding) since they're whole-currency monthly charges for a fixed-size pack.</p>
+<p>Currency metadata (symbol, ISO name, minor-unit exponent) comes from the <a href="https://crates.io/crates/rusty-money"><code>rusty_money</code></a> crate, so the form labels and tenant-facing money formatting stay correct for any ISO 4217 code.</p>
 
-<p>Edits to the pricing form trigger a <code>POST /manage/billing/settings</code>, which validates each value (positive integer; <code>free_monthly_credits</code> may be 0 to disable the grant), updates the singleton <code>pricing_config</code> row, and writes an <code>update_pricing</code> entry to the audit log.</p>
+<p>Adding a currency is a UI-only step: the management form's "Add currency" picker lets the operator choose any ISO code; submitting the form seeds default rows and re-renders the table with the new column. There's no migration to run.</p>
+
+<p>Edits to the pricing form trigger a <code>POST /manage/billing/settings</code>. Each per-cell input has a name like <code>unit_price_milli__USD</code>; the handler walks every known currency × concept and upserts cells whose values changed. The settings POST also writes an <code>update_pricing</code> audit-log entry with the full submitted form.</p>
 
 <p><strong>Subscription enforcement, not yet wired:</strong> the reply-email pack is described as recurring monthly, but the current Razorpay integration creates one-time orders. A successful payment grants <code>email_pack_size</code> addresses for the lifetime of the account. A follow-up change should switch this flow to Razorpay Subscriptions, with a webhook handler that revokes pack-granted addresses when the subscription lapses.</p>
 
 <p>All grants and pricing edits are recorded in the audit log.</p>
 
-<h2>Scheduled grants</h2>
+<h2>Recurring credit grants</h2>
 
-<p>Operators can configure recurring credit grants on a calendar cadence from <code>/manage/billing</code>. Each scheduled grant has:</p>
+<p>Operators can configure recurring credit grants on a calendar cadence from <code>/manage/billing</code>. Recurring grants always apply to every tenant — they're the platform's lever for handing out a baseline AI-reply allowance (e.g. "100 free replies on the 1st of every month"). Each scheduled grant has:</p>
 
 <ul>
   <li><strong>Cadence:</strong> <code>daily</code>, <code>weekly_{sun..sat}</code>, or <code>monthly_first</code> (the 1st of every month at 00:00 UTC).</li>
-  <li><strong>Audience:</strong> <em>every tenant</em> or a specific list of tenant emails.</li>
-  <li><strong>Credits:</strong> how many replies to add per beneficiary per firing.</li>
+  <li><strong>Credits:</strong> how many replies to add per tenant per firing.</li>
   <li><strong>Expiry:</strong> credits expire after N days, or never (0).</li>
 </ul>
-
-<p>The form validates emails on submit. If any email doesn't map to an existing tenant, the page re-renders with an inline warning naming the unmatched addresses and nothing is saved. Fix the typos or switch to the <em>every tenant</em> audience and resubmit.</p>
 
 <p>An hourly cron (<code>0 * * * *</code>) sweeps the <code>scheduled_grants</code> table for any row whose <code>next_run_at</code> has elapsed and:</p>
 
 <ol>
-  <li>Resolves the audience to a list of tenant IDs.</li>
+  <li>Lists every tenant in the database.</li>
   <li>Calls <code>billing::grant_purchased</code> (no expiry) or <code>billing::grant_with_expiry</code> for each tenant.</li>
   <li>Advances <code>next_run_at</code> to the next firing of the cadence.</li>
   <li>Writes a single <code>scheduled_grant_run</code> entry to the audit log with the actor <code>system:cron</code>, recording the credit count, expiry policy, and the number of tenants who actually received the grant.</li>
 </ol>
 
 <p>Cadence math is in <code>src/billing/cadence.rs</code> as a pure function so it can be unit-tested without touching the JavaScript date API.</p>
+
+<h2>Per-tenant grants</h2>
+
+<p>Operators can also grant credits or extra reply-email addresses to a specific tenant from that tenant's detail page (<code>/manage/tenants/{id}</code>):</p>
+
+<ul>
+  <li><strong>Grant free replies</strong> &mdash; adds an expiring batch of credits straight to the tenant's ledger. Backed by <code>POST /manage/tenants/{id}/grant-replies</code>.</li>
+  <li><strong>Grant reply-email addresses</strong> &mdash; bumps the tenant's <code>email_address_extras_purchased</code> counter so they can claim more local-parts without a Razorpay round-trip. Backed by <code>POST /manage/tenants/{id}/grant-addresses</code>.</li>
+</ul>
 
 <h2>Billing State</h2>
 

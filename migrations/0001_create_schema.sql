@@ -108,7 +108,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_id ON payments(razorpay_
 CREATE TABLE IF NOT EXISTS tenant_billing (
     tenant_id TEXT PRIMARY KEY,
     credits_json TEXT NOT NULL DEFAULT '[]',
-    free_month TEXT,
     replies_used INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -153,47 +152,54 @@ CREATE INDEX IF NOT EXISTS idx_pa_tenant_status
 CREATE INDEX IF NOT EXISTS idx_pa_status_created
     ON pending_approvals(status, created_at);
 
--- Single-row pricing config. Operators edit these from /manage/billing;
--- a fresh DB starts with the defaults baked into the CREATE TABLE below
--- so the application never needs runtime fallbacks.
---
--- The `id = 1` CHECK + PRIMARY KEY pin this to exactly one row.
+-- Singleton bag of currency-agnostic settings. Per-currency amounts live
+-- in `pricing_amount` below.
 CREATE TABLE IF NOT EXISTS pricing_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    -- Per-AI-reply rate, in milli-units (1/1000 of a paisa or cent).
-    unit_price_millipaise INTEGER NOT NULL DEFAULT 10000,
-    unit_price_millicents INTEGER NOT NULL DEFAULT 100,
-    -- Reply-email subscription: each pack of `email_pack_size` addresses
-    -- costs `address_price_*` (in paise / cents) per recurring period.
-    address_price_paise INTEGER NOT NULL DEFAULT 9900,
-    address_price_cents INTEGER NOT NULL DEFAULT 100,
+    -- Reply-email subscription pack size — addresses granted per pack
+    -- purchase. Currency-independent; the price lives in pricing_amount.
     email_pack_size INTEGER NOT NULL DEFAULT 5,
-    -- Free monthly AI replies granted to every tenant.
-    free_monthly_credits INTEGER NOT NULL DEFAULT 100,
-    -- Sign-up verification charge: the wizard collects this amount on a
-    -- real card and the webhook auto-refunds it. Stored in paise / cents
-    -- of the tenant's currency. Defaults: ₹1 / $1.
-    verification_amount_paise INTEGER NOT NULL DEFAULT 100,
-    verification_amount_cents INTEGER NOT NULL DEFAULT 100,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 INSERT OR IGNORE INTO pricing_config (id) VALUES (1);
 
--- Scheduled credit grants. The scheduled-grants cron picks every row where
--- next_run_at <= now AND active = 1, grants `credits` to the targeted
--- tenants, then advances next_run_at by the cadence.
+-- Per-(concept, currency) pricing.
 --
--- audience_kind = 'everyone'  → grant to every tenant in the tenants table.
--- audience_kind = 'emails'    → grant only to tenants whose email is in
---                               the JSON array `audience_emails`.
+-- `concept` is one of:
+--   'unit_price_milli'    — per-AI-reply rate, in milli-minor units (1/1000
+--                           paise / cent / yen / etc) so sub-minor prices fit.
+--   'address_price'       — reply-email pack price per recurring period, in
+--                           minor units of the currency.
+--   'verification_amount' — sign-up verification charge, in minor units.
+--
+-- Adding a currency = INSERT three rows here; no schema change needed.
+-- Currency codes are ISO 4217 (e.g. INR, USD, EUR, JPY, KWD); we use
+-- rusty_money's metadata to look up symbols + minor-unit exponents.
+CREATE TABLE IF NOT EXISTS pricing_amount (
+    concept TEXT NOT NULL,
+    currency_code TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    PRIMARY KEY (concept, currency_code)
+);
+
+INSERT OR IGNORE INTO pricing_amount (concept, currency_code, amount) VALUES
+    ('unit_price_milli',    'INR', 10000),  -- 10000 milli-paise = ₹0.10/reply
+    ('unit_price_milli',    'USD', 100),    -- 100 milli-cents = $0.001/reply
+    ('address_price',       'INR', 9900),   -- ₹99/pack/month
+    ('address_price',       'USD', 100),    -- $1/pack/month
+    ('verification_amount', 'INR', 100),    -- ₹1
+    ('verification_amount', 'USD', 100);    -- $1
+
+-- Scheduled credit grants. The scheduled-grants cron picks every row where
+-- next_run_at <= now AND active = 1, grants `credits` to every tenant,
+-- then advances next_run_at by the cadence.
+--
 -- cadence is one of: daily, weekly_<dow>, monthly_first
 --   weekly_<dow> uses lowercase 3-letter day codes: mon, tue, wed, thu, fri, sat, sun.
 -- expires_in_days controls the granted-credit expiry (0 = never expires).
 CREATE TABLE IF NOT EXISTS scheduled_grants (
     id TEXT PRIMARY KEY,
     cadence TEXT NOT NULL,
-    audience_kind TEXT NOT NULL CHECK (audience_kind IN ('everyone', 'emails')),
-    audience_emails TEXT NOT NULL DEFAULT '[]',
     credits INTEGER NOT NULL CHECK (credits > 0),
     expires_in_days INTEGER NOT NULL DEFAULT 0,
     last_run_at TEXT,

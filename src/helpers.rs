@@ -51,23 +51,6 @@ pub fn now_iso() -> String {
         .unwrap_or_else(|| String::from("1970-01-01T00:00:00.000Z"))
 }
 
-/// Get current year-month as "YYYY-MM"
-pub fn current_month() -> String {
-    let d = js_sys::Date::new_0();
-    let y = d.get_utc_full_year();
-    let m = d.get_utc_month() + 1; // 0-indexed
-    format!("{y:04}-{m:02}")
-}
-
-/// Get ISO 8601 timestamp for the last moment of the current UTC month.
-pub fn end_of_month() -> String {
-    let d = js_sys::Date::new_0();
-    let y = d.get_utc_full_year() as i32;
-    let m = (d.get_utc_month() + 1) as u32; // 1-indexed
-    let last_day = days_in_month(y, m);
-    format!("{y:04}-{m:02}-{last_day:02}T23:59:59Z")
-}
-
 /// Get ISO 8601 timestamp `days` from now.
 pub fn days_from_now(days: i64) -> String {
     let ms = js_sys::Date::now() + (days as f64 * 86_400_000.0);
@@ -75,21 +58,6 @@ pub fn days_from_now(days: i64) -> String {
     d.to_iso_string()
         .as_string()
         .unwrap_or_else(|| String::from("2099-12-31T23:59:59.000Z"))
-}
-
-fn days_in_month(year: i32, month: u32) -> u32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => {
-            if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 {
-                29
-            } else {
-                28
-            }
-        }
-        _ => 30,
-    }
 }
 
 /// HTML escape for XSS prevention
@@ -209,32 +177,22 @@ pub fn format_count(n: i64, locale: &crate::locale::Locale) -> String {
     formatter.format(&value).to_string()
 }
 
-/// Format a money amount in the smallest currency unit (paise / cents) for
-/// display in the user's locale. Indian-locale outputs use ₹ + Indian
-/// grouping; US-locale outputs use $ + thousands grouping with two
-/// decimals. The currency comes from the locale; the amount is always in
-/// minor units.
+/// Format a money amount in the smallest currency unit (paise / cents /
+/// fils / etc) for display. Delegates to rusty_money so locale-correct
+/// grouping (e.g. INR's 1,00,00,000) and the right symbol come out of the
+/// crate's ISO 4217 metadata. The currency comes from the locale; the
+/// amount is always in minor units.
 pub fn format_money(amount_minor: i64, locale: &crate::locale::Locale) -> String {
-    use crate::locale::Currency;
-    match locale.currency {
-        Currency::Inr => {
-            // Whole rupees only on display (we don't price in fractional
-            // rupees anywhere). Round half-up to keep parity with the
-            // historical `amount / 100` truncation behavior.
-            let rupees = amount_minor.div_euclid(100);
-            format!("{}{}", Currency::Inr.symbol(), format_count(rupees, locale))
-        }
-        Currency::Usd => {
-            let dollars = amount_minor / 100;
-            let cents = (amount_minor % 100).abs();
-            format!(
-                "{}{}.{:02}",
-                Currency::Usd.symbol(),
-                format_count(dollars, locale),
-                cents
-            )
-        }
-    }
+    format_money_code(amount_minor, locale.currency.as_str())
+}
+
+/// Format a money amount given an ISO 4217 code directly. Used by
+/// surfaces that don't have a `Locale` handy (e.g. the management form's
+/// preview labels).
+pub fn format_money_code(amount_minor: i64, currency_code: &str) -> String {
+    use rusty_money::{iso, Money};
+    let currency = iso::find(currency_code).unwrap_or(iso::USD);
+    Money::from_minor(amount_minor, currency).to_string()
 }
 
 /// Hex SHA-256 of a string. Used to detect drift in safety-checked content.
@@ -297,10 +255,11 @@ mod tests {
     #[test]
     fn test_format_money_inr() {
         let l = Locale::default_inr();
-        // amount in paise; ₹1,00,000.00 → 1 lakh rupees = 1_00_00_000 paise
-        assert_eq!(format_money(1_00_00_000, &l), "₹1,00,000");
-        assert_eq!(format_money(20_000_00, &l), "₹20,000");
-        assert_eq!(format_money(2_00, &l), "₹2");
+        // amount in paise — rusty_money renders INR with 2-3-2 lakh
+        // grouping and two decimals.
+        assert_eq!(format_money(1_00_00_000, &l), "₹1,00,000.00");
+        assert_eq!(format_money(20_000_00, &l), "₹20,000.00");
+        assert_eq!(format_money(2_00, &l), "₹2.00");
     }
 
     #[test]

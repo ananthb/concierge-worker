@@ -299,12 +299,8 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
     // Marketing features overview
     if path == "/features" {
         let db = env.d1("DB")?;
-        let cfg = storage::get_pricing_config(&db).await;
-        return Response::from_html(templates::features::features_html(
-            &request_locale,
-            cfg.unit_price_millipaise,
-            cfg.unit_price_millicents,
-        ));
+        let cfg = storage::get_pricing(&db).await;
+        return Response::from_html(templates::features::features_html(&request_locale, &cfg));
     }
 
     // Pricing page. ?c=usd|inr overrides the geo-IP default so the toggle
@@ -326,15 +322,11 @@ async fn handle_request(req: Request, env: Env) -> Result<Response> {
         });
 
         let db = env.d1("DB")?;
-        let cfg = storage::get_pricing_config(&db).await;
+        let cfg = storage::get_pricing(&db).await;
         return Response::from_html(templates::onboarding::pricing_html(
             &currency_str,
             &request_locale,
-            cfg.unit_price_millipaise,
-            cfg.unit_price_millicents,
-            cfg.address_price_paise,
-            cfg.address_price_cents,
-            cfg.email_pack_size,
+            &cfg,
         ));
     }
 

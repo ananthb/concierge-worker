@@ -1,13 +1,18 @@
 //! Credit-purchase slider: used on /pricing, /admin/billing, and the wizard
 //! launch step so the buying experience is identical everywhere.
 //!
-//! Flat per-reply rate. Slider 100..10000 step 100. Past the right edge, a
-//! "Custom" toggle swaps in a number input that accepts any integer up to
-//! `MAX_CREDITS`. Live price preview is computed in Alpine on the client.
+//! Flat per-reply rate. Slider runs `MIN_CREDITS`..`SLIDER_MAX` step 100.
+//! Past the right edge, a "Custom" toggle swaps in a number input that
+//! accepts integers between `SLIDER_MAX` and `MAX_CREDITS`. Live price
+//! preview is computed in Alpine on the client.
 
 use crate::billing::{MAX_CREDITS, MIN_CREDITS};
 use crate::helpers::{format_count, format_money};
 use crate::locale::{Currency, Locale};
+
+/// Upper bound of the slider. Past this, the "choose your own amount" box
+/// takes over — its minimum is this value, its maximum is `MAX_CREDITS`.
+pub const SLIDER_MAX: i64 = 10_000;
 
 /// Variant of the slider: controls the bottom action area.
 pub enum SliderMode<'a> {
@@ -85,7 +90,7 @@ pub fn slider_html(
   <div class="between mb-12">
     <div>
       <div class="eyebrow">AI reply credits</div>
-      <p class="muted m-0 mt-4 fs-13">{per_reply_label} per AI reply. 100 AI replies included every month.</p>
+      <p class="muted m-0 mt-4 fs-13">{per_reply_label} per AI reply.</p>
     </div>
     <div class="ta-right">
       <div class="serif" style="font-size:34px;line-height:1"><span x-text="credits.toLocaleString(countLocale)"></span></div>
@@ -94,25 +99,25 @@ pub fn slider_html(
   </div>
 
   <div x-show="!custom" x-cloak>
-    <input type="range" min="{min}" max="10000" step="100"
+    <input type="range" min="{min}" max="{slider_max}" step="100"
            x-model.number="credits"
            class="w-full"
            style="accent-color:var(--accent)">
     <div class="between mt-4 mono muted fs-11">
       <span>{min_price}</span>
-      <span><a href="#" class="muted" @click.prevent="custom = true; if (credits < {min}) credits = {min}">Need more?</a></span>
-      <span>{max_price}</span>
+      <span><a href="#" class="muted" @click.prevent="custom = true; if (credits < {custom_min}) credits = {custom_min}">Need more?</a></span>
+      <span>{slider_max_price}</span>
     </div>
   </div>
 
   <div x-show="custom" x-cloak>
-    <input type="number" min="{min}" max="{max}" step="1"
+    <input type="number" min="{custom_min}" max="{max}" step="1"
            x-model.number="credits"
            class="input mono"
            placeholder="How many replies?">
     <div class="between mt-4 mono muted fs-11">
-      <span>min {min}, max {max_display}</span>
-      <span><a href="#" class="muted" @click.prevent="custom = false; if (credits > 10000) credits = 10000">Use the slider</a></span>
+      <span>min {custom_min_display}, max {max_display}</span>
+      <span><a href="#" class="muted" @click.prevent="custom = false; if (credits > {slider_max}) credits = {slider_max}">Use the slider</a></span>
     </div>
   </div>
 
@@ -126,10 +131,13 @@ pub fn slider_html(
         per_reply_label = per_reply_label,
         symbol = symbol,
         min = MIN_CREDITS,
+        slider_max = SLIDER_MAX,
+        custom_min = SLIDER_MAX,
+        custom_min_display = format_count(SLIDER_MAX, locale),
         max = MAX_CREDITS,
         max_display = format_count(MAX_CREDITS, locale),
         min_price = price_for(MIN_CREDITS, locale, milli_price),
-        max_price = price_for(10_000, locale, milli_price),
+        slider_max_price = price_for(SLIDER_MAX, locale, milli_price),
         price_js = price_js,
         count_locale = count_locale,
         action_html = action_html,

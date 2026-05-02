@@ -1283,7 +1283,6 @@ mod tests {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CreditSource {
-    FreeMonthly,
     Purchase,
     Grant,
 }
@@ -1302,8 +1301,6 @@ pub struct CreditEntry {
 pub struct TenantBilling {
     #[serde(default)]
     pub credits: Vec<CreditEntry>,
-    #[serde(default)]
-    pub free_month: Option<String>, // "2026-04" = last month free credits were issued
     #[serde(default)]
     pub replies_used: i64, // lifetime replies sent
 }
@@ -1377,17 +1374,13 @@ impl GrantCadence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GrantAudience {
-    Everyone,
-    Emails(Vec<String>),
-}
-
+/// Recurring credit grant. Always applies to every tenant — there is no
+/// per-grant audience selector, on the assumption that operator-controlled
+/// recurring drops are always platform-wide.
 #[derive(Debug, Clone)]
 pub struct ScheduledGrant {
     pub id: String,
     pub cadence: GrantCadence,
-    pub audience: GrantAudience,
     pub credits: i64,
     pub expires_in_days: i64,
     pub last_run_at: Option<String>,

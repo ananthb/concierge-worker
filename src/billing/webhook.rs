@@ -111,9 +111,7 @@ pub async fn handle_razorpay_webhook(mut req: Request, env: Env) -> Result<Respo
                     // purchase = one reply-email pack at our flat monthly rate.
                     // TODO: switch this flow to Razorpay Subscriptions and
                     // revoke pack addresses when the subscription lapses.
-                    let pack_size = crate::storage::get_pricing_config(&db)
-                        .await
-                        .email_pack_size as u32;
+                    let pack_size = crate::storage::get_pricing(&db).await.email_pack_size as u32;
                     let extras = payment
                         .pointer("/notes/extras")
                         .and_then(|v| v.as_str())

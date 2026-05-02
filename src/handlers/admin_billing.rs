@@ -29,7 +29,7 @@ pub async fn handle_billing_admin(
         // Billing overview
         (Method::Get, "" | "/") => {
             let mut bill = storage::get_tenant_billing(&db, tenant_id).await?;
-            crate::billing::refresh_billing_async(&db, &mut bill).await;
+            crate::billing::refresh_billing(&mut bill);
             storage::save_tenant_billing(&db, tenant_id, &bill).await?;
             let tenant = storage::get_tenant(&db, tenant_id)
                 .await?
@@ -38,12 +38,10 @@ pub async fn handle_billing_admin(
             let kv = env.kv("KV")?;
             let addrs = storage::get_email_addresses(&kv, tenant_id).await?;
 
-            let cfg = storage::get_pricing_config(&db).await;
-            let (milli_price, address_price) = if locale.currency == crate::locale::Currency::Usd {
-                (cfg.unit_price_millicents, cfg.address_price_cents)
-            } else {
-                (cfg.unit_price_millipaise, cfg.address_price_paise)
-            };
+            let cfg = storage::get_pricing(&db).await;
+            let code = locale.currency.as_str();
+            let milli_price = cfg.unit_price_milli(code);
+            let address_price = cfg.address_price(code);
 
             Response::from_html(tmpl::billing_overview_with_addresses_html(
                 &bill,
@@ -89,12 +87,8 @@ pub async fn handle_billing_admin(
             let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let currency = locale.currency.as_str();
 
-            let cfg = storage::get_pricing_config(&db).await;
-            let milli_price = if locale.currency == crate::locale::Currency::Usd {
-                cfg.unit_price_millicents
-            } else {
-                cfg.unit_price_millipaise
-            };
+            let cfg = storage::get_pricing(&db).await;
+            let milli_price = cfg.unit_price_milli(locale.currency.as_str());
 
             let amount = billing::calculate_total(credits, milli_price);
 
@@ -131,12 +125,8 @@ pub async fn handle_billing_admin(
             let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let currency = locale.currency.as_str();
 
-            let cfg = storage::get_pricing_config(&db).await;
-            let amount = if locale.currency == crate::locale::Currency::Usd {
-                cfg.verification_amount_cents
-            } else {
-                cfg.verification_amount_paise
-            };
+            let cfg = storage::get_pricing(&db).await;
+            let amount = cfg.verification_amount(locale.currency.as_str());
 
             let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
             let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();
@@ -172,12 +162,8 @@ pub async fn handle_billing_admin(
             let locale = crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
             let currency = locale.currency.as_str();
 
-            let cfg = storage::get_pricing_config(&db).await;
-            let amount = if locale.currency == crate::locale::Currency::Usd {
-                cfg.address_price_cents
-            } else {
-                cfg.address_price_paise
-            };
+            let cfg = storage::get_pricing(&db).await;
+            let amount = cfg.address_price(locale.currency.as_str());
 
             let key_id = env.secret("RAZORPAY_KEY_ID")?.to_string();
             let key_secret = env.secret("RAZORPAY_KEY_SECRET")?.to_string();

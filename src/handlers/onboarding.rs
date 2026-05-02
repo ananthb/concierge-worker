@@ -314,7 +314,7 @@ async fn render_step(
                 .unwrap_or_default();
             let discord = get_discord_config_by_tenant(kv, tenant_id).await?;
             let db = env.d1("DB")?;
-            let cfg = crate::storage::get_pricing_config(&db).await;
+            let cfg = crate::storage::get_pricing(&db).await;
             Response::from_html(connect_html(
                 !ig.is_empty(),
                 !wa.is_empty(),
@@ -325,9 +325,7 @@ async fn render_step(
                 discord.as_ref(),
                 base_url,
                 locale,
-                cfg.address_price_paise,
-                cfg.address_price_cents,
-                cfg.email_pack_size,
+                &cfg,
             ))
         }
         OnboardingStep::Notifications => {
@@ -360,13 +358,10 @@ async fn render_step(
             // currency set.
             let tenant_locale =
                 crate::locale::Locale::from_tenant(&tenant.locale, Some(tenant.currency));
-            let cfg = crate::storage::get_pricing_config(&db).await;
-            let (milli_price, verify_amount) =
-                if tenant_locale.currency == crate::locale::Currency::Usd {
-                    (cfg.unit_price_millicents, cfg.verification_amount_cents)
-                } else {
-                    (cfg.unit_price_millipaise, cfg.verification_amount_paise)
-                };
+            let cfg = crate::storage::get_pricing(&db).await;
+            let code = tenant_locale.currency.as_str();
+            let milli_price = cfg.unit_price_milli(code);
+            let verify_amount = cfg.verification_amount(code);
 
             Response::from_html(launch_html(
                 &email_addrs,

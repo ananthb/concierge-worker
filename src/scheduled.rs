@@ -55,24 +55,12 @@ async fn process_scheduled_grants(env: &Env) -> Result<()> {
     console_log!("Processing {} due scheduled grant(s)", due.len());
 
     for g in due {
-        let tenant_ids = match &g.audience {
-            crate::types::GrantAudience::Everyone => list_tenants(&db)
-                .await?
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>(),
-            crate::types::GrantAudience::Emails(emails) => {
-                let mut ids = Vec::with_capacity(emails.len());
-                for em in emails {
-                    if let Some(t) = get_tenant_by_email(&db, em).await? {
-                        ids.push(t.id);
-                    } else {
-                        console_log!("Scheduled grant {}: skipping unknown email {em}", g.id);
-                    }
-                }
-                ids
-            }
-        };
+        // Recurring grants always target every tenant.
+        let tenant_ids = list_tenants(&db)
+            .await?
+            .into_iter()
+            .map(|t| t.id)
+            .collect::<Vec<_>>();
 
         let mut granted_to = 0u32;
         for tid in &tenant_ids {

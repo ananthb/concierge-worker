@@ -214,6 +214,7 @@ pub fn tenant_detail_html(
     wa: &[WhatsAppAccount],
     ig: &[InstagramAccount],
     addrs: &[EmailAddress],
+    billing: &TenantBilling,
     base_url: &str,
     locale: &Locale,
 ) -> String {
@@ -285,6 +286,31 @@ pub fn tenant_detail_html(
       <div class="side-list">{domain_list}</div>
     </div>
   </div>
+
+  <div class="card p-18 mt-16">
+    <h3 class="mb-8">Grant free replies</h3>
+    <p class="muted mb-12">Add reply credits to this tenant's balance. Current balance: <strong>{balance}</strong>.</p>
+    <div id="grant-replies-toast"></div>
+    <form hx-post="{base_url}/manage/tenants/{id}/grant-replies" hx-target="{hash}grant-replies-toast" hx-swap="innerHTML" hx-ext="json-enc">
+      <div class="row gap-12 wrap">
+        <input class="input" name="replies" placeholder="Replies" type="number" min="1" required style="max-width:160px">
+        <input class="input" name="expires_days" placeholder="Expires in (days)" type="number" min="1" value="365" style="max-width:180px">
+        <button class="btn sm" type="submit">Grant replies</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card p-18 mt-16">
+    <h3 class="mb-8">Grant reply-email addresses</h3>
+    <p class="muted mb-12">Add to this tenant's reply-email quota. Current quota: <strong>{quota}</strong> address(es).</p>
+    <div id="grant-addresses-toast"></div>
+    <form hx-post="{base_url}/manage/tenants/{id}/grant-addresses" hx-target="{hash}grant-addresses-toast" hx-swap="innerHTML" hx-ext="json-enc">
+      <div class="row gap-12 wrap">
+        <input class="input" name="addresses" placeholder="Address slots" type="number" min="1" required style="max-width:160px">
+        <button class="btn sm" type="submit">Grant addresses</button>
+      </div>
+    </form>
+  </div>
 </div>"##,
         base_url = base_url,
         hash = HASH,
@@ -307,6 +333,8 @@ pub fn tenant_detail_html(
         wa_count = wa.len(),
         ig_count = ig.len(),
         domain_count = addrs.len(),
+        balance = billing.total_remaining(),
+        quota = tenant.email_address_quota(),
         wa_list = if wa_list.is_empty() {
             r#"<div class="muted fs-13">None</div>"#.to_string()
         } else {
@@ -403,8 +431,6 @@ pub fn audit_html(log: &[serde_json::Value], base_url: &str, locale: &Locale) ->
 }
 
 fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: &str) -> String {
-    use crate::types::GrantAudience;
-
     if scheduled.is_empty() {
         return r#"<p class="muted fs-13 m-0">No scheduled grants yet.</p>"#.to_string();
     }
@@ -412,10 +438,6 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
     let rows: String = scheduled
         .iter()
         .map(|g| {
-            let audience = match &g.audience {
-                GrantAudience::Everyone => "Every tenant".to_string(),
-                GrantAudience::Emails(es) => format!("{} tenant(s)", es.len()),
-            };
             let expiry = if g.expires_in_days <= 0 {
                 "never".to_string()
             } else {
@@ -427,7 +449,6 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
                 r##"<tr>
   <td>{cadence}</td>
   <td class="ta-right mono">{credits}</td>
-  <td class="mono fs-12">{audience}</td>
   <td class="mono fs-12">{expiry}</td>
   <td class="mono fs-11">{last_run}</td>
   <td class="mono fs-11">{next_run}</td>
@@ -440,7 +461,6 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
 </tr>"##,
                 cadence = html_escape(g.cadence.label()),
                 credits = g.credits,
-                audience = html_escape(&audience),
                 expiry = expiry,
                 last_run = html_escape(last_run.get(..16).unwrap_or(last_run)),
                 next_run = html_escape(g.next_run_at.get(..16).unwrap_or(&g.next_run_at)),
@@ -458,7 +478,6 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
                 <tr>
                   <th>Cadence</th>
                   <th class="ta-right">Credits</th>
-                  <th>Audience</th>
                   <th>Expiry</th>
                   <th>Last run</th>
                   <th>Next run</th>
@@ -476,28 +495,11 @@ fn scheduled_grants_table(scheduled: &[crate::types::ScheduledGrant], base_url: 
 pub fn billing_overview_html(
     base_url: &str,
     locale: &Locale,
-    cfg: crate::storage::PricingConfig,
+    cfg: &crate::storage::Pricing,
     scheduled: &[crate::types::ScheduledGrant],
     schedule_form_msg: Option<&str>,
 ) -> String {
-    let crate::storage::PricingConfig {
-        unit_price_millipaise: milli_paise,
-        unit_price_millicents: milli_cents,
-        address_price_paise: address_paise,
-        address_price_cents: address_cents,
-        email_pack_size,
-        free_monthly_credits,
-        verification_amount_paise: verify_paise,
-        verification_amount_cents: verify_cents,
-    } = cfg;
-    // Display in major units: milli-paise / 100_000 = rupees, milli-cents / 100_000 = dollars.
-    let paise_per_reply = format!("{:.2}", milli_paise as f64 / 100_000.0);
-    let cents_per_reply = format!("{:.3}", milli_cents as f64 / 100_000.0);
-    let address_inr = format!("{:.2}", address_paise as f64 / 100.0);
-    let address_usd = format!("{:.2}", address_cents as f64 / 100.0);
-    let verify_inr = format!("{:.2}", verify_paise as f64 / 100.0);
-    let verify_usd = format!("{:.2}", verify_cents as f64 / 100.0);
-
+    let pricing_table = pricing_form_table(cfg, base_url);
     let scheduled_rows = scheduled_grants_table(scheduled, base_url);
     let schedule_msg = schedule_form_msg.unwrap_or("");
 
@@ -507,73 +509,27 @@ pub fn billing_overview_html(
   <h2 class="display-sm m-0 mt-4 mb-16">Pricing &amp; grants</h2>
 
   <div class="card p-22 mb-16">
-    <h3 class="mb-8">AI-reply pricing</h3>
-    <p class="muted mb-12">Per-reply rate that applies to every tenant. Stored in milli-units (1/1000 of a paisa or cent) so the slider can offer fine-grained credit amounts.</p>
+    <h3 class="mb-8">Pricing</h3>
+    <p class="muted mb-12">One column per supported currency. Each cell is the price in that currency's own unit (no conversion). The unit caption under each row shows whether the value is in minor units or milli-minor units.</p>
     <div id="pricing-toast"></div>
     <form hx-post="{base_url}/manage/billing/settings" hx-target="{hash}pricing-toast" hx-swap="innerHTML" hx-ext="json-enc">
-      <div class="row gap-12 wrap mb-16">
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Reply price (₹ / reply)</div>
-          <input class="input mono" name="unit_price_millipaise" type="number" min="1" required value="{milli_paise}">
-          <div class="muted fs-11 mt-4">milli-paise · currently ₹{paise_per_reply}</div>
-        </label>
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Reply price ($ / reply)</div>
-          <input class="input mono" name="unit_price_millicents" type="number" min="1" required value="{milli_cents}">
-          <div class="muted fs-11 mt-4">milli-cents · currently ${cents_per_reply}</div>
-        </label>
-      </div>
+      {pricing_table}
 
-      <h3 class="mb-8">Reply-email subscription</h3>
-      <p class="muted mb-12">Each pack of N addresses costs the rate below per recurring period (monthly). Tenants pay this in their selected currency.</p>
-      <div class="row gap-12 wrap mb-12">
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Pack price (₹ / month)</div>
-          <input class="input mono" name="address_price_paise" type="number" min="1" required value="{address_paise}">
-          <div class="muted fs-11 mt-4">paise · currently ₹{address_inr}</div>
-        </label>
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Pack price ($ / month)</div>
-          <input class="input mono" name="address_price_cents" type="number" min="1" required value="{address_cents}">
-          <div class="muted fs-11 mt-4">cents · currently ${address_usd}</div>
-        </label>
-        <label class="flex-1" style="min-width:160px">
-          <div class="eyebrow mb-4">Addresses per pack</div>
+      <div class="row gap-12 wrap mb-12 mt-16">
+        <label class="flex-1" style="min-width:240px">
+          <div class="eyebrow mb-4">Addresses per reply-email pack</div>
           <input class="input mono" name="email_pack_size" type="number" min="1" required value="{email_pack_size}">
-          <div class="muted fs-11 mt-4">tenants get this many addresses per active pack</div>
-        </label>
-      </div>
-      <h3 class="mb-8">Free monthly credits</h3>
-      <p class="muted mb-12">How many AI replies every tenant gets at the start of each calendar month. Existing balances aren't touched mid-month.</p>
-      <div class="row gap-12 wrap mb-12">
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Monthly credits per tenant</div>
-          <input class="input mono" name="free_monthly_credits" type="number" min="0" required value="{free_monthly_credits}">
-          <div class="muted fs-11 mt-4">currently {free_monthly_credits} replies/month</div>
+          <div class="muted fs-11 mt-4">currency-independent · tenants receive this many addresses per active pack</div>
         </label>
       </div>
 
-      <h3 class="mb-8">Sign-up verification charge</h3>
-      <p class="muted mb-12">Small refundable amount we collect at the end of the wizard to confirm a real card. The webhook auto-refunds it as soon as Razorpay captures the payment.</p>
-      <div class="row gap-12 wrap mb-12">
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Verification charge (₹)</div>
-          <input class="input mono" name="verification_amount_paise" type="number" min="1" required value="{verify_paise}">
-          <div class="muted fs-11 mt-4">paise · currently ₹{verify_inr}</div>
-        </label>
-        <label class="flex-1" style="min-width:220px">
-          <div class="eyebrow mb-4">Verification charge ($)</div>
-          <input class="input mono" name="verification_amount_cents" type="number" min="1" required value="{verify_cents}">
-          <div class="muted fs-11 mt-4">cents · currently ${verify_usd}</div>
-        </label>
-      </div>
-      <button class="btn sm" type="submit">Save settings</button>
+      <button class="btn sm mt-12" type="submit">Save settings</button>
     </form>
   </div>
 
   <div class="card p-22 mb-16">
-    <h3 class="mb-8">Scheduled credit grants</h3>
-    <p class="muted mb-12">Automated grants that fire on a calendar cadence. Use these to drop credits into specific tenants (by email) or every tenant on a recurring schedule.</p>
+    <h3 class="mb-8">Recurring credit grants</h3>
+    <p class="muted mb-12">Automated grants that fire on a calendar cadence and apply to every tenant. Use these in place of a baked-in monthly free allowance.</p>
     {scheduled_rows}
     <div id="schedule-toast">{schedule_msg}</div>
     <form hx-post="{base_url}/manage/billing/schedule" hx-target="body" hx-swap="innerHTML" hx-ext="json-enc" class="mt-12">
@@ -601,53 +557,14 @@ pub fn billing_overview_html(
           <input class="input mono" name="expires_in_days" type="number" min="0" value="0" required>
         </label>
       </div>
-      <div class="mb-12">
-        <div class="eyebrow mb-4">Audience</div>
-        <label class="row gap-8" style="align-items:center;cursor:pointer">
-          <input type="radio" name="audience_kind" value="everyone" checked>
-          <span>Every tenant</span>
-        </label>
-        <label class="row gap-8 mt-4" style="align-items:center;cursor:pointer">
-          <input type="radio" name="audience_kind" value="emails">
-          <span>Specific tenants by email</span>
-        </label>
-        <textarea class="input mono mt-8" name="emails" rows="3" placeholder="comma- or newline-separated tenant emails"></textarea>
-      </div>
       <button class="btn sm" type="submit">Add scheduled grant</button>
-    </form>
-  </div>
-
-  <div class="card p-18">
-    <h3 class="mb-8">Grant free replies</h3>
-    <p class="muted mb-12">Give a tenant reply credits directly.</p>
-    <div id="grant-toast"></div>
-    <form hx-post="" hx-target="{hash}grant-toast" hx-swap="innerHTML"
-          onsubmit="this.setAttribute('hx-post', '{base_url}/manage/billing/grant/' + this.querySelector('[name=tenant_id]').value); htmx.process(this); return false;">
-      <div class="row gap-12 wrap">
-        <input class="input" name="tenant_id" placeholder="Tenant ID" required style="max-width:300px">
-        <input class="input" name="replies" placeholder="Replies" type="number" min="1" required style="max-width:140px">
-        <input class="input" name="expires_days" placeholder="Expires in (days)" type="number" min="1" value="365" style="max-width:160px">
-        <button class="btn sm" type="submit">Grant</button>
-      </div>
     </form>
   </div>
 </div>"##,
         base_url = base_url,
         hash = HASH,
-        milli_paise = milli_paise,
-        milli_cents = milli_cents,
-        address_paise = address_paise,
-        address_cents = address_cents,
-        email_pack_size = email_pack_size,
-        free_monthly_credits = free_monthly_credits,
-        paise_per_reply = paise_per_reply,
-        cents_per_reply = cents_per_reply,
-        address_inr = address_inr,
-        address_usd = address_usd,
-        verify_paise = verify_paise,
-        verify_cents = verify_cents,
-        verify_inr = verify_inr,
-        verify_usd = verify_usd,
+        pricing_table = pricing_table,
+        email_pack_size = cfg.email_pack_size,
         scheduled_rows = scheduled_rows,
         schedule_msg = schedule_msg,
     );
@@ -655,62 +572,224 @@ pub fn billing_overview_html(
     manage_shell("Billing - Concierge", &content, "Billing", base_url, locale)
 }
 
+/// Build the per-(concept, currency) input grid plus the "add currency"
+/// row. Field names follow `<concept>__<CODE>` so the settings POST can
+/// dispatch to `upsert_pricing_amount` cell-by-cell.
+fn pricing_form_table(cfg: &crate::storage::Pricing, base_url: &str) -> String {
+    use crate::storage::PricingConcept;
+    let codes = cfg.currencies();
+    if codes.is_empty() {
+        return r#"<p class="muted fs-13 m-0">No currencies configured. Use the "Add currency" form below.</p>"#.to_string()
+            + &add_currency_form(base_url, &[]);
+    }
+
+    // Header row: concept label + one column per currency.
+    let header_cells: String = codes
+        .iter()
+        .map(|c| {
+            let info = currency_info(c);
+            let remove = format!(
+                r##" <button type="button" class="btn ghost sm btn-danger" hx-delete="{base_url}/manage/billing/currency/{code}" hx-confirm="Remove all {code} prices?" hx-target="body" hx-swap="innerHTML" title="Remove {code}">×</button>"##,
+                base_url = base_url,
+                code = html_escape(c),
+            );
+            format!(
+                r##"<th class="ta-right">
+  <div class="row gap-4" style="justify-content:flex-end;align-items:center">
+    <span class="mono">{symbol} {code}</span>{remove}
+  </div>
+  <div class="muted fs-11">{name}</div>
+</th>"##,
+                symbol = html_escape(&info.symbol),
+                code = html_escape(c),
+                name = html_escape(&info.name),
+                remove = remove,
+            )
+        })
+        .collect();
+
+    let body_rows: String = PricingConcept::ALL
+        .iter()
+        .map(|concept| {
+            let cells: String = codes
+                .iter()
+                .map(|code| {
+                    let value = cfg.amount(*concept, code).unwrap_or(0);
+                    format!(
+                        r##"<td><input class="input mono" name="{name}" type="number" min="1" required value="{value}" style="max-width:160px"></td>"##,
+                        name = format!("{}__{}", concept.as_wire(), code),
+                        value = value,
+                    )
+                })
+                .collect();
+            format!(
+                r##"<tr>
+  <th class="ta-left" style="font-weight:600">
+    <div>{label}</div>
+    <div class="muted fs-11">{unit}</div>
+  </th>
+  {cells}
+</tr>"##,
+                label = html_escape(concept.label()),
+                unit = html_escape(concept.unit_caption()),
+                cells = cells,
+            )
+        })
+        .collect();
+
+    format!(
+        r##"<div class="card no-pad" style="overflow-x:auto">
+  <table class="manage-table fs-13" style="width:100%">
+    <thead><tr><th></th>{header_cells}</tr></thead>
+    <tbody>{body_rows}</tbody>
+  </table>
+</div>
+{add_form}"##,
+        header_cells = header_cells,
+        body_rows = body_rows,
+        add_form = add_currency_form(base_url, &codes),
+    )
+}
+
+/// Tiny inline form to add a new currency to the pricing table. Submits to
+/// the same `/settings` endpoint with default-valued cells so the new
+/// column appears immediately on next render.
+fn add_currency_form(base_url: &str, existing: &[String]) -> String {
+    use crate::storage::PricingConcept;
+    let already: std::collections::HashSet<&str> = existing.iter().map(|s| s.as_str()).collect();
+    let popular = [
+        "INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "AED", "SGD", "ZAR",
+    ];
+    let options: String = popular
+        .iter()
+        .filter(|c| !already.contains(*c))
+        .map(|c| {
+            let info = currency_info(c);
+            format!(
+                r#"<option value="{code}">{code} — {name} ({symbol})</option>"#,
+                code = c,
+                name = html_escape(&info.name),
+                symbol = html_escape(&info.symbol),
+            )
+        })
+        .collect();
+
+    // Each new-currency POST goes back through /settings with the chosen
+    // code and seed values for every concept. Defaults seed to 1 minor /
+    // milli-minor; the operator edits to taste afterwards.
+    let seed_inputs: String = PricingConcept::ALL
+        .iter()
+        .map(|concept| {
+            let default = if concept.is_milli() { 100 } else { 100 };
+            format!(
+                r#"<input type="hidden" :name="`{key}__${{currency}}`" :value="{default}">"#,
+                key = concept.as_wire(),
+                default = default,
+            )
+        })
+        .collect();
+
+    format!(
+        r##"<div x-data="{{ currency: '' }}" class="row gap-12 mt-12 wrap" style="align-items:flex-end">
+  <label style="min-width:260px">
+    <div class="eyebrow mb-4">Add currency</div>
+    <select class="input" x-model="currency">
+      <option value="">Pick a currency…</option>
+      {options}
+    </select>
+  </label>
+  <form hx-post="{base_url}/manage/billing/settings" hx-target="body" hx-swap="innerHTML" hx-ext="json-enc"
+        x-show="currency">
+    <input type="hidden" name="__currencies" :value="JSON.stringify([currency])">
+    {seed_inputs}
+    <button class="btn sm" type="submit">Add</button>
+  </form>
+</div>"##,
+        base_url = base_url,
+        options = options,
+        seed_inputs = seed_inputs,
+    )
+}
+
+/// Lookup symbol + display name for an ISO 4217 code via rusty_money.
+/// Returns the code itself for unknown codes.
+fn currency_info(code: &str) -> CurrencyDisplay {
+    match rusty_money::iso::find(code) {
+        Some(c) => CurrencyDisplay {
+            symbol: c.symbol.to_string(),
+            name: c.name.to_string(),
+        },
+        None => CurrencyDisplay {
+            symbol: code.to_string(),
+            name: code.to_string(),
+        },
+    }
+}
+
+struct CurrencyDisplay {
+    symbol: String,
+    name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn billing_overview_renders_inputs_with_db_values() {
+    fn billing_overview_renders_per_currency_inputs() {
+        use crate::storage::PricingConcept::*;
         let l = Locale::default_inr();
-        // Use distinctive non-default numbers so we can assert they appear.
-        let cfg = crate::storage::PricingConfig {
-            unit_price_millipaise: 12_345,
-            unit_price_millicents: 234,
-            address_price_paise: 5_555,
-            address_price_cents: 77,
+        let mut cfg = crate::storage::Pricing {
             email_pack_size: 7,
-            free_monthly_credits: 150,
-            verification_amount_paise: 199,
-            verification_amount_cents: 33,
+            amounts: std::collections::BTreeMap::new(),
         };
-        let html = billing_overview_html("https://example.test", &l, cfg, &[], None);
+        cfg.amounts.insert((UnitPriceMilli, "INR".into()), 12_345);
+        cfg.amounts.insert((UnitPriceMilli, "USD".into()), 234);
+        cfg.amounts.insert((AddressPrice, "INR".into()), 5_555);
+        cfg.amounts.insert((AddressPrice, "USD".into()), 77);
+        cfg.amounts.insert((VerificationAmount, "INR".into()), 199);
+        cfg.amounts.insert((VerificationAmount, "USD".into()), 33);
+
+        let html = billing_overview_html("https://example.test", &l, &cfg, &[], None);
 
         // Form posts to the management settings endpoint.
         assert!(
             html.contains(r#"hx-post="https://example.test/manage/billing/settings""#),
-            "settings form missing: {html}"
+            "settings form missing"
         );
 
-        // Each input renders the DB-loaded value.
-        assert!(html.contains(r#"name="unit_price_millipaise""#));
+        // Per-(concept, currency) cell names.
+        assert!(html.contains(r#"name="unit_price_milli__INR""#));
         assert!(html.contains(r#"value="12345""#));
-        assert!(html.contains(r#"name="unit_price_millicents""#));
+        assert!(html.contains(r#"name="unit_price_milli__USD""#));
         assert!(html.contains(r#"value="234""#));
-        assert!(html.contains(r#"name="address_price_paise""#));
+        assert!(html.contains(r#"name="address_price__INR""#));
         assert!(html.contains(r#"value="5555""#));
-        assert!(html.contains(r#"name="address_price_cents""#));
+        assert!(html.contains(r#"name="address_price__USD""#));
         assert!(html.contains(r#"value="77""#));
+        assert!(html.contains(r#"name="verification_amount__INR""#));
+        assert!(html.contains(r#"value="199""#));
+        assert!(html.contains(r#"name="verification_amount__USD""#));
+        assert!(html.contains(r#"value="33""#));
         assert!(html.contains(r#"name="email_pack_size""#));
         assert!(html.contains(r#"value="7""#));
-        assert!(html.contains(r#"name="free_monthly_credits""#));
-        assert!(html.contains(r#"value="150""#));
-        // Scheduled-grants section is always rendered.
-        assert!(html.contains("Scheduled credit grants"));
-        assert!(html.contains("No scheduled grants yet."));
 
-        // Per-reply hint shows the major-currency conversion.
-        // 12_345 milli-paise / 100_000 = 0.12345 ≈ 0.12
-        assert!(
-            html.contains("₹0.12"),
-            "missing INR per-reply preview: {html}"
-        );
-        // 234 milli-cents / 100_000 = 0.00234 ≈ 0.002
-        assert!(
-            html.contains("$0.002"),
-            "missing USD per-reply preview: {html}"
-        );
-        // Address prices (paise/100, cents/100) render as major units.
-        assert!(html.contains("₹55.55"), "missing addr inr: {html}");
-        assert!(html.contains("$0.77"), "missing addr usd: {html}");
+        // Currency column headers carry the rusty_money symbol + name.
+        assert!(html.contains("INR"));
+        assert!(html.contains("USD"));
+        assert!(html.contains("Indian Rupee"));
+        assert!(html.contains("United States Dollar"));
+
+        // No conversion text — currencies render side-by-side, not derived.
+        assert!(!html.contains("paise_per_usd"));
+        assert!(!html.contains("USD exchange rate"));
+
+        // Add-currency picker offers an unused currency (EUR).
+        assert!(html.contains(r#"name="__currencies""#));
+        assert!(html.contains(r#"value="EUR""#));
+
+        // Recurring-grants section still rendered.
+        assert!(html.contains("Recurring credit grants"));
+        assert!(html.contains("No scheduled grants yet."));
     }
 }
