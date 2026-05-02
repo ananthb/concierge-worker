@@ -78,7 +78,7 @@ pub fn auth_login_html(
     } else {
         format!(
             r#"<script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
-<script type="module">
+<script type="module" nonce="__CSP_NONCE__">
 // The SDK loads `async defer` — an early click would otherwise hit
 // `FB is not defined`. We expose a Promise resolved from inside
 // `fbAsyncInit` and have the click handler await it (with a timeout
@@ -761,7 +761,7 @@ pub fn admin_whatsapp_signup_html(
             </p>
         </div>
         <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
-        <script type="module">
+        <script type="module" nonce="__CSP_NONCE__">
 // Module scripts are deferred — handle the case where the SDK ran first
 // (FB already exists) as well as the normal case (SDK still loading).
 const fbReady = new Promise((resolve) => {{
@@ -1317,7 +1317,7 @@ pub fn admin_lead_form_edit_html(
             <p class=\"muted mb-8\">{embed_lead}</p>
             <div class=\"row gap-8\">
                 <code class=\"block flex-1\" style=\"padding: 0.5rem; overflow-x: auto; white-space: nowrap;\">{embed_code}</code>
-                <button class=\"btn sm\" onclick=\"copyUrl(this, '{embed_raw}')\">{copy}</button>
+                <button class=\"btn sm copy-btn\" data-copy-url=\"{embed_raw}\">{copy}</button>
             </div>
         </div>",
         base_url = base_url,

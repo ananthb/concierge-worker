@@ -135,29 +135,45 @@ const LOGO_192: &[u8] = include_bytes!("../assets/logo-192.png");
 const LOGO_512: &[u8] = include_bytes!("../assets/logo-512.png");
 const MSTILE_150: &[u8] = include_bytes!("../assets/mstile-150x150.png");
 
+/// Placeholder string emitted by templates wherever they need a CSP nonce
+/// (`<script nonce="__CSP_NONCE__">`, `<style nonce="__CSP_NONCE__">`). The
+/// fetch wrapper swaps it for a per-response random nonce and writes the
+/// matching CSP header. Centralizing it here means individual handlers
+/// don't have to thread a nonce argument through every render call.
+pub const CSP_NONCE_PLACEHOLDER: &str = "__CSP_NONCE__";
+
 /// Add security headers to an HTML response.
 ///
-/// CSP allow-list rationale:
-/// - script-src: htmx/alpinejs (unpkg), Razorpay checkout, FB SDK
-/// - connect-src: FB Embedded Signup (login flow + impression telemetry —
-///   the SDK aborts the dialog if these are blocked) + Razorpay verify
-/// - frame-src: Razorpay checkout iframe + FB login popup
-/// - form-action: FB OAuth redirect target (graph.facebook.com)
-fn add_security_headers(resp: &mut Response) -> Result<()> {
+/// CSP rationale (per directive):
+/// - **script-src**: only nonced inline scripts run. We keep `'unsafe-eval'`
+///   because Alpine.js parses `x-show="a === b"`-style expressions via
+///   `new Function()`; switching to the Alpine CSP build would force us to
+///   refactor every Alpine usage to property-access only.
+/// - **style-src**: keeps `'unsafe-inline'` because we have many `style="…"`
+///   attrs; the per-script nonce alone wouldn't cover them.
+/// - **connect-src**: FB Embedded Signup posts to `*.facebook.com` (login
+///   dialog + impression telemetry — the SDK silently aborts when these
+///   are blocked, which is how the WhatsApp button mysteriously "cancelled"
+///   on production); Razorpay's verify call goes to `api.razorpay.com`.
+/// - **frame-src**: FB login popup + Razorpay checkout iframe.
+fn add_security_headers(resp: &mut Response, nonce: &str) -> Result<()> {
     let headers = resp.headers_mut();
     headers.set("X-Frame-Options", "DENY")?;
     headers.set("X-Content-Type-Options", "nosniff")?;
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin")?;
-    headers.set(
-        "Content-Security-Policy",
+    let csp = format!(
         "default-src 'self'; \
-         script-src 'self' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net 'unsafe-inline' 'unsafe-eval'; \
+         script-src 'self' 'nonce-{nonce}' 'unsafe-eval' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net; \
          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
          font-src https://fonts.gstatic.com; \
          img-src 'self' data: https:; \
          connect-src 'self' https://www.facebook.com https://graph.facebook.com https://*.facebook.com https://api.razorpay.com; \
-         frame-src https://www.facebook.com https://*.facebook.com https://api.razorpay.com https://checkout.razorpay.com",
-    )?;
+         frame-src https://www.facebook.com https://*.facebook.com https://api.razorpay.com https://checkout.razorpay.com; \
+         base-uri 'self'; \
+         form-action 'self' https://www.facebook.com https://accounts.google.com; \
+         object-src 'none'"
+    );
+    headers.set("Content-Security-Policy", &csp)?;
     Ok(())
 }
 
@@ -179,17 +195,31 @@ fn serve_png(body: &[u8]) -> Result<Response> {
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     console_error_panic_hook::set_once();
     let mut resp = handle_request(req, env).await?;
-    // Add security headers to all HTML responses
-    if resp
+    let is_html = resp
         .headers()
         .get("Content-Type")
         .ok()
         .flatten()
-        .map_or(false, |ct| ct.contains("text/html"))
-    {
-        add_security_headers(&mut resp)?;
+        .map_or(false, |ct| ct.contains("text/html"));
+    if !is_html {
+        return Ok(resp);
     }
-    Ok(resp)
+    // Generate a per-request nonce, swap every `__CSP_NONCE__` placeholder
+    // for it in the rendered body, and stamp the matching value into the
+    // CSP header. Templates emit the placeholder on every inline `<script>`
+    // and `<style>` tag they produce; nonced tags then satisfy a strict
+    // `script-src 'nonce-…'` (no `'unsafe-inline'`).
+    let status = resp.status_code();
+    let mut headers = resp.headers().clone();
+    let body = resp.text().await?;
+    let nonce = helpers::generate_token()?;
+    let body = body.replace(CSP_NONCE_PLACEHOLDER, &nonce);
+    headers.set("Content-Length", &body.len().to_string())?;
+    let mut new_resp = Response::ok(body)?
+        .with_status(status)
+        .with_headers(headers);
+    add_security_headers(&mut new_resp, &nonce)?;
+    Ok(new_resp)
 }
 
 async fn handle_request(req: Request, env: Env) -> Result<Response> {

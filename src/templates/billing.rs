@@ -209,7 +209,7 @@ pub fn checkout_html(
   <a href="{base_url}{return_to}" class="btn ghost sm mt-16">&larr; Cancel</a>
 </div>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script type="module">
+<script type="module" nonce="__CSP_NONCE__">
 document.getElementById('pay-btn').addEventListener('click', () => {{
   const options = {{
     key: '{key}',
@@ -279,7 +279,7 @@ pub fn verification_checkout_html(
   <a href="{base_url}{return_to}" class="btn ghost sm mt-16">&larr; Cancel</a>
 </div>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script type="module">
+<script type="module" nonce="__CSP_NONCE__">
 document.getElementById('pay-btn').addEventListener('click', () => {{
   const options = {{
     key: '{key}',
@@ -344,7 +344,7 @@ pub fn address_checkout_html(
   <a href="{base_url}/admin/email" class="btn ghost sm mt-16">&larr; Cancel</a>
 </div>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script type="module">
+<script type="module" nonce="__CSP_NONCE__">
 document.getElementById('pay-btn').addEventListener('click', () => {{
   const options = {{
     key: '{key}',

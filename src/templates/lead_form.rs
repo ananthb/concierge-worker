@@ -38,7 +38,7 @@ pub fn lead_form_html(form: &LeadCaptureForm) -> String {
 <meta name="theme-color" content="#F38020">
 <title>{name}</title>
 <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
-<style>
+<style nonce="__CSP_NONCE__">
 *{{margin:0;padding:0;box-sizing:border-box}}
 :root{{--lf-primary:{primary};--lf-text:{text};--lf-bg:{bg};--lf-radius:{radius}}}
 body{{font-family:system-ui,-apple-system,sans-serif;background:var(--lf-bg);color:var(--lf-text);display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:1rem}}

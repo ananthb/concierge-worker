@@ -668,16 +668,21 @@ pub fn base_html_with_meta(title: &str, content: &str, meta: &PageMeta, locale: 
 <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@alpinejs/focus@3.14.3/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
-<style>{css}</style>
+<style nonce="__CSP_NONCE__">{css}</style>
 </head>
 <body data-i18n-copy-default="{copy_default}" data-i18n-copy-copied="{copy_copied}" data-i18n-htmx-error="{htmx_error}">
 <a href="#main" class="skip-link">{skip_link}</a>
 <div class="app-root"><main id="main" class="app-main">{content}</main>{footer}</div>
-<script type="module">
-// Inline `onclick="copyUrl(this, '...')"` handlers reach this through
-// `window`, so this is one of the few cases where we deliberately attach
-// to the global instead of relying on module scope.
-window.copyUrl = async (btn, url) => {{
+<script type="module" nonce="__CSP_NONCE__">
+// Copy-to-clipboard via delegated click — `<button class="copy-btn"
+// data-copy-url="...">`. We used to wire this with inline `onclick=`,
+// but that requires `'unsafe-inline'` in script-src; the delegated
+// listener works under a strict nonce-only CSP.
+document.addEventListener('click', async (event) => {{
+  const btn = event.target.closest('.copy-btn');
+  if (!btn) return;
+  const url = btn.dataset.copyUrl;
+  if (!url) return;
   const copied = document.body.dataset.i18nCopyCopied || 'Copied!';
   const def = document.body.dataset.i18nCopyDefault || 'Copy';
   await navigator.clipboard.writeText(url);
@@ -685,7 +690,7 @@ window.copyUrl = async (btn, url) => {{
   const toast = document.getElementById('toast');
   if (toast) toast.innerHTML = `<div class="success">${{copied}}</div>`;
   setTimeout(() => {{ btn.textContent = def; }}, 2000);
-}};
+}});
 
 document.addEventListener('htmx:responseError', () => {{
   const toast = document.getElementById('toast');
