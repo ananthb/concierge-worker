@@ -136,6 +136,13 @@ const LOGO_512: &[u8] = include_bytes!("../assets/logo-512.png");
 const MSTILE_150: &[u8] = include_bytes!("../assets/mstile-150x150.png");
 
 /// Add security headers to an HTML response.
+///
+/// CSP allow-list rationale:
+/// - script-src: htmx/alpinejs (unpkg), Razorpay checkout, FB SDK
+/// - connect-src: FB Embedded Signup (login flow + impression telemetry —
+///   the SDK aborts the dialog if these are blocked) + Razorpay verify
+/// - frame-src: Razorpay checkout iframe + FB login popup
+/// - form-action: FB OAuth redirect target (graph.facebook.com)
 fn add_security_headers(resp: &mut Response) -> Result<()> {
     let headers = resp.headers_mut();
     headers.set("X-Frame-Options", "DENY")?;
@@ -143,7 +150,13 @@ fn add_security_headers(resp: &mut Response) -> Result<()> {
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin")?;
     headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'"
+        "default-src 'self'; \
+         script-src 'self' https://unpkg.com https://checkout.razorpay.com https://connect.facebook.net 'unsafe-inline' 'unsafe-eval'; \
+         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+         font-src https://fonts.gstatic.com; \
+         img-src 'self' data: https:; \
+         connect-src 'self' https://www.facebook.com https://graph.facebook.com https://*.facebook.com https://api.razorpay.com; \
+         frame-src https://www.facebook.com https://*.facebook.com https://api.razorpay.com https://checkout.razorpay.com",
     )?;
     Ok(())
 }
