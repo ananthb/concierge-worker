@@ -1,7 +1,8 @@
--- Single canonical schema. Merged from the original 0001-0004 progression
--- ahead of the approval-workflow deploy. The deploy workflow drops all
--- tables (and the d1_migrations bookkeeping table) before reapplying this
--- file, so we can write the final shape directly without ALTER chains.
+-- Single canonical schema. Edits to this file do NOT propagate to remote
+-- D1 automatically — `wrangler d1 migrations apply` skips files it has
+-- already run. To change a deployed schema, add a fresh `000N_*.sql`
+-- migration with the deltas, or drop the relevant tables and re-execute
+-- this file with `wrangler d1 execute --file`.
 
 -- Tenants
 CREATE TABLE IF NOT EXISTS tenants (
